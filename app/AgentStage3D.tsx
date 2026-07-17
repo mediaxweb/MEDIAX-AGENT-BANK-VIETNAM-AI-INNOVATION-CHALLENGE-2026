@@ -7,7 +7,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 
-type StageMode = "builder" | "run";
+type StageMode = "builder" | "run" | "qa";
 
 type AgentStage3DProps = {
   mode: StageMode;
@@ -26,6 +26,13 @@ const team = [
 
 function getState(index: number, mode: StageMode, runStep: number) {
   if (mode === "run") return index < 2 ? "done" : index === 2 ? "running" : "waiting";
+  if (mode === "qa") {
+    if (!runStep) return "ready";
+    if (runStep >= 4) return "done";
+    if (runStep === 1) return index === 0 ? "running" : "waiting";
+    if (runStep === 2) return index === 0 ? "done" : "running";
+    return "running";
+  }
   const step = [1, 2, 2, 3][index];
   if (!runStep) return "ready";
   if (runStep > step) return "done";
@@ -214,7 +221,7 @@ export default function AgentStage3D({ mode, selected = "credit", onSelect, runS
         </button>;
       })}
     </div>
-    {!compact && <div className="approval-gate"><ShieldCheck /><span><strong>Bước kiểm soát cuối</strong><small>Mọi quyết định đều cần chuyên viên phê duyệt</small></span><UserCheck /></div>}
+    {!compact && <div className="approval-gate"><ShieldCheck /><span><strong>{mode === "qa" ? "Điều phối tự động" : "Bước kiểm soát cuối"}</strong><small>{mode === "qa" ? "Agent được chọn theo nội dung câu hỏi" : "Mọi quyết định đều cần chuyên viên phê duyệt"}</small></span><UserCheck /></div>}
     <a className="agent-stage-credit" href="https://unboring.net" target="_blank" rel="noreferrer">Mô hình 3D: Arturo Paracuellos · CC BY-NC 4.0</a>
   </div>;
 }

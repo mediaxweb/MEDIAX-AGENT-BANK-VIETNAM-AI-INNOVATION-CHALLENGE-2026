@@ -272,8 +272,7 @@ export default function AIQAScreen() {
         </div>
 
         <div className="qa-stage-visual">
-          {/* Task 5 will switch this localized compatibility mode to `qa` and add Q&A-specific stage state. */}
-          <AgentStage3D mode="builder" selected={selectedAgent} runStep={runStep} compact />
+          <AgentStage3D mode="qa" selected={selectedAgent} runStep={runStep} compact />
         </div>
 
         <ol className="qa-progress" aria-label="Bốn giai đoạn xử lý">
