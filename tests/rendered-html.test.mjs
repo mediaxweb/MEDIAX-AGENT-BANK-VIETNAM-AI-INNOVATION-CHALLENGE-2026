@@ -8,6 +8,10 @@ const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "ut
 const documentsSource = readFileSync(new URL("../app/DocumentsScreen.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
+assert.doesNotMatch(qaSource, /Câu hỏi gợi ý|Đặt lại hội thoại|Dừng tác vụ|Dừng xử lý/);
+assert.match(qaSource, /Hội thoại/);
+assert.match(qaSource, /Agent 3D/);
+assert.match(qaSource, /aria-selected/);
 assert.match(qaSource, /Cuộc hội thoại/);
 assert.match(qaSource, /Đội agent đang phối hợp/);
 assert.match(qaSource, /Phân rã yêu cầu/);

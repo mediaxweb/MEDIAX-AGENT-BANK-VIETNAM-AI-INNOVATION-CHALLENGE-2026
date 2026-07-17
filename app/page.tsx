@@ -10,11 +10,11 @@ import {
   ZoomIn, ZoomOut
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
-import AIQAScreen from "./AIQAScreen";
 import DocumentsScreen from "./DocumentsScreen";
 import { Badge, Button, PageHeading } from "./ui";
 
 const AgentStage3D = lazy(() => import("./AgentStage3D"));
+const AIQAScreen = lazy(() => import("./AIQAScreen"));
 
 type Screen = "agents" | "documents" | "qa" | "team" | "run" | "comparison";
 type DetailTab = "overview" | "knowledge" | "tools" | "playground";
@@ -94,7 +94,7 @@ export default function Home() {
         <div className="content">
           {screen === "agents" && <AgentsScreen onStart={() => navigate("team")} onOpenCase={() => navigate("run")} />}
           {screen === "documents" && <DocumentsScreen />}
-          {screen === "qa" && <AIQAScreen />}
+          {screen === "qa" && <Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị hỏi đáp AI...</div>}><AIQAScreen /></Suspense>}
           {screen === "team" && <TeamScreen selected={selectedNode} setSelected={setSelectedNode} run={workflowRun} onRun={runWorkflow} onOpenRun={() => navigate("run")} />}
           {screen === "run" && <RunScreen openTrace={() => setTraceDrawer(true)} openApproval={() => { setApproval(true); setApproved(false); setAcknowledged(false); }} />}
           {screen === "comparison" && <ComparisonScreen onRun={() => navigate("run")} />}

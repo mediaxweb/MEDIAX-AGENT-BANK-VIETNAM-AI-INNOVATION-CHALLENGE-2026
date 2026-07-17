@@ -4,10 +4,8 @@ import {
   Bot,
   Check,
   CheckCircle2,
-  CircleStop,
   FileText,
   Network,
-  RefreshCw,
   Send,
   ShieldCheck,
   Sparkles,
@@ -69,8 +67,6 @@ export default function AIQAScreen() {
   const [messages, setMessages] = useState<QaMessage[]>([]);
   const [runStep, setRunStep] = useState(0);
   const [scenario, setScenario] = useState<QaScenario | null>(null);
-  const [running, setRunning] = useState(false);
-  const [stopped, setStopped] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>("conversation");
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [selectedSourceAgents, setSelectedSourceAgents] = useState<string[]>([]);
@@ -79,7 +75,7 @@ export default function AIQAScreen() {
   const sourceDialogRef = useRef<HTMLElement>(null);
   const sourceTriggerRef = useRef<HTMLButtonElement | null>(null);
 
-  const isRunning = running && !stopped;
+  const isProcessing = runStep > 0 && runStep < 4;
   const selectedAgent = runStep <= 1 ? "orchestrator" : runStep === 2 ? "credit" : runStep === 3 ? "compliance" : "operations";
   const sourceDocument = useMemo(
     () => documentRecords.find((document) => document.name === selectedSource),
@@ -109,32 +105,26 @@ export default function AIQAScreen() {
   function sendQuestion(event?: FormEvent) {
     event?.preventDefault();
     const trimmedQuestion = question.trim();
-    if (!trimmedQuestion || isRunning) return;
+    if (!trimmedQuestion || isProcessing) return;
 
     clearScheduledTimeouts();
     const nextScenario = selectQaScenario(trimmedQuestion);
     setScenario(nextScenario);
-    setRunning(true);
-    setStopped(false);
+    setRunStep(1);
     setQuestion("");
     appendMessage({ kind: "user", text: trimmedQuestion });
+    appendMessage({ kind: "progress", text: "Điều phối viên đã phân rã yêu cầu và phân công cho các chuyên gia phù hợp." });
 
-    schedule(0, () => setRunStep(0));
     schedule(700, () => {
-      setRunStep(1);
-      appendMessage({ kind: "progress", text: "Điều phối viên đã phân rã yêu cầu và phân công cho các chuyên gia phù hợp." });
-    });
-    schedule(1500, () => {
       setRunStep(2);
       appendMessage({ kind: "progress", text: "Các chuyên gia đang phân tích song song dữ liệu tín dụng, tuân thủ và vận hành." });
     });
-    schedule(2300, () => {
+    schedule(1500, () => {
       setRunStep(3);
       appendMessage({ kind: "progress", text: "Đội agent đang kiểm tra chéo kết quả và đối chiếu nguồn bằng chứng." });
     });
-    schedule(3100, () => {
+    schedule(2300, () => {
       setRunStep(4);
-      setRunning(false);
       appendMessage({
         kind: "answer",
         text: nextScenario.answer,
@@ -143,27 +133,6 @@ export default function AIQAScreen() {
         activeAgents: nextScenario.activeAgents,
       });
     });
-  }
-
-  function stopRun() {
-    if (!isRunning) return;
-    clearScheduledTimeouts();
-    setRunning(false);
-    setStopped(true);
-    appendMessage({ kind: "progress", text: "Tác vụ đã dừng theo yêu cầu. Tiến độ hiện tại được giữ lại." });
-  }
-
-  function resetConversation() {
-    clearScheduledTimeouts();
-    setQuestion(qaScenarios.assessment.question);
-    setMessages([]);
-    setRunStep(0);
-    setScenario(null);
-    setRunning(false);
-    setStopped(false);
-    setSelectedSource(null);
-    setSelectedSourceAgents([]);
-    setActiveMobileTab("conversation");
   }
 
   const closeSourceOverlay = useCallback(() => {
@@ -214,28 +183,23 @@ export default function AIQAScreen() {
 
   return <div className="qa-shell">
     <PageHeading title="Hỏi đáp AI đa-agent" subtitle="Đặt câu hỏi nghiệp vụ và theo dõi đội chuyên gia tự phối hợp xử lý">
-      <Badge tone={stopped ? "warning" : isRunning ? "info" : "success"}>{stopped ? "Đã dừng" : isRunning ? "Đang xử lý" : "Sẵn sàng"}</Badge>
+      <Badge tone={isProcessing ? "info" : "success"}>{isProcessing ? "Đang xử lý" : runStep === 4 ? "Hoàn thành" : "Sẵn sàng"}</Badge>
     </PageHeading>
 
     <div className="qa-mobile-tabs" role="tablist" aria-label="Khu vực hỏi đáp">
-      <button type="button" role="tab" aria-controls="qa-conversation-panel" aria-selected={activeMobileTab === "conversation"} onClick={() => setActiveMobileTab("conversation")}>Hội thoại</button>
-      <button type="button" role="tab" aria-controls="qa-agents-panel" aria-selected={activeMobileTab === "agents"} onClick={() => setActiveMobileTab("agents")}>Agent 3D</button>
+      <button id="qa-conversation-tab" type="button" role="tab" aria-controls="qa-conversation-panel" aria-selected={activeMobileTab === "conversation"} tabIndex={activeMobileTab === "conversation" ? 0 : -1} onClick={() => setActiveMobileTab("conversation")}>Hội thoại</button>
+      <button id="qa-agent-tab" type="button" role="tab" aria-controls="qa-agent-panel" aria-selected={activeMobileTab === "agents"} tabIndex={activeMobileTab === "agents" ? 0 : -1} onClick={() => setActiveMobileTab("agents")}>Agent 3D</button>
     </div>
 
     <div className="qa-workspace">
-      <section id="qa-conversation-panel" role="tabpanel" className={`qa-conversation card ${activeMobileTab === "conversation" ? "mobile-active" : ""}`} aria-label="Cuộc hội thoại">
+      <section id="qa-conversation-panel" role="tabpanel" aria-labelledby="qa-conversation-tab" className={`qa-conversation card ${activeMobileTab === "conversation" ? "mobile-active" : ""}`}>
         <div className="card-heading">
           <div><h2>Cuộc hội thoại</h2><p>Hỏi trên toàn bộ nguồn tri thức đã được cấp quyền</p></div>
           <Badge tone="success">Có trích dẫn nguồn</Badge>
         </div>
 
-        <div className="qa-suggestions" aria-label="Câu hỏi gợi ý">
-          <span>CÂU HỎI GỢI Ý</span>
-          {Object.values(qaScenarios).map((item) => <button type="button" key={item.id} disabled={isRunning} onClick={() => setQuestion(item.question)}>{item.question}</button>)}
-        </div>
-
         <div className="qa-messages" aria-live="polite" aria-label="Lịch sử hội thoại">
-          {messages.length === 0 && <div className="qa-empty"><Sparkles size={24} /><strong>Bắt đầu hỏi đội chuyên gia AI</strong><p>Chọn một câu hỏi gợi ý hoặc nhập câu hỏi nghiệp vụ của bạn.</p></div>}
+          {messages.length === 0 && <div className="qa-empty"><Sparkles size={24} /><strong>Bắt đầu hỏi đội chuyên gia AI</strong><p>Nhập câu hỏi nghiệp vụ của bạn để bắt đầu.</p></div>}
           {messages.map((message) => <article className={`qa-message ${message.kind}`} key={message.id}>
             <div className="qa-message-icon">{message.kind === "user" ? "TA" : message.kind === "answer" ? <Sparkles size={16} /> : <Network size={16} />}</div>
             <div>
@@ -256,19 +220,17 @@ export default function AIQAScreen() {
 
         <form className="qa-composer" onSubmit={sendQuestion}>
           <label htmlFor="qa-question">Nhập câu hỏi nghiệp vụ</label>
-          <textarea id="qa-question" value={question} disabled={isRunning} onChange={(event) => setQuestion(event.target.value)} placeholder="Ví dụ: Hồ sơ này có điểm rủi ro nào cần lưu ý?" />
+          <textarea id="qa-question" value={question} disabled={isProcessing} onChange={(event) => setQuestion(event.target.value)} placeholder="Ví dụ: Hồ sơ này có điểm rủi ro nào cần lưu ý?" />
           <div>
-            <button type="button" className="button secondary" onClick={resetConversation}><RefreshCw size={16} /> Đặt lại</button>
-            <button type="button" className="button danger" onClick={stopRun} disabled={!isRunning}><CircleStop size={16} /> Dừng</button>
-            <Button disabled={!question.trim() || isRunning}><Send size={16} /> Gửi câu hỏi</Button>
+            <Button disabled={!question.trim() || isProcessing}><Send size={16} /> Gửi câu hỏi</Button>
           </div>
         </form>
       </section>
 
-      <section id="qa-agents-panel" role="tabpanel" className={`qa-stage-panel card ${activeMobileTab === "agents" ? "mobile-active" : ""}`} aria-label="Trạng thái đội agent">
+      <section id="qa-agent-panel" role="tabpanel" aria-labelledby="qa-agent-tab" className={`qa-stage-panel card ${activeMobileTab === "agents" ? "mobile-active" : ""}`}>
         <div className="card-heading">
-          <div><h2>Đội agent đang phối hợp</h2><p aria-live="polite">{stopped ? `Đã dừng tại bước ${runStep}/4` : runStep === 4 ? "Đã hoàn thành câu trả lời" : runStep ? `Đang thực hiện bước ${runStep}/4` : "Sẵn sàng nhận yêu cầu"}</p></div>
-          <Badge tone={stopped ? "warning" : runStep === 4 ? "success" : runStep ? "info" : "neutral"}>{stopped ? "Đã dừng" : runStep === 4 ? "Hoàn thành" : runStep ? "Đang chạy" : "Chờ"}</Badge>
+          <div><h2>Đội agent đang phối hợp</h2><p aria-live="polite">{runStep === 4 ? "Đã hoàn thành câu trả lời" : runStep ? `Đang thực hiện bước ${runStep}/4` : "Sẵn sàng nhận yêu cầu"}</p></div>
+          <Badge tone={runStep === 4 ? "success" : runStep ? "info" : "neutral"}>{runStep === 4 ? "Hoàn thành" : runStep ? "Đang chạy" : "Chờ"}</Badge>
         </div>
 
         <div className="qa-stage-visual">
@@ -278,8 +240,8 @@ export default function AIQAScreen() {
         <ol className="qa-progress" aria-label="Bốn giai đoạn xử lý">
           {progressStages.map((stage, index) => {
             const step = index + 1;
-            const state = runStep === 4 || runStep > step ? "done" : runStep === step ? stopped ? "stopped" : "active" : "waiting";
-            return <li className={state} key={stage.title}><span>{runStep > step || runStep === 4 ? <Check size={14} /> : step}</span><div><strong>{stage.title}</strong><small>{state === "done" ? "Đã hoàn thành" : state === "active" ? "Đang xử lý" : state === "stopped" ? "Đã dừng tại đây" : stage.detail}</small></div></li>;
+            const state = runStep === 4 || runStep > step ? "done" : runStep === step ? "active" : "waiting";
+            return <li className={state} key={stage.title}><span>{runStep > step || runStep === 4 ? <Check size={14} /> : step}</span><div><strong>{stage.title}</strong><small>{state === "done" ? "Đã hoàn thành" : state === "active" ? "Đang xử lý" : stage.detail}</small></div></li>;
           })}
         </ol>
 
