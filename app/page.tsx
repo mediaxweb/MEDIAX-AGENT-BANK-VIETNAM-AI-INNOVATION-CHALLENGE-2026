@@ -3,17 +3,19 @@
 import {
   Activity, AlertTriangle, ArrowLeft, Bell, BookOpen, Bot, Box, Building2,
   Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock3,
-  Database, FileCheck2, FileText, Filter, GitBranch, KeyRound, LayoutDashboard,
-  Link2, ListChecks, LockKeyhole, Maximize2, Menu, MessageSquareText, MoreHorizontal,
+  Database, FileCheck2, FileText, Filter, GitBranch, KeyRound, LayoutDashboard, LibraryBig,
+  Link2, ListChecks, LockKeyhole, Maximize2, Menu, MessagesSquare, MessageSquareText, MoreHorizontal,
   Network, PanelLeftClose, Play, Plus, RefreshCw, Search, Settings2, ShieldCheck,
   SlidersHorizontal, Sparkles, TestTube2, Upload, UserCheck, Users, Wrench, X,
   ZoomIn, ZoomOut
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
+import DocumentsScreen from "./DocumentsScreen";
+import { Badge, Button, PageHeading } from "./ui";
 
 const AgentStage3D = lazy(() => import("./AgentStage3D"));
 
-type Screen = "agents" | "team" | "run" | "comparison";
+type Screen = "agents" | "documents" | "qa" | "team" | "run" | "comparison";
 type DetailTab = "overview" | "knowledge" | "tools" | "playground";
 
 const agents = [
@@ -25,18 +27,12 @@ const agents = [
 
 const nav = [
   { label: "Tổng quan", icon: LayoutDashboard, screen: "agents" as Screen },
+  { label: "Kho tài liệu", icon: LibraryBig, screen: "documents" as Screen },
+  { label: "Hỏi đáp AI", icon: MessagesSquare, screen: "qa" as Screen },
   { label: "Đội chuyên gia AI", icon: Users, screen: "team" as Screen },
   { label: "Hồ sơ trình diễn", icon: Building2, screen: "run" as Screen },
   { label: "So sánh hiệu quả", icon: Activity, screen: "comparison" as Screen },
 ];
-
-function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
-  return <span className={`badge ${tone}`}><span className="badge-dot" />{children}</span>;
-}
-
-function Button({ children, variant = "primary", onClick, disabled = false, className = "" }: { children: React.ReactNode; variant?: string; onClick?: () => void; disabled?: boolean; className?: string }) {
-  return <button className={`button ${variant} ${className}`} onClick={onClick} disabled={disabled}>{children}</button>;
-}
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("agents");
@@ -48,7 +44,15 @@ export default function Home() {
   const [workflowRun, setWorkflowRun] = useState(0);
   const [mobileNav, setMobileNav] = useState(false);
 
-  const pageTitle = screen === "agents" ? "Tổng quan" : screen === "team" ? "Đội chuyên gia AI" : screen === "comparison" ? "So sánh hiệu quả" : "Hồ sơ trình diễn";
+  const pageTitles: Record<Screen, string> = {
+    agents: "Tổng quan",
+    documents: "Kho tài liệu",
+    qa: "Hỏi đáp AI",
+    team: "Đội chuyên gia AI",
+    run: "Hồ sơ trình diễn",
+    comparison: "So sánh hiệu quả",
+  };
+  const pageTitle = pageTitles[screen];
 
   function navigate(next: Screen) {
     setScreen(next); setMobileNav(false);
@@ -89,6 +93,7 @@ export default function Home() {
 
         <div className="content">
           {screen === "agents" && <AgentsScreen onStart={() => navigate("team")} onOpenCase={() => navigate("run")} />}
+          {screen === "documents" && <DocumentsScreen />}
           {screen === "team" && <TeamScreen selected={selectedNode} setSelected={setSelectedNode} run={workflowRun} onRun={runWorkflow} onOpenRun={() => navigate("run")} />}
           {screen === "run" && <RunScreen openTrace={() => setTraceDrawer(true)} openApproval={() => { setApproval(true); setApproved(false); setAcknowledged(false); }} />}
           {screen === "comparison" && <ComparisonScreen onRun={() => navigate("run")} />}
@@ -99,10 +104,6 @@ export default function Home() {
       {approval && <ApprovalModal acknowledged={acknowledged} setAcknowledged={setAcknowledged} approved={approved} onApprove={() => setApproved(true)} onClose={() => setApproval(false)} />}
     </main>
   );
-}
-
-function PageHeading({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {
-  return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{children && <div className="heading-actions">{children}</div>}</div>;
 }
 
 function AgentsScreen({ onStart, onOpenCase }: { onStart: () => void; onOpenCase: () => void }) {
