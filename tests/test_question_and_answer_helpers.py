@@ -1,4 +1,5 @@
 from app.api.schemas.knowledge_base import ConversationHistoryMessage
+from app.main import app
 from app.api.v1 import question_and_answer
 
 
@@ -27,3 +28,9 @@ def test_parse_model_response_extracts_answer_sources_and_language():
     assert parsed.source_ids == ["S1", "S2"]
     assert parsed.language == "en"
 
+
+def test_question_and_answer_route_is_hidden_from_openapi():
+    paths = app.openapi()["paths"]
+
+    assert "/api/v1/qna/question_and_answer" not in paths
+    assert "/api/v1/qna/retrieve-chunks" in paths
