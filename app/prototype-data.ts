@@ -122,6 +122,13 @@ export const documentRecords: DocumentRecord[] = [
 
 export const uploadStages: UploadStage[] = ["Đang tải", "Đang phân loại", "Đang lập chỉ mục", "Sẵn sàng"];
 
+export function advanceUploadStage(stageIndex: number, failed: boolean): { stageIndex: number; failed: boolean } {
+  return {
+    stageIndex: failed ? stageIndex : Math.min(stageIndex + 1, uploadStages.length - 1),
+    failed,
+  };
+}
+
 export const qaScenarios: Record<QaScenario["id"], QaScenario> = {
   assessment: {
     id: "assessment",

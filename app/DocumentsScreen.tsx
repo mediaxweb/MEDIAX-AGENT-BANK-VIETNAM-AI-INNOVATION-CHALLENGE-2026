@@ -1,8 +1,8 @@
 "use client";
 
-import { FileText, FolderPlus, Search, Upload } from "lucide-react";
-import { useMemo, useState } from "react";
-import { documentFolders, documentRecords, filterDocuments } from "./prototype-data";
+import { FileText, FolderPlus, Search, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { advanceUploadStage, documentFolders, documentRecords, filterDocuments, uploadStages } from "./prototype-data";
 import { Badge, Button, PageHeading } from "./ui";
 
 const documentTypes = ["Tất cả", "Quy trình", "Chính sách", "Biểu mẫu", "Báo cáo", "Dữ liệu tham chiếu"];
@@ -12,6 +12,23 @@ const agentNames: Record<string, string> = {
   compliance: "Chuyên gia tuân thủ",
   operations: "Chuyên gia vận hành",
 };
+
+interface UploadItem {
+  id: string;
+  name: string;
+  size: string;
+  stageIndex: number;
+  failed: boolean;
+  error?: string;
+}
+
+const uploadError = "Tệp bị gián đoạn khi lập chỉ mục";
+const failedDemoFileName = "Sao kê giao dịch lỗi.xlsx";
+const demoUploadItems: UploadItem[] = [
+  { id: "credit-application", name: "Hồ sơ đề nghị cấp tín dụng.pdf", size: "2,4 MB", stageIndex: 0, failed: false },
+  { id: "collateral-list", name: "Danh mục tài sản bảo đảm.docx", size: "840 KB", stageIndex: 0, failed: false },
+  { id: "statement-error", name: failedDemoFileName, size: "1,1 MB", stageIndex: 0, failed: false },
+];
 
 function statusTone(status: string) {
   if (status === "Sẵn sàng") return "success";
@@ -24,6 +41,13 @@ export default function DocumentsScreen() {
   const [type, setType] = useState("Tất cả");
   const [query, setQuery] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState(documentRecords[0].id);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>(demoUploadItems);
+  const [uploadType, setUploadType] = useState("Quy trình");
+  const [uploadFolderId, setUploadFolderId] = useState("credit");
+  const [allowedUploadAgents, setAllowedUploadAgents] = useState(Object.keys(agentNames));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const filteredDocuments = useMemo(
     () => filterDocuments(documentRecords, folderId, type, query),
@@ -38,10 +62,70 @@ export default function DocumentsScreen() {
     setQuery("");
   }
 
+  function clearUploadTimer() {
+    if (uploadTimerRef.current) {
+      clearInterval(uploadTimerRef.current);
+      uploadTimerRef.current = null;
+    }
+  }
+
+  function closeUploadModal() {
+    clearUploadTimer();
+    setUploadOpen(false);
+  }
+
+  function startUploadProcessing() {
+    clearUploadTimer();
+    uploadTimerRef.current = setInterval(() => {
+      setUploadItems((currentItems) => {
+        const nextItems = currentItems.map((item) => {
+          if (item.failed || item.stageIndex === uploadStages.length - 1) return item;
+
+          if (item.name === failedDemoFileName && item.stageIndex === 1) {
+            return { ...item, stageIndex: 2, failed: true, error: uploadError };
+          }
+
+          return { ...item, ...advanceUploadStage(item.stageIndex, item.failed) };
+        });
+
+        if (nextItems.every((item) => item.failed || item.stageIndex === uploadStages.length - 1)) clearUploadTimer();
+        return nextItems;
+      });
+    }, 650);
+  }
+
+  function retryUpload(id: string) {
+    setUploadItems((currentItems) => currentItems.map((item) => (
+      item.id === id ? { ...item, failed: false, error: undefined } : item
+    )));
+    startUploadProcessing();
+  }
+
+  function addFiles(files: FileList | File[]) {
+    const uploadedFiles = Array.from(files);
+    if (!uploadedFiles.length) return;
+
+    setUploadItems((currentItems) => [...currentItems, ...uploadedFiles.map((file) => ({
+      id: `${file.name}-${file.lastModified}`,
+      name: file.name,
+      size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+      stageIndex: 0,
+      failed: false,
+    }))]);
+  }
+
+  function toggleUploadAgent(agent: string) {
+    setAllowedUploadAgents((currentAgents) => currentAgents.includes(agent)
+      ? currentAgents.filter((currentAgent) => currentAgent !== agent)
+      : [...currentAgents, agent]);
+  }
+
+  useEffect(() => clearUploadTimer, []);
+
   return <>
     <PageHeading title="Kho tài liệu" subtitle="Quản lý nguồn tri thức nghiệp vụ cho đội chuyên gia AI">
       <Button variant="secondary"><FolderPlus size={16} /> Tạo thư mục</Button>
-      <Button><Upload size={16} /> Tải tài liệu lên</Button>
+      <Button onClick={() => setUploadOpen(true)}><Upload size={16} /> Tải tài liệu lên</Button>
     </PageHeading>
 
     <section className="document-summary" aria-label="Tổng quan kho tài liệu">
@@ -92,5 +176,53 @@ export default function DocumentsScreen() {
         <div className="allowed-agents"><span>AGENT ĐƯỢC PHÉP SỬ DỤNG</span>{selectedDocument.allowedAgents.map((agent) => <p key={agent}>{agentNames[agent]}</p>)}</div>
       </aside>}
     </div>
+
+    {uploadOpen && <div className="modal-layer">
+      <button type="button" className="overlay" aria-label="Đóng cửa sổ tải tài liệu" onClick={closeUploadModal} />
+      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
+        <div className="modal-head">
+          <div><span className="modal-icon"><Upload size={20} /></span><div><h2 id="upload-modal-title">Tải tài liệu lên</h2><p>Thêm tài liệu và cấp quyền sử dụng cho đội chuyên gia AI.</p></div></div>
+          <button type="button" aria-label="Đóng cửa sổ tải tài liệu" onClick={closeUploadModal}><X /></button>
+        </div>
+        <div className="modal-body">
+          <input ref={fileInputRef} className="sr-only" type="file" accept=".pdf,.docx,.xlsx" multiple onChange={(event) => {
+            if (event.target.files) addFiles(event.target.files);
+            event.target.value = "";
+          }} />
+          <button
+            type="button"
+            className="upload-dropzone"
+            aria-label="Chọn tệp PDF, DOCX hoặc XLSX để tải lên"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              addFiles(event.dataTransfer.files);
+            }}
+          >
+            <Upload size={22} /><strong>Kéo thả tệp vào đây hoặc chọn tệp</strong><span>Hỗ trợ PDF, DOCX, XLSX</span>
+          </button>
+
+          <div className="upload-options">
+            <label>Loại tài liệu<select value={uploadType} onChange={(event) => setUploadType(event.target.value)}>{documentTypes.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>Thư mục lưu trữ<select value={uploadFolderId} onChange={(event) => setUploadFolderId(event.target.value)}>{documentFolders.filter((folder) => folder.id !== "all").map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
+          </div>
+
+          <fieldset className="upload-agent-permissions">
+            <legend>Agent được phép sử dụng</legend>
+            {Object.entries(agentNames).map(([agent, name]) => <label key={agent}><input type="checkbox" checked={allowedUploadAgents.includes(agent)} onChange={() => toggleUploadAgent(agent)} /> {name}</label>)}
+          </fieldset>
+
+          <section aria-label="Tiến trình tải tài liệu">
+            <h3>Tệp chờ xử lý</h3>
+            {uploadItems.map((item) => <article className="upload-item" key={item.id}>
+              <div><FileText size={16} /><span><strong>{item.name}</strong><small>{item.size} · {item.failed ? "Cần xử lý lại" : uploadStages[item.stageIndex]}</small></span></div>
+              {item.failed ? <div><p role="alert">{item.error}</p><button type="button" onClick={() => retryUpload(item.id)}>Thử lại</button></div> : <span>{uploadStages[item.stageIndex]}</span>}
+            </article>)}
+          </section>
+        </div>
+        <div className="modal-actions"><Button variant="secondary" onClick={closeUploadModal}>Hủy</Button><Button onClick={startUploadProcessing} disabled={!uploadItems.length}>Bắt đầu xử lý</Button></div>
+      </section>
+    </div>}
   </>;
 }

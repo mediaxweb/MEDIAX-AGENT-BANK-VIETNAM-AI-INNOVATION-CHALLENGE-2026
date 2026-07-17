@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  advanceUploadStage,
   acceptedUploadFormats,
   documentRecords,
   filterDocuments,
@@ -16,6 +17,13 @@ test("filters documents by folder, type, and Vietnamese query", () => {
 
 test("defines the complete upload simulation", () => {
   assert.deepEqual(uploadStages, ["Đang tải", "Đang phân loại", "Đang lập chỉ mục", "Sẵn sàng"]);
+});
+
+test("advances upload stages without moving failed or completed items", () => {
+  assert.deepEqual(advanceUploadStage(0, false), { stageIndex: 1, failed: false });
+  assert.deepEqual(advanceUploadStage(2, false), { stageIndex: 3, failed: false });
+  assert.deepEqual(advanceUploadStage(3, false), { stageIndex: 3, failed: false });
+  assert.deepEqual(advanceUploadStage(1, true), { stageIndex: 1, failed: true });
 });
 
 test("accepts every upload format supported by the prototype", () => {
