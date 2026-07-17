@@ -121,12 +121,51 @@ export const documentRecords: DocumentRecord[] = [
 ];
 
 export const uploadStages: UploadStage[] = ["Đang tải", "Đang phân loại", "Đang lập chỉ mục", "Sẵn sàng"];
+export const failedDemoUploadFileName = "Sao kê giao dịch lỗi.xlsx";
+export const uploadIndexingError = "Tệp bị gián đoạn khi lập chỉ mục";
+
+export interface UploadItemState {
+  id: string;
+  name: string;
+  size: string;
+  stageIndex: number;
+  failed: boolean;
+  error?: string;
+}
 
 export function advanceUploadStage(stageIndex: number, failed: boolean): { stageIndex: number; failed: boolean } {
   return {
     stageIndex: failed ? stageIndex : Math.min(stageIndex + 1, uploadStages.length - 1),
     failed,
   };
+}
+
+export function isAcceptedUploadFileName(name: string): boolean {
+  return /^.+\.(pdf|docx|xlsx)$/iu.test(name.trim());
+}
+
+export function advanceUploadItems(items: UploadItemState[]): UploadItemState[] {
+  return items.map((item) => {
+    if (item.failed || item.stageIndex === uploadStages.length - 1) return item;
+
+    if (item.name === failedDemoUploadFileName && item.stageIndex === 1) {
+      return { ...item, stageIndex: 2, failed: true, error: uploadIndexingError };
+    }
+
+    return { ...item, ...advanceUploadStage(item.stageIndex, item.failed) };
+  });
+}
+
+export function retryUploadItem(items: UploadItemState[], id: string): UploadItemState[] {
+  return items.map((item) => {
+    if (item.id !== id) return item;
+    const { error: _error, ...retryableItem } = item;
+    return { ...retryableItem, failed: false };
+  });
+}
+
+export function canStartUpload(items: UploadItemState[]): boolean {
+  return items.length > 0;
 }
 
 export const qaScenarios: Record<QaScenario["id"], QaScenario> = {
