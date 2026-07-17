@@ -29,7 +29,7 @@ export default function DocumentsScreen() {
     () => filterDocuments(documentRecords, folderId, type, query),
     [folderId, type, query],
   );
-  const selectedDocument = documentRecords.find((document) => document.id === selectedDocumentId);
+  const selectedDocument = filteredDocuments.find((document) => document.id === selectedDocumentId);
   const selectedFolder = documentFolders.find((folder) => folder.id === selectedDocument?.folderId);
 
   function resetFilters() {
@@ -73,8 +73,8 @@ export default function DocumentsScreen() {
           {filteredDocuments.length ? <table className="document-table">
             <caption className="sr-only">Danh sách tài liệu nghiệp vụ</caption>
             <thead><tr><th>Tên tài liệu</th><th>Loại</th><th>Cập nhật</th><th>Dung lượng</th><th>Trạng thái</th></tr></thead>
-            <tbody>{filteredDocuments.map((document) => <tr key={document.id} className={selectedDocumentId === document.id ? "selected" : ""} onClick={() => setSelectedDocumentId(document.id)}>
-              <td><span className="document-name"><FileText size={17} />{document.name}</span></td><td>{document.type}</td><td>{document.updatedAt}</td><td>{document.size}</td><td><Badge tone={statusTone(document.status)}>{document.status}</Badge></td>
+            <tbody>{filteredDocuments.map((document) => <tr key={document.id} className={selectedDocumentId === document.id ? "selected" : ""}>
+              <td><button type="button" className="document-name" onClick={() => setSelectedDocumentId(document.id)}><FileText size={17} />{document.name}</button></td><td>{document.type}</td><td>{document.updatedAt}</td><td>{document.size}</td><td><Badge tone={statusTone(document.status)}>{document.status}</Badge></td>
             </tr>)}</tbody>
           </table> : <div className="document-empty"><FileText size={28} /><strong>Không tìm thấy tài liệu phù hợp</strong><p>Thử thay đổi từ khóa hoặc bộ lọc đang dùng.</p><Button variant="secondary" onClick={resetFilters}>Xóa bộ lọc</Button></div>}
         </div>
