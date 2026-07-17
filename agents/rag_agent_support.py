@@ -13,18 +13,118 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 
 RAGDomain = Literal["credit", "compliance", "operations"]
+ExecutionMode = Literal["assess", "execute"]
 AGENT_MCP_NAME = "agent-bank-tools"
-AGENT_MCP_TOOL_NAMES = (
+COMMON_MCP_TOOL_NAMES = (
     "search_knowledge",
     "get_document_page",
     "get_loan_profile",
     "get_customer",
     "list_reports",
 )
+DOMAIN_MCP_TOOL_NAMES = {
+    "credit": (
+        "search_customer",
+        "create_customer",
+        "update_customer",
+        "create_loan_profile",
+        "check_legal_docs",
+    ),
+    "compliance": (
+        "check_financials",
+        "check_collateral",
+        "check_credit_rule",
+        "save_compliance_result",
+    ),
+    "operations": (
+        "update_case_status",
+        "create_checklist",
+        "calculate_loan_limit",
+        "create_task",
+        "create_report",
+    ),
+}
+READ_ONLY_DOMAIN_TOOLS = {"search_customer"}
+AGENT_MCP_TOOL_NAMES = COMMON_MCP_TOOL_NAMES
+MUTATING_TOOL_NAMES = {
+    tool_name
+    for tool_names in DOMAIN_MCP_TOOL_NAMES.values()
+    for tool_name in tool_names
+    if tool_name not in READ_ONLY_DOMAIN_TOOLS
+}
 LOAN_DATA_ID_FIELDS = {
     "get_loan_profile": "loan_profile_id",
     "get_customer": "customer_id",
     "list_reports": "loan_profile_id",
+    "check_legal_docs": "loan_profile_id",
+    "check_financials": "loan_profile_id",
+    "check_collateral": "loan_profile_id",
+    "check_credit_rule": "loan_profile_id",
+    "save_compliance_result": "loan_profile_id",
+    "update_case_status": "loan_profile_id",
+    "create_checklist": "loan_profile_id",
+    "calculate_loan_limit": "loan_profile_id",
+    "create_task": "loan_profile_id",
+    "create_report": "loan_profile_id",
+}
+
+TOOL_ARGUMENT_FIELDS = {
+    "search_customer": (
+        set(),
+        {"full_name", "phone", "email", "national_id", "tax_code", "address"},
+    ),
+    "create_customer": (
+        {"full_name"},
+        {"full_name", "phone", "email", "national_id", "address", "customer_type", "tax_code"},
+    ),
+    "update_customer": (
+        {"customer_id"},
+        {"customer_id", "full_name", "phone", "email", "national_id", "address", "customer_type", "tax_code"},
+    ),
+    "create_loan_profile": (
+        {"customer_id", "loan_amount", "loan_purpose", "term_months"},
+        {"customer_id", "loan_amount", "loan_purpose", "term_months", "product_type", "currency", "metadata"},
+    ),
+    "check_legal_docs": (
+        {"loan_profile_id", "required_doc_types"},
+        {"loan_profile_id", "required_doc_types", "notes"},
+    ),
+    "check_financials": (
+        {"loan_profile_id"},
+        {"loan_profile_id", "notes"},
+    ),
+    "check_collateral": (
+        {"loan_profile_id"},
+        {"loan_profile_id", "notes"},
+    ),
+    "check_credit_rule": (
+        {"loan_profile_id"},
+        {"loan_profile_id", "notes"},
+    ),
+    "save_compliance_result": (
+        {"loan_profile_id", "decision"},
+        {"loan_profile_id", "decision", "score", "notes", "conditions", "details"},
+    ),
+    "update_case_status": (
+        {"loan_profile_id", "status"},
+        {"loan_profile_id", "status", "notes"},
+    ),
+    "create_checklist": (
+        {"loan_profile_id"},
+        {"loan_profile_id", "items", "notes"},
+    ),
+    "calculate_loan_limit": (
+        {"loan_profile_id", "total_capital_need", "collateral_value", "ltv_ratio", "dscr", "checklist_score", "hard_stop"},
+        {"loan_profile_id", "total_capital_need", "collateral_value", "ltv_ratio", "dscr", "checklist_score", "hard_stop"},
+    ),
+    "create_task": (
+        {"loan_profile_id", "title", "priority"},
+        {"loan_profile_id", "title", "description", "assignee_agent", "priority", "due_date"},
+    ),
+    "create_report": (
+        {"loan_profile_id"},
+        {"loan_profile_id", "report_type", "title", "summary"},
+    ),
 }
 
 
@@ -108,17 +208,47 @@ def validate_loan_data_call(tool_name: str, raw_arguments: str) -> dict[str, Any
     return arguments
 
 
+def validate_domain_tool_call(
+    tool_name: str,
+    raw_arguments: str,
+    *,
+    domain: RAGDomain,
+    execution_mode: ExecutionMode,
+) -> dict[str, Any]:
+    if tool_name not in DOMAIN_MCP_TOOL_NAMES[domain]:
+        raise ValueError(f"{tool_name} is not available to the {domain} agent")
+    if tool_name in MUTATING_TOOL_NAMES and execution_mode != "execute":
+        raise ValueError(f"{tool_name} requires execution_mode=execute")
+    arguments = _json_arguments(tool_name, raw_arguments)
+    required, allowed = TOOL_ARGUMENT_FIELDS[tool_name]
+    if not required.issubset(arguments) or not set(arguments).issubset(allowed):
+        raise ValueError(f"{tool_name} received an invalid argument set")
+    if tool_name == "search_customer" and not any(
+        isinstance(value, str) and value.strip() for value in arguments.values()
+    ):
+        raise ValueError("search_customer requires at least one search field")
+    return arguments
+
+
 def validate_agent_tool_call(
     tool_name: str,
     raw_arguments: str,
     *,
     domain: RAGDomain,
+    execution_mode: ExecutionMode = "assess",
 ) -> dict[str, Any]:
     if tool_name == "search_knowledge":
         return validate_search_knowledge_call(tool_name, raw_arguments, domain=domain)
     if tool_name == "get_document_page":
         return validate_document_page_call(tool_name, raw_arguments, domain=domain)
-    return validate_loan_data_call(tool_name, raw_arguments)
+    if tool_name in COMMON_MCP_TOOL_NAMES:
+        return validate_loan_data_call(tool_name, raw_arguments)
+    return validate_domain_tool_call(
+        tool_name,
+        raw_arguments,
+        domain=domain,
+        execution_mode=execution_mode,
+    )
 
 
 def _validate_loan_scope(
@@ -130,16 +260,21 @@ def _validate_loan_scope(
         return
     if not loan_profile_id:
         raise ValueError("Loan data tools require loan_profile_id in agent input")
-    if tool_name in {"get_loan_profile", "list_reports"} and (
-        arguments["loan_profile_id"] != loan_profile_id
-    ):
+    field_name = LOAN_DATA_ID_FIELDS[tool_name]
+    if field_name == "loan_profile_id" and arguments[field_name] != loan_profile_id:
         raise ValueError(f"{tool_name} must use the input loan_profile_id")
 
 
 class DomainRAGRunHooks(RunHooksBase):
-    def __init__(self, domain: RAGDomain, loan_profile_id: str | None = None):
+    def __init__(
+        self,
+        domain: RAGDomain,
+        loan_profile_id: str | None = None,
+        execution_mode: ExecutionMode = "assess",
+    ):
         self.domain = domain
         self.loan_profile_id = loan_profile_id
+        self.execution_mode = execution_mode
 
     async def on_tool_start(self, context, agent, tool) -> None:
         if not isinstance(context, ToolContext):
@@ -148,6 +283,7 @@ class DomainRAGRunHooks(RunHooksBase):
             context.tool_name,
             context.tool_arguments,
             domain=self.domain,
+            execution_mode=self.execution_mode,
         )
         _validate_loan_scope(context.tool_name, arguments, self.loan_profile_id)
         if not isinstance(tool, FunctionTool):
@@ -239,6 +375,7 @@ def extract_trusted_evidence(
     *,
     domain: RAGDomain,
     loan_profile_id: str | None = None,
+    execution_mode: ExecutionMode = "assess",
 ) -> list[KnowledgeEvidence]:
     calls: dict[str, tuple[ToolCallItem, dict[str, Any]]] = {}
     outputs: dict[str, ToolCallOutputItem] = {}
@@ -259,6 +396,7 @@ def extract_trusted_evidence(
                 item.tool_name or "",
                 raw_arguments,
                 domain=domain,
+                execution_mode=execution_mode,
             )
             _validate_loan_scope(item.tool_name or "", arguments, loan_profile_id)
             calls[call_id] = (item, arguments)
@@ -277,8 +415,12 @@ def extract_trusted_evidence(
         output = outputs.get(call_id)
         if output is None:
             raise ValueError(f"Missing MCP output for call: {call_id}")
-        if call.tool_name in LOAN_DATA_ID_FIELDS:
+        if call.tool_name in {"get_loan_profile", "get_customer", "list_reports"}:
             _validate_loan_output(call.tool_name, arguments, output.output, customer_ids)
+            continue
+        if call.tool_name in DOMAIN_MCP_TOOL_NAMES[domain]:
+            if not isinstance(_unwrap_output(output.output), Mapping):
+                raise ValueError(f"{call.tool_name} returned an invalid object")
             continue
         tool_evidence = _parse_evidence_output(output.output)
         if call.tool_name == "search_knowledge":
@@ -319,17 +461,55 @@ def extract_trusted_evidence(
     return trusted_evidence
 
 
-def build_agent_mcp_server(mcp_url: str) -> MCPServerStreamableHttp:
+def extract_called_tool_names(new_items: list[Any]) -> list[str]:
+    tool_names: list[str] = []
+    for item in new_items:
+        if isinstance(item, ToolCallItem):
+            _require_agent_mcp_origin(item)
+            if not item.tool_name:
+                raise ValueError("MCP tool call is missing its tool name")
+            tool_names.append(item.tool_name)
+    return tool_names
+
+
+def mutating_tool_names(tool_names: list[str]) -> list[str]:
+    return [tool_name for tool_name in tool_names if tool_name in MUTATING_TOOL_NAMES]
+
+
+def allowed_agent_tools(
+    domain: RAGDomain | None = None,
+    execution_mode: ExecutionMode = "assess",
+) -> tuple[str, ...]:
+    if domain is None:
+        return COMMON_MCP_TOOL_NAMES
+    domain_tools = tuple(
+        tool_name
+        for tool_name in DOMAIN_MCP_TOOL_NAMES[domain]
+        if execution_mode == "execute" or tool_name not in MUTATING_TOOL_NAMES
+    )
+    return (*COMMON_MCP_TOOL_NAMES, *domain_tools)
+
+
+def build_agent_mcp_server(
+    mcp_url: str,
+    domain: RAGDomain | None = None,
+    execution_mode: ExecutionMode = "assess",
+) -> MCPServerStreamableHttp:
+    tool_names = allowed_agent_tools(domain, execution_mode)
     return MCPServerStreamableHttp(
         params={"url": mcp_url, "timeout": 30, "sse_read_timeout": 30},
         name=AGENT_MCP_NAME,
         cache_tools_list=True,
         client_session_timeout_seconds=30,
-        tool_filter={"allowed_tool_names": list(AGENT_MCP_TOOL_NAMES)},
+        tool_filter={"allowed_tool_names": list(tool_names)},
         use_structured_content=True,
     )
 
 
-def assert_expected_agent_tools(tools: list[Any]) -> None:
-    if {tool.name for tool in tools} != set(AGENT_MCP_TOOL_NAMES):
+def assert_expected_agent_tools(
+    tools: list[Any],
+    domain: RAGDomain | None = None,
+    execution_mode: ExecutionMode = "assess",
+) -> None:
+    if {tool.name for tool in tools} != set(allowed_agent_tools(domain, execution_mode)):
         raise RuntimeError("Agent MCP server exposes an unexpected tool set")

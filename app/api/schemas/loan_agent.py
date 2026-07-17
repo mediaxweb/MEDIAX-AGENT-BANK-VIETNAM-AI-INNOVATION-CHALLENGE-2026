@@ -8,7 +8,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 CheckStatus = Literal["passed", "warning", "failed"]
 ComplianceDecision = Literal["approved", "conditional", "rejected", "needs_review"]
-TaskPriority = Literal["low", "medium", "high", "urgent"]
+TaskPriority = Literal["low", "medium", "high", "urgent", "P1", "P2", "P3"]
 
 
 class CustomerCreateRequest(BaseModel):
@@ -42,6 +42,14 @@ class CustomerResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
+
+
+class CustomerSearchMatch(CustomerResponse):
+    match_score: int = Field(..., ge=0, le=100)
+
+
+class CustomerSearchResponse(BaseModel):
+    matches: list[CustomerSearchMatch] = Field(default_factory=list)
 
 
 class LoanProfileCreateRequest(BaseModel):
@@ -129,6 +137,7 @@ class ComplianceResultRequest(BaseModel):
     score: float | None = Field(default=None, ge=0, le=100)
     notes: str | None = None
     conditions: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class ComplianceResultResponse(BaseModel):
@@ -138,6 +147,7 @@ class ComplianceResultResponse(BaseModel):
     score: float | None = None
     notes: str | None = None
     conditions: list[str] = Field(default_factory=list)
+    details: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
 
@@ -157,6 +167,10 @@ class ChecklistItemInput(BaseModel):
     title: str = Field(..., min_length=1)
     status: str = "pending"
     owner_agent: str | None = None
+    category: str | None = None
+    points: int | None = Field(default=None, ge=0)
+    required: bool = False
+    reason: str | None = None
 
 
 class ChecklistCreateRequest(BaseModel):
@@ -169,6 +183,10 @@ class ChecklistItemResponse(BaseModel):
     title: str
     status: str
     owner_agent: str | None = None
+    category: str | None = None
+    points: int | None = None
+    required: bool = False
+    reason: str | None = None
 
 
 class ChecklistResponse(BaseModel):
@@ -182,18 +200,24 @@ class ChecklistResponse(BaseModel):
 
 
 class LoanLimitCalculationRequest(BaseModel):
-    monthly_income: float | None = Field(default=None, ge=0)
-    monthly_debt: float | None = Field(default=None, ge=0)
-    collateral_value: float | None = Field(default=None, ge=0)
-    debt_to_income_ratio: float = Field(default=0.4, gt=0, le=1)
-    collateral_ltv_ratio: float = Field(default=0.7, gt=0, le=1)
+    total_capital_need: float = Field(..., gt=0)
+    collateral_value: float = Field(..., gt=0)
+    ltv_ratio: float = Field(..., gt=0, le=1)
+    dscr: float = Field(..., ge=0)
+    checklist_score: int = Field(..., ge=0, le=100)
+    hard_stop: bool = False
 
 
 class LoanLimitCalculationResponse(BaseModel):
     id: str
     loan_profile_id: str
     requested_amount: float
+    capital_need_limit: float
+    collateral_limit: float
     calculated_limit: float
+    dscr_factor: float
+    checklist_factor: float
+    final_factor: float
     recommended_limit: float
     currency: str
     assumptions: dict[str, Any] = Field(default_factory=dict)

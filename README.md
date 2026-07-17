@@ -229,20 +229,21 @@ Configure the shared key with `RAG_BRAIN_OPENCLAW_API_KEY`.
 
 MediaX Agent Bank currently provides three specialist agents:
 
-- `agents/credit_agent.py` calculates financial metrics and assesses credit risk.
-- `agents/compliance_agent.py` checks documents, screening results, and compliance
-  blockers.
-- `agents/operations_agent.py` checks case readiness and proposes ordered next
-  actions.
+- `agents/credit_agent.py` handles customer intake, legal scoring, duplicate
+  matching, and loan-profile readiness.
+- `agents/compliance_agent.py` scores financial, repayment, collateral, and
+  compliance risk.
+- `agents/operations_agent.py` calculates the completion checklist and final
+  limit, selects S01-S11 status, SLA, priority, and ordered actions.
 
-All three accept normalized personal or SME JSON, return structured results for
-manual review, and fail closed when data or trusted policy evidence is missing.
-They do not approve/reject loans, write to MongoDB, create tasks, or update case
-status.
+All three accept normalized JSON, return structured results, and fail closed when
+data or trusted policy evidence is missing. `execution_mode="assess"` is the
+default and never writes data. `execution_mode="execute"` allows only that
+agent's user-scoped tools. Approval and disbursement remain human decisions.
 
 ### Shared FastMCP adapter
 
-The shared MCP server exposes exactly five read-only tools:
+The shared MCP server exposes five common read tools plus domain tools:
 
 ```text
 search_knowledge(domain: "credit" | "compliance" | "operations", query: str, top_k: int = 5)
@@ -250,6 +251,10 @@ get_document_page(domain: "credit" | "compliance" | "operations", source_id: str
 get_loan_profile(loan_profile_id: str)
 get_customer(customer_id: str)
 list_reports(loan_profile_id: str)
+
+Credit: search_customer, create_customer, update_customer, create_loan_profile, check_legal_docs
+Compliance: check_financials, check_collateral, check_credit_rule, save_compliance_result
+Operations: update_case_status, create_checklist, calculate_loan_limit, create_task, create_report
 ```
 
 Each agent searches its own domain first. When a chunk lacks enough context, it
@@ -361,7 +366,7 @@ Create a `.env` file in the project root and configure the values you need.
 | `RAG_MCP_COMPLIANCE_USER_ID` | — | User scope containing compliance policy knowledge. |
 | `RAG_MCP_OPERATIONS_USER_ID` | — | User scope containing operations policy knowledge. |
 | `RAG_MCP_USER_ID` | unset | Legacy fallback for the credit policy scope only. |
-| `LOAN_DATA_MCP_USER_ID` | — | Server-side user scope for persisted loan case reads. |
+| `LOAN_DATA_MCP_USER_ID` | — | Server-side user scope for persisted loan case reads and authorized writes. |
 | `RAG_MCP_HOST` / `RAG_MCP_PORT` | `127.0.0.1` / `8766` | Bind address for the shared FastMCP server. |
 | `RAG_MCP_URL` | `http://127.0.0.1:8766/mcp` | FastMCP endpoint used by the specialist agents. |
 | `OPENAI_AGENT_MODEL` | `gpt-5.4-mini` | Model used by the specialist agents. |

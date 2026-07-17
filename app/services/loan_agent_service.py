@@ -22,6 +22,8 @@ from app.api.schemas.loan_agent import (
     ComplianceResultResponse,
     CustomerCreateRequest,
     CustomerResponse,
+    CustomerSearchMatch,
+    CustomerSearchResponse,
     CustomerUpdateRequest,
     FinancialReportResponse,
     LoanLimitCalculationRequest,
@@ -70,9 +72,21 @@ class LoanAgentService:
         self.database = database
 
     async def create_customer(self, *, user_id: str, payload: CustomerCreateRequest) -> CustomerResponse:
+        customer_data = payload.model_dump(mode="json", exclude_none=True)
+        if "national_id" in customer_data:
+            customer_data["national_id"] = self._normalize_identity(customer_data["national_id"])
+        metadata = customer_data.get("metadata") or {}
+        if metadata.get("tax_code"):
+            metadata["tax_code"] = self._normalize_identity(metadata["tax_code"])
+            customer_data["metadata"] = metadata
+        await self._ensure_unique_customer_identity(
+            user_id=user_id,
+            national_id=customer_data.get("national_id"),
+            tax_code=metadata.get("tax_code"),
+        )
         now = self._now()
         document = {
-            **payload.model_dump(mode="json", exclude_none=True),
+            **customer_data,
             "user_id": self._normalize_user_id(user_id),
             "created_at": now,
             "updated_at": now,
@@ -85,6 +99,83 @@ class LoanAgentService:
         document = await self._require_customer(user_id=user_id, customer_id=customer_id)
         return CustomerResponse.model_validate(self._serialize_record(document))
 
+    async def search_customers(
+        self,
+        *,
+        user_id: str,
+        full_name: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+        national_id: str | None = None,
+        tax_code: str | None = None,
+        address: str | None = None,
+    ) -> CustomerSearchResponse:
+        criteria = {
+            key: self._normalize_optional_text(value)
+            for key, value in {
+                "full_name": full_name,
+                "phone": phone,
+                "email": email,
+                "national_id": national_id,
+                "tax_code": tax_code,
+                "address": address,
+            }.items()
+        }
+        if not any(criteria.values()):
+            raise LoanAgentValidationError("At least one customer search field is required.")
+
+        query_fields = {
+            "full_name": "full_name",
+            "phone": "phone",
+            "email": "email",
+            "national_id": "national_id",
+            "tax_code": "metadata.tax_code",
+            "address": "address",
+        }
+        predicates = [
+            {query_fields[key]: {"$regex": f"^{re.escape(value)}$", "$options": "i"}}
+            for key, value in criteria.items()
+            if value
+        ]
+        cursor = self._collection("loan_customers").find(
+            {
+                "user_id": self._normalize_user_id(user_id),
+                "$or": predicates,
+            }
+        )
+        documents = await cursor.to_list(length=50)
+
+        def normalized(value: Any) -> str:
+            return str(value or "").strip().casefold()
+
+        matches: list[CustomerSearchMatch] = []
+        for document in documents:
+            metadata = document.get("metadata") or {}
+            same_name = bool(criteria["full_name"]) and normalized(document.get("full_name")) == normalized(criteria["full_name"])
+            same_address = bool(criteria["address"]) and normalized(document.get("address")) == normalized(criteria["address"])
+            if (
+                criteria["tax_code"]
+                and normalized(metadata.get("tax_code")) == normalized(criteria["tax_code"])
+            ) or (
+                criteria["national_id"]
+                and normalized(document.get("national_id")) == normalized(criteria["national_id"])
+            ):
+                score = 100
+            elif criteria["phone"] and same_name and normalized(document.get("phone")) == normalized(criteria["phone"]):
+                score = 90
+            elif same_name and same_address:
+                score = 80
+            elif same_name:
+                score = 50
+            else:
+                score = 0
+            serialized = self._serialize_record(document)
+            serialized["match_score"] = score
+            matches.append(CustomerSearchMatch.model_validate(serialized))
+
+        matches.sort(key=lambda item: (-item.match_score, item.id))
+        return CustomerSearchResponse(matches=matches)
+
     async def update_customer(
         self,
         *,
@@ -96,6 +187,26 @@ class LoanAgentService:
         updates = {key: value for key, value in updates.items() if value is not None}
         if not updates:
             raise LoanAgentValidationError("At least one customer field is required.")
+
+        if "national_id" in updates:
+            updates["national_id"] = self._normalize_identity(updates["national_id"])
+        if (updates.get("metadata") or {}).get("tax_code"):
+            updates["metadata"]["tax_code"] = self._normalize_identity(
+                updates["metadata"]["tax_code"]
+            )
+
+        if "metadata" in updates:
+            current = await self._require_customer(user_id=user_id, customer_id=customer_id)
+            updates["metadata"] = {**(current.get("metadata") or {}), **updates["metadata"]}
+
+        if "national_id" in updates or "metadata" in updates:
+            current = await self._require_customer(user_id=user_id, customer_id=customer_id)
+            await self._ensure_unique_customer_identity(
+                user_id=user_id,
+                national_id=updates.get("national_id", current.get("national_id")),
+                tax_code=(updates.get("metadata") or current.get("metadata") or {}).get("tax_code"),
+                exclude_customer_id=customer_id,
+            )
 
         now = self._now()
         updates["updated_at"] = now
@@ -523,43 +634,29 @@ class LoanAgentService:
         payload: LoanLimitCalculationRequest,
     ) -> LoanLimitCalculationResponse:
         profile = await self._require_loan_profile(user_id=user_id, loan_profile_id=loan_profile_id)
-        reports = await self._find_by_profile(
-            "loan_financial_reports",
-            user_id=user_id,
-            loan_profile_id=loan_profile_id,
-        )
-        collaterals = await self._find_by_profile("loan_collaterals", user_id=user_id, loan_profile_id=loan_profile_id)
-
-        monthly_income = payload.monthly_income
-        if monthly_income is None:
-            monthly_income = self._latest_number(reports, "declared_monthly_income") or 0.0
-        monthly_debt = payload.monthly_debt or 0.0
-        collateral_value = payload.collateral_value
-        if collateral_value is None:
-            collateral_value = sum(float(item.get("estimated_value") or 0) for item in collaterals)
-
-        term_months = int(profile.get("term_months") or 1)
-        income_capacity = max((monthly_income * payload.debt_to_income_ratio - monthly_debt) * term_months, 0.0)
-        collateral_capacity = collateral_value * payload.collateral_ltv_ratio if collateral_value else 0.0
-        capacities = [value for value in (income_capacity, collateral_capacity) if value > 0]
-        calculated_limit = min(capacities) if len(capacities) > 1 else capacities[0] if capacities else 0.0
         requested_amount = float(profile.get("loan_amount") or 0.0)
-        recommended_limit = min(requested_amount, calculated_limit) if calculated_limit else 0.0
+        capital_need_limit = payload.total_capital_need * 0.8
+        collateral_limit = payload.collateral_value * payload.ltv_ratio
+        calculated_limit = min(requested_amount, capital_need_limit, collateral_limit)
+        dscr_factor = 1.0 if payload.dscr >= 1.3 else 0.9 if payload.dscr >= 1.1 else 0.7 if payload.dscr >= 1.0 else 0.0
+        checklist_factor = 1.0 if payload.checklist_score >= 90 else 0.9 if payload.checklist_score >= 75 else 0.7 if payload.checklist_score >= 50 else 0.0
+        final_factor = 0.0 if payload.hard_stop else min(dscr_factor, checklist_factor)
+        recommended_limit = calculated_limit * final_factor
         now = self._now()
         document = {
             "user_id": self._normalize_user_id(user_id),
             "loan_profile_id": loan_profile_id,
             "requested_amount": requested_amount,
+            "capital_need_limit": round(capital_need_limit, 2),
+            "collateral_limit": round(collateral_limit, 2),
             "calculated_limit": round(calculated_limit, 2),
+            "dscr_factor": dscr_factor,
+            "checklist_factor": checklist_factor,
+            "final_factor": final_factor,
             "recommended_limit": round(recommended_limit, 2),
             "currency": profile.get("currency") or "VND",
             "assumptions": {
-                "monthly_income": monthly_income,
-                "monthly_debt": monthly_debt,
-                "collateral_value": collateral_value,
-                "debt_to_income_ratio": payload.debt_to_income_ratio,
-                "collateral_ltv_ratio": payload.collateral_ltv_ratio,
-                "term_months": term_months,
+                **payload.model_dump(mode="json"),
             },
             "created_at": now,
         }
@@ -823,6 +920,30 @@ class LoanAgentService:
             raise LoanAgentNotFoundError("Customer was not found.")
         return document
 
+    async def _ensure_unique_customer_identity(
+        self,
+        *,
+        user_id: str,
+        national_id: str | None,
+        tax_code: str | None,
+        exclude_customer_id: str | None = None,
+    ) -> None:
+        predicates = []
+        if normalized_national_id := self._normalize_identity(national_id):
+            predicates.append({"national_id": normalized_national_id})
+        if normalized_tax_code := self._normalize_identity(tax_code):
+            predicates.append({"metadata.tax_code": normalized_tax_code})
+        if not predicates:
+            return
+        query: dict[str, Any] = {
+            "user_id": self._normalize_user_id(user_id),
+            "$or": predicates,
+        }
+        if exclude_customer_id:
+            query["_id"] = {"$ne": self._object_id(exclude_customer_id, label="customer_id")}
+        if await self._collection("loan_customers").find_one(query):
+            raise LoanAgentValidationError("A customer with the same identity already exists.")
+
     async def _require_loan_profile(self, *, user_id: str, loan_profile_id: str) -> dict[str, Any]:
         document = await self._collection("loan_profiles").find_one(
             {
@@ -858,6 +979,11 @@ class LoanAgentService:
     @staticmethod
     def _normalize_optional_text(value: str | None) -> str | None:
         normalized = str(value or "").strip()
+        return normalized or None
+
+    @staticmethod
+    def _normalize_identity(value: str | None) -> str | None:
+        normalized = str(value or "").strip().upper()
         return normalized or None
 
     @classmethod

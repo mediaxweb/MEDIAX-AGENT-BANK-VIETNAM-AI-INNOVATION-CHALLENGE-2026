@@ -1,19 +1,43 @@
 {
-  "case_id": "COMPLIANCE-SME-DEMO-001",
-  "loan_type": "sme",
-  "customer_type": "business",
+  "case_id": "COMPLIANCE-SME-001",
+  "loan_profile_id": "507f1f77bcf86cd799439011",
+  "customer_type": "enterprise",
   "as_of_date": "2026-07-18",
-  "documents": [
-    {
-      "document_type": "business_registration",
-      "status": "provided"
-    },
-    {
-      "document_type": "financial_statement",
-      "status": "pending_verification"
-    }
-  ],
-  "pep_status": "clear",
-  "sanctions_status": "clear",
-  "beneficial_owner_status": "not_checked"
+  "requested_amount": 8000000000,
+  "term_months": 12,
+  "purpose": "Bổ sung vốn lưu động",
+  "credit_result": {"legal_score": 92, "result": "CONDITIONAL", "missing_documents": ["company_charter"]},
+  "current_financials": {
+    "period": "2025",
+    "revenue": 13500000000,
+    "net_profit": 720000000,
+    "total_debt": 5000000000,
+    "equity": 5000000000
+  },
+  "previous_financials": {
+    "period": "2024",
+    "revenue": 12000000000,
+    "net_profit": 600000000,
+    "total_debt": 4500000000,
+    "equity": 4500000000
+  },
+  "funding_plan": {
+    "total_capital_need": 10666666666.6667,
+    "own_capital": 2666666666.6667,
+    "supporting_document_value": 6936000000,
+    "purpose_fit": "fit"
+  },
+  "repayment_plan": {
+    "available_cash_flow": 1100000000,
+    "annual_debt_service": 900000000,
+    "source_status": "documented"
+  },
+  "collateral": {
+    "collateral_type": "land_house",
+    "value": 10000000000,
+    "ownership_status": "valid",
+    "valuation_date": "2026-04-18",
+    "dispute_status": "clear",
+    "liquidity": "high"
+  }
 }
