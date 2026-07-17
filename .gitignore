@@ -1,0 +1,31 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Runtime logs and local storage
+*.log
+logs/*.log
+tmp/
+chroma_db/
+bm25_storage/
+docstore/
+loan_uploads/
+hf_cache/
