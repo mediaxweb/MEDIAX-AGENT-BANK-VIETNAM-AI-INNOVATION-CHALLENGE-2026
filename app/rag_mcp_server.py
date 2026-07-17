@@ -1,0 +1,257 @@
+from __future__ import annotations
+
+import asyncio
+import os
+from collections.abc import Mapping
+from typing import Any, Literal
+
+from mcp.server.fastmcp import FastMCP
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.api.schemas.loan_agent import (
+    CustomerResponse,
+    LoanProfileResponse,
+    ReportsListResponse,
+)
+from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.loan_agent_service import LoanAgentService
+
+
+RAGDomain = Literal["credit", "compliance", "operations"]
+RAG_USER_ENV_BY_DOMAIN = {
+    "credit": "RAG_MCP_CREDIT_USER_ID",
+    "compliance": "RAG_MCP_COMPLIANCE_USER_ID",
+    "operations": "RAG_MCP_OPERATIONS_USER_ID",
+}
+
+
+class KnowledgeEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str = Field(min_length=1)
+    file_name: str = Field(min_length=1)
+    page: str | None = None
+    excerpt: str = Field(min_length=1)
+
+
+class KnowledgeEvidenceEnvelope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    evidence: list[KnowledgeEvidence]
+
+
+def _required_text(value: Any, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} is required")
+    return value.strip()
+
+
+def resolve_domain_user_id(
+    domain: str,
+    environ: Mapping[str, str] = os.environ,
+) -> str:
+    env_name = RAG_USER_ENV_BY_DOMAIN.get(domain)
+    if env_name is None:
+        raise ValueError("Unsupported RAG domain")
+    value = environ.get(env_name, "")
+    if domain == "credit" and not value.strip():
+        value = environ.get("RAG_MCP_USER_ID", "")
+        env_name = f"{env_name} or RAG_MCP_USER_ID"
+    return _required_text(value, env_name)
+
+
+def _loan_user_id() -> str:
+    return _required_text(
+        os.getenv("LOAN_DATA_MCP_USER_ID", ""),
+        "LOAN_DATA_MCP_USER_ID",
+    )
+
+
+def _chunk_to_evidence(chunk: Any) -> KnowledgeEvidence:
+    if not isinstance(chunk, Mapping):
+        raise ValueError("Retrieved chunk must be an object")
+    raw_page = chunk.get("page_label")
+    page = None if raw_page is None else str(raw_page).strip() or None
+    excerpt = chunk.get("window") or chunk.get("text")
+    return KnowledgeEvidence(
+        source_id=_required_text(chunk.get("chunk_id"), "chunk_id"),
+        file_name=_required_text(chunk.get("file_name"), "file_name"),
+        page=page,
+        excerpt=_required_text(excerpt, "window or text"),
+    )
+
+
+async def retrieve_evidence(
+    domain: str,
+    query: str,
+    top_k: int,
+    *,
+    user_id: str,
+    service: KnowledgeBaseService,
+) -> KnowledgeEvidenceEnvelope:
+    if domain not in RAG_USER_ENV_BY_DOMAIN:
+        raise ValueError("Unsupported RAG domain")
+    normalized_query = _required_text(query, "query")
+    if type(top_k) is not int or top_k != 5:
+        raise ValueError("search_knowledge top_k must be 5")
+    normalized_user_id = _required_text(user_id, "user_id")
+
+    try:
+        result = await asyncio.to_thread(
+            service.retrieve_chunks,
+            normalized_query,
+            user_id=normalized_user_id,
+        )
+    except Exception:
+        raise RuntimeError("Knowledge retrieval failed") from None
+
+    chunks = result.get("chunks") if isinstance(result, Mapping) else None
+    if not isinstance(chunks, list):
+        raise ValueError("RAG retrieval returned an invalid chunk list")
+    evidence = [_chunk_to_evidence(chunk) for chunk in chunks[:top_k]]
+    if not evidence:
+        raise ValueError("RAG retrieval returned no evidence")
+    source_ids = [item.source_id for item in evidence]
+    if len(source_ids) != len(set(source_ids)):
+        raise ValueError("Duplicate evidence source_id")
+    return KnowledgeEvidenceEnvelope(evidence=evidence)
+
+
+async def retrieve_document_page(
+    domain: str,
+    source_id: str,
+    *,
+    user_id: str,
+    service: KnowledgeBaseService,
+) -> KnowledgeEvidenceEnvelope:
+    if domain not in RAG_USER_ENV_BY_DOMAIN:
+        raise ValueError("Unsupported RAG domain")
+    normalized_source_id = _required_text(source_id, "source_id")
+    normalized_user_id = _required_text(user_id, "user_id")
+
+    try:
+        chunk = await asyncio.to_thread(
+            service.get_chunk_detail,
+            normalized_source_id,
+            user_id=normalized_user_id,
+        )
+        metadata = chunk.metadata
+        if not isinstance(metadata, Mapping):
+            raise ValueError("Chunk metadata must be an object")
+        normalized_file_name = _required_text(metadata.get("file_name"), "file_name")
+        normalized_page = _required_text(metadata.get("page_label"), "page_label")
+        result = await asyncio.to_thread(
+            service.get_document_text,
+            normalized_file_name,
+            page_label=normalized_page,
+            user_id=normalized_user_id,
+        )
+    except Exception:
+        raise RuntimeError("Document page retrieval failed") from None
+
+    result_file_name = _required_text(result.document_path, "document_path")
+    result_page = _required_text(result.page_label, "page_label")
+    if (result_file_name, result_page) != (normalized_file_name, normalized_page):
+        raise ValueError("RAG returned a different document page")
+    return KnowledgeEvidenceEnvelope(
+        evidence=[
+            KnowledgeEvidence(
+                source_id=f"page:{normalized_source_id}",
+                file_name=result_file_name,
+                page=result_page,
+                excerpt=_required_text(result.text, "page text"),
+            )
+        ]
+    )
+
+
+knowledge_base_service = KnowledgeBaseService()
+loan_agent_service = LoanAgentService()
+mcp = FastMCP(
+    "agent-bank-tools",
+    host=os.getenv("RAG_MCP_HOST", "127.0.0.1"),
+    port=int(os.getenv("RAG_MCP_PORT", "8766")),
+    streamable_http_path="/mcp",
+    json_response=True,
+    stateless_http=True,
+)
+
+
+@mcp.tool(structured_output=True)
+async def search_knowledge(
+    domain: RAGDomain,
+    query: str,
+    top_k: int = 5,
+) -> KnowledgeEvidenceEnvelope:
+    """Retrieve grounded evidence from one agent policy knowledge base."""
+    return await retrieve_evidence(
+        domain,
+        query,
+        top_k,
+        user_id=resolve_domain_user_id(domain),
+        service=knowledge_base_service,
+    )
+
+
+@mcp.tool(structured_output=True)
+async def get_document_page(
+    domain: RAGDomain,
+    source_id: str,
+) -> KnowledgeEvidenceEnvelope:
+    """Read the full indexed page for evidence returned by search_knowledge."""
+    return await retrieve_document_page(
+        domain,
+        source_id,
+        user_id=resolve_domain_user_id(domain),
+        service=knowledge_base_service,
+    )
+
+
+@mcp.tool(structured_output=True)
+async def get_loan_profile(loan_profile_id: str) -> LoanProfileResponse:
+    """Read one persisted loan profile from the authenticated MCP user scope."""
+    normalized_id = _required_text(loan_profile_id, "loan_profile_id")
+    user_id = _loan_user_id()
+    try:
+        return await loan_agent_service.get_loan_profile(
+            user_id=user_id,
+            loan_profile_id=normalized_id,
+        )
+    except Exception:
+        raise RuntimeError("Loan profile retrieval failed") from None
+
+
+@mcp.tool(structured_output=True)
+async def get_customer(customer_id: str) -> CustomerResponse:
+    """Read one customer referenced by a persisted loan profile."""
+    normalized_id = _required_text(customer_id, "customer_id")
+    user_id = _loan_user_id()
+    try:
+        return await loan_agent_service.get_customer(
+            user_id=user_id,
+            customer_id=normalized_id,
+        )
+    except Exception:
+        raise RuntimeError("Customer retrieval failed") from None
+
+
+@mcp.tool(structured_output=True)
+async def list_reports(loan_profile_id: str) -> ReportsListResponse:
+    """List existing case reports without creating or updating case data."""
+    normalized_id = _required_text(loan_profile_id, "loan_profile_id")
+    user_id = _loan_user_id()
+    try:
+        return await loan_agent_service.list_reports(
+            user_id=user_id,
+            loan_profile_id=normalized_id,
+        )
+    except Exception:
+        raise RuntimeError("Loan report retrieval failed") from None
+
+
+def main() -> None:
+    mcp.run(transport="streamable-http")
+
+
+if __name__ == "__main__":
+    main()

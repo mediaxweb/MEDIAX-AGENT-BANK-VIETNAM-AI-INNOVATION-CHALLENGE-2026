@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Optional
 
 from pydantic_settings import BaseSettings
@@ -44,7 +44,7 @@ class Configs(BaseSettings):
 
         storage_root = self.resolved_storage_root
         if storage_root:
-            return str(Path(storage_root) / default_dir_name)
+            return str(PurePosixPath(storage_root) / default_dir_name)
 
         return f"./{default_dir_name}"
 
