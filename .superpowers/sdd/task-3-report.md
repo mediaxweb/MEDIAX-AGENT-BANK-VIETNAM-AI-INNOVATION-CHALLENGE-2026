@@ -35,3 +35,11 @@
 - RED, focus contract: `PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH" node --test tests/documents-screen.test.mjs` failed because the upload trigger/dialog focus refs and keyboard behavior were absent.
 - GREEN, focused suite: `PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH" node --test tests/prototype-data.test.mjs tests/documents-screen.test.mjs` passed 12/12 tests.
 - Production verification: `PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH" npm run build` passed; `git diff --check` passed.
+
+## Hidden file-input follow-up
+
+- Replaced the unavailable `sr-only` utility on the native file input with `hidden` and `tabIndex={-1}`. The visible drop-zone button remains the sole activator through `fileInputRef.current?.click()`.
+- RED: `PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH" node --test tests/documents-screen.test.mjs` failed the new hidden-input contract because the input used `className="sr-only"`.
+- GREEN: the same command passed 4/4 tests after the structural hiding change.
+- Focused verification: `PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH" node --test tests/prototype-data.test.mjs tests/documents-screen.test.mjs` passed 13/13 tests.
+- Production verification: `PATH="$HOME/.nvm/versions/node/v22.23.1/bin:$PATH" npm run build` passed; `git diff --check` passed.

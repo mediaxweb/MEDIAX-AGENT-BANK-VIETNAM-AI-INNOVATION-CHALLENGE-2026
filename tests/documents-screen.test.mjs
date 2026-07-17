@@ -38,3 +38,10 @@ test("keeps keyboard focus in the upload dialog and restores the trigger on clos
   assert.match(screen, /uploadTriggerRef\.current\?\.focus\(\);/);
   assert.match(screen, /<section ref=\{uploadDialogRef\} className="modal" tabIndex=\{-1\} role="dialog"/);
 });
+
+test("keeps the native file input hidden and out of the tab order", async () => {
+  const screen = await readScreen();
+
+  assert.match(screen, /<input ref=\{fileInputRef\} hidden tabIndex=\{-1\} type="file"/);
+  assert.doesNotMatch(screen, /<input ref=\{fileInputRef\} className="sr-only"/);
+});

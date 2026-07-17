@@ -213,7 +213,7 @@ export default function DocumentsScreen() {
           <button type="button" aria-label="Đóng cửa sổ tải tài liệu" onClick={closeUploadModal}><X /></button>
         </div>
         <div className="modal-body">
-          <input ref={fileInputRef} className="sr-only" type="file" accept=".pdf,.docx,.xlsx" multiple onChange={(event) => {
+          <input ref={fileInputRef} hidden tabIndex={-1} type="file" accept=".pdf,.docx,.xlsx" multiple onChange={(event) => {
             if (event.target.files) addFiles(event.target.files);
             event.target.value = "";
           }} />
