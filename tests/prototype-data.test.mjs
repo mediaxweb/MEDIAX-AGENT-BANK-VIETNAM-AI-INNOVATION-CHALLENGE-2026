@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  acceptedUploadFormats,
   documentRecords,
   filterDocuments,
   qaScenarios,
@@ -15,6 +16,10 @@ test("filters documents by folder, type, and Vietnamese query", () => {
 
 test("defines the complete upload simulation", () => {
   assert.deepEqual(uploadStages, ["Đang tải", "Đang phân loại", "Đang lập chỉ mục", "Sẵn sàng"]);
+});
+
+test("accepts every upload format supported by the prototype", () => {
+  assert.deepEqual(acceptedUploadFormats, ["PDF", "DOCX", "XLSX"]);
 });
 
 test("selects a risk scenario and falls back to the main assessment", () => {

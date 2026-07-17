@@ -17,6 +17,8 @@ export interface DocumentRecord {
 
 export type UploadStage = "Đang tải" | "Đang phân loại" | "Đang lập chỉ mục" | "Sẵn sàng";
 
+export const acceptedUploadFormats = ["PDF", "DOCX", "XLSX"] as const;
+
 export interface QaScenario {
   id: "assessment" | "risk" | "missing" | "sources";
   question: string;
