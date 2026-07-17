@@ -11,7 +11,7 @@ async function readScreen() {
 test("renders a flat filename table without document selection controls", async () => {
   const screen = await readScreen();
 
-  assert.match(screen, /filterDocuments\(documentRecords, "all", "Tất cả", query\)/);
+  assert.match(screen, /filterDocumentsByName\(documentRecords, query\)/);
   assert.match(screen, /<td><span className="document-name"><FileText size=\{17\} \/>\{document\.name\}<\/span><\/td>/);
   assert.doesNotMatch(screen, /selectedDocumentId|document-details/);
   assert.doesNotMatch(screen, /<tr[^>]*onClick=/);

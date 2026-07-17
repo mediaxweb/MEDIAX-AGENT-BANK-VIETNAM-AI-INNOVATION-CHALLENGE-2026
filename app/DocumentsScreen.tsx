@@ -2,7 +2,7 @@
 
 import { FileText, Search, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { advanceUploadItems, canStartUpload, documentRecords, failedDemoUploadFileName, filterDocuments, isAcceptedUploadFileName, retryUploadItem, uploadStages } from "./prototype-data";
+import { advanceUploadItems, canStartUpload, documentRecords, failedDemoUploadFileName, filterDocumentsByName, isAcceptedUploadFileName, retryUploadItem, uploadStages } from "./prototype-data";
 import { Badge, Button, PageHeading } from "./ui";
 
 interface UploadItem {
@@ -36,7 +36,7 @@ export default function DocumentsScreen() {
   const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const filteredDocuments = useMemo(
-    () => filterDocuments(documentRecords, "all", "Tất cả", query),
+    () => filterDocumentsByName(documentRecords, query),
     [query],
   );
 

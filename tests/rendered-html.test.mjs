@@ -17,6 +17,7 @@ assert.match(stageSource, /type StageMode = "builder" \| "run" \| "qa"/);
 assert.match(stageSource, /mode === "qa"/);
 assert.doesNotMatch(pageSource, /global-search/);
 assert.doesNotMatch(documentsSource, /Tạo thư mục|Loại tài liệu|Thư mục đích|Quyền sử dụng agent/);
+assert.doesNotMatch(documentsSource, /Thư mục lưu trữ|Agent được phép sử dụng/);
 assert.match(documentsSource, /Tải tài liệu lên/);
 assert.match(documentsSource, /data-stage|--upload-progress/);
 assert.match(css, /\.document-workspace/);

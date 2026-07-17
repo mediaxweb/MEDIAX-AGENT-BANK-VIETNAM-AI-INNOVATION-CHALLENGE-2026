@@ -220,6 +220,12 @@ export function filterDocuments(
   });
 }
 
+export function filterDocumentsByName(records: DocumentRecord[], query: string): DocumentRecord[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase("vi");
+
+  return records.filter((record) => !normalizedQuery || record.name.toLocaleLowerCase("vi").includes(normalizedQuery));
+}
+
 export function selectQaScenario(question: string): QaScenario {
   const normalizedQuestion = question.toLocaleLowerCase("vi");
 

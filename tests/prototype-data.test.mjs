@@ -7,6 +7,7 @@ import {
   canStartUpload,
   documentRecords,
   filterDocuments,
+  filterDocumentsByName,
   isAcceptedUploadFileName,
   qaScenarios,
   retryUploadItem,
@@ -17,6 +18,11 @@ import {
 test("filters documents by folder, type, and Vietnamese query", () => {
   const result = filterDocuments(documentRecords, "credit", "Chính sách", "chấm điểm");
   assert.deepEqual(result.map((item) => item.name), ["Chính sách chấm điểm tín dụng.pdf"]);
+});
+
+test("filters the document workspace by filename without exposing hidden RAG metadata", () => {
+  const result = filterDocumentsByName(documentRecords, "Dữ liệu tham chiếu");
+  assert.deepEqual(result, []);
 });
 
 test("defines the complete upload simulation", () => {
