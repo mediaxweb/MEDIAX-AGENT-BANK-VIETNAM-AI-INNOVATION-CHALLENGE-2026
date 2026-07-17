@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  AlertCircle,
+  ArrowUp,
   Bot,
   Check,
   CheckCircle2,
@@ -95,13 +97,6 @@ export default function AIQAScreen({
 
   const [sessions, setSessions] = useState<ChatSession[]>([
     {
-      id: "session-1",
-      title: "Thẩm định HS Nguyễn Văn An",
-      messages: [],
-      runStep: 0,
-      scenario: null,
-    },
-    {
       id: "session-2",
       title: "Kiểm tra tỷ lệ DTI",
       messages: [
@@ -122,8 +117,10 @@ export default function AIQAScreen({
       scenario: qaScenarios.missing,
     }
   ]);
-  const [activeSessionId, setActiveSessionId] = useState("session-1");
-  const [question, setQuestion] = useState(qaScenarios.assessment.question);
+  const [activeSessionId, setActiveSessionId] = useState("");
+  const [question, setQuestion] = useState("");
+
+  const hasAutoCreated = useRef(false);
 
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [selectedSourceAgents, setSelectedSourceAgents] = useState<string[]>([]);
@@ -135,6 +132,15 @@ export default function AIQAScreen({
   const nextMessageIdRef = useRef(0);
   const sourceDialogRef = useRef<HTMLElement>(null);
   const sourceTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const questionInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (questionInputRef.current) {
+      questionInputRef.current.style.height = "auto";
+      questionInputRef.current.style.height = `${questionInputRef.current.scrollHeight}px`;
+    }
+  }, [question]);
 
   const activeSession = useMemo(() => {
     return sessions.find(s => s.id === activeSessionId) || sessions[0];
@@ -143,6 +149,12 @@ export default function AIQAScreen({
   const messages = activeSession.messages;
   const runStep = activeSession.runStep;
   const scenario = activeSession.scenario;
+
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [runStep]);
 
   const setRunStep = useCallback((step: number | ((s: number) => number)) => {
     setSessions(prev => prev.map(s => {
@@ -198,6 +210,13 @@ export default function AIQAScreen({
     setActiveSessionId(newId);
     clearScheduledTimeouts();
   }, [sessions.length, clearScheduledTimeouts]);
+
+  useEffect(() => {
+    if (!hasAutoCreated.current) {
+      createNewSession();
+      hasAutoCreated.current = true;
+    }
+  }, [createNewSession]);
 
   useEffect(() => {
     if (qaNavTrigger > 0) {
@@ -336,12 +355,12 @@ export default function AIQAScreen({
 
   const getStepStatusBadge = (stepNum: number) => {
     if (runStep === 4 || runStep > stepNum) {
-      return <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)", fontWeight: "bold" }}>ĐÃ XONG</span>;
+      return <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", background: "rgba(0, 122, 90, 0.08)", color: "var(--green)", border: "1px solid rgba(0, 122, 90, 0.2)", fontWeight: "bold" }}>ĐÃ XONG</span>;
     }
     if (runStep === stepNum) {
-      return <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", background: "rgba(59,130,246,0.15)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.3)", fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: "4px" }}><span className="pulse-dot" />ĐANG CHẠY</span>;
+      return <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", background: "rgba(18, 100, 163, 0.08)", color: "var(--blue)", border: "1px solid rgba(18, 100, 163, 0.2)", fontWeight: "bold", display: "inline-flex", alignItems: "center", gap: "4px" }}><span className="pulse-dot" />ĐANG CHẠY</span>;
     }
-    return <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", background: "rgba(100,116,139,0.1)", color: "#64748b", border: "1px solid rgba(100,116,139,0.2)", fontWeight: "bold" }}>ĐANG CHỜ</span>;
+    return <span style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", background: "var(--elev)", color: "var(--muted)", border: "1px solid var(--border)", fontWeight: "bold" }}>ĐANG CHỜ</span>;
   };
 
   // SVG Coordinates for the Agent Interaction flow
@@ -364,7 +383,7 @@ export default function AIQAScreen({
           grid-template-columns: auto 1fr auto;
           gap: 16px;
           transition: grid-template-columns 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-          min-height: calc(100vh - 120px);
+          height: calc(100vh - 120px);
         }
         
         .qa-sessions-panel {
@@ -518,11 +537,11 @@ export default function AIQAScreen({
         /* Agent Visual Flow Diagram */
         .agent-diagram-wrapper {
           position: relative;
-          height: 155px;
-          background: rgba(8, 15, 26, 0.6);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          height: 220px;
+          background: var(--elev);
+          border: 1px solid var(--border);
           border-radius: 8px;
-          margin-bottom: 12px;
+          margin-bottom: 16px;
           overflow: hidden;
         }
         .agent-node {
@@ -530,66 +549,66 @@ export default function AIQAScreen({
           width: 46px;
           height: 46px;
           border-radius: 50%;
-          background: #0d1e36;
-          border: 2px solid #1e293b;
+          background: var(--card);
+          border: 2px solid var(--border);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 2;
           transition: all 0.3s ease;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
         .agent-node strong {
           position: absolute;
           bottom: -18px;
           font-size: 11px;
           white-space: nowrap;
-          color: #94a3b8;
+          color: var(--muted);
           font-weight: 600;
           letter-spacing: 0.03em;
         }
         .agent-node.active strong {
-          color: #f1f5f9;
+          color: var(--text);
         }
         .agent-node.orchestrator {
-          top: 12px;
+          top: 15px;
           left: calc(50% - 23px);
-          color: #c084fc;
+          color: #8b5cf6;
           border-color: #8b5cf6;
         }
         .agent-node.orchestrator.active {
-          box-shadow: 0 0 20px rgba(139, 92, 246, 0.6);
-          background: #1e1538;
+          box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+          background: rgba(139, 92, 246, 0.1);
         }
         .agent-node.credit {
-          bottom: 22px;
-          left: 22px;
-          color: #60a5fa;
-          border-color: #3b82f6;
+          top: 90px;
+          left: calc(50% - 23px);
+          color: var(--blue);
+          border-color: var(--blue);
         }
         .agent-node.credit.active {
-          box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
-          background: #112240;
+          box-shadow: 0 0 20px rgba(18, 100, 163, 0.4);
+          background: rgba(18, 100, 163, 0.1);
         }
         .agent-node.compliance {
-          bottom: 22px;
-          left: calc(50% - 23px);
-          color: #fbbf24;
-          border-color: #f59e0b;
+          bottom: 15px;
+          left: 45px;
+          color: var(--amber);
+          border-color: var(--amber);
         }
         .agent-node.compliance.active {
-          box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
-          background: #2b2212;
+          box-shadow: 0 0 20px rgba(236, 178, 46, 0.4);
+          background: rgba(236, 178, 46, 0.1);
         }
         .agent-node.operations {
-          bottom: 22px;
-          right: 22px;
-          color: #34d399;
-          border-color: #10b981;
+          bottom: 15px;
+          right: 45px;
+          color: var(--green);
+          border-color: var(--green);
         }
         .agent-node.operations.active {
-          box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
-          background: #0f241a;
+          box-shadow: 0 0 20px rgba(0, 122, 90, 0.4);
+          background: rgba(0, 122, 90, 0.1);
         }
         
         .pulse-ring {
@@ -622,7 +641,7 @@ export default function AIQAScreen({
         }
         .agent-link-path {
           fill: none;
-          stroke: rgba(30, 41, 59, 0.7);
+          stroke: var(--border);
           stroke-width: 2;
           stroke-dasharray: 4, 4;
           transition: all 0.3s ease;
@@ -631,30 +650,81 @@ export default function AIQAScreen({
           stroke: #8b5cf6;
           animation: dash-forward 1.2s linear infinite;
         }
-        .agent-link-path.active-reverse {
-          stroke: #3b82f6;
-          animation: dash-backward 1.2s linear infinite;
-        }
         .agent-link-path.done {
-          stroke: #10b981;
+          stroke: var(--green);
           stroke-dasharray: none;
         }
         @keyframes dash-forward {
           to { stroke-dashoffset: -20; }
         }
-        @keyframes dash-backward {
-          to { stroke-dashoffset: 20; }
-        }
 
-        /* Styling sections */
-        .trace-scroll-area {
+        .agent-chat-container {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          overflow: hidden;
+        }
+        .agent-chat-header {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--muted);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          padding: 16px 16px 12px 16px;
+          border-bottom: 1px solid var(--border);
+          flex-shrink: 0;
+        }
+        .agent-chat-list {
           flex: 1;
           overflow-y: auto;
           padding: 16px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 12px;
           scrollbar-width: thin;
+        }
+        .agent-chat-msg {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          background: var(--card);
+          border: 1px solid var(--border);
+          padding: 12px;
+          border-radius: 8px;
+          font-size: 13px;
+        }
+        .agent-chat-meta {
+          display: flex;
+          justify-content: space-between;
+          color: var(--muted);
+          font-size: 12px;
+        }
+        .agent-chat-meta strong {
+          color: var(--text);
+        }
+        .agent-chat-text {
+          color: var(--text);
+          line-height: 1.4;
+        }
+        .agent-chat-status {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-weight: 600;
+          font-size: 12px;
+        }
+        .agent-chat-status.done { color: var(--green); }
+        .agent-chat-status.pending { color: var(--blue); }
+        .agent-chat-status.warning { color: var(--amber); }
+
+        /* Styling sections */
+        .trace-scroll-area {
+          flex: 1;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
         }
         .trace-collapsible-section {
           border: 1px solid var(--border);
@@ -789,19 +859,19 @@ export default function AIQAScreen({
           font-weight: 500;
         }
         .subagent-badge.credit {
-          background-color: rgba(22, 119, 255, 0.12);
-          color: #60a5fa;
-          border: 1px solid rgba(22, 119, 255, 0.25);
+          background-color: rgba(18, 100, 163, 0.08);
+          color: var(--blue);
+          border: 1px solid rgba(18, 100, 163, 0.2);
         }
         .subagent-badge.compliance {
-          background-color: rgba(245, 158, 11, 0.12);
-          color: #fbbf24;
-          border: 1px solid rgba(245, 158, 11, 0.25);
+          background-color: rgba(236, 178, 46, 0.08);
+          color: #b45309;
+          border: 1px solid rgba(236, 178, 46, 0.2);
         }
         .subagent-badge.operations {
-          background-color: rgba(34, 197, 94, 0.12);
-          color: #34d399;
-          border: 1px solid rgba(34, 197, 94, 0.25);
+          background-color: rgba(0, 122, 90, 0.08);
+          color: var(--green);
+          border: 1px solid rgba(0, 122, 90, 0.2);
         }
 
         .agent-finding-card {
@@ -841,7 +911,7 @@ export default function AIQAScreen({
         }
         .skeleton-bar {
           height: 12px;
-          background: linear-gradient(90deg, #1e2e42 25%, #2d3f56 50%, #1e2e42 75%);
+          background: linear-gradient(90deg, var(--elev) 25%, var(--border) 50%, var(--elev) 75%);
           background-size: 200% 100%;
           animation: loading-skeleton 1.5s infinite;
           border-radius: 3px;
@@ -854,7 +924,7 @@ export default function AIQAScreen({
         }
         
         .collapse-toggle-btn:hover {
-          background-color: rgba(255, 255, 255, 0.08) !important;
+          background-color: var(--elev) !important;
         }
         .pulse-dot {
           width: 6px;
@@ -918,14 +988,9 @@ export default function AIQAScreen({
 
         {/* Center Column: Chat Conversation */}
         <section id="qa-conversation-panel" className="qa-conversation card">
-          <div className="card-heading" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "12px" }}>
-            <div>
-              <h2>Khung hội thoại</h2>
-              <p>Hỏi đáp nghiệp vụ tín dụng SME</p>
-            </div>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <Badge tone="success">Chat Feed</Badge>
-            </div>
+          <div className="sessions-header" style={{ paddingBottom: "12px", borderBottom: "1px solid var(--border)", marginBottom: "16px" }}>
+            <h3>Hỏi đáp với chuyên gia</h3>
+            <Badge tone={messages.length > 0 ? "neutral" : "success"}>{messages.length > 0 ? `${messages.length} lượt` : "Phiên mới"}</Badge>
           </div>
 
           <div className="qa-messages" aria-live="polite" aria-label="Lịch sử hội thoại" style={{ flex: 1, minHeight: "360px" }}>
@@ -953,7 +1018,7 @@ export default function AIQAScreen({
                           <span>
                             <ShieldCheck size={15} /> Độ tin cậy <b>{message.confidence}%</b>
                           </span>
-                          <span>{message.activeAgents?.length ?? 0} agent tham gia</span>
+                          <span>{message.activeAgents?.length ?? 0} chuyên gia tham gia</span>
                         </div>
                         <div className="qa-cited-sources">
                           <span>NGUỒN TRÍCH DẪN</span>
@@ -995,18 +1060,33 @@ export default function AIQAScreen({
           </div>
 
           <form className="qa-composer" onSubmit={sendQuestion}>
-            <label htmlFor="qa-question">Nhập câu hỏi nghiệp vụ</label>
-            <textarea
-              id="qa-question"
-              value={question}
-              disabled={isProcessing}
-              onChange={(event) => setQuestion(event.target.value)}
-              placeholder="Ví dụ: Hồ sơ này có điểm rủi ro nào cần lưu ý?"
-            />
-            <div>
-              <Button disabled={!question.trim() || isProcessing}>
-                <Send size={16} /> Gửi câu hỏi
-              </Button>
+            <div className="qa-composer-inner">
+              <textarea
+                ref={questionInputRef}
+                id="qa-question"
+                value={question}
+                disabled={isProcessing}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="Nhập câu hỏi nghiệp vụ..."
+                rows={1}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (question.trim() && !isProcessing) sendQuestion(e);
+                  }
+                }}
+              />
+              <button 
+                type="submit" 
+                className="qa-composer-send" 
+                disabled={!question.trim() || isProcessing}
+                aria-label="Gửi câu hỏi"
+              >
+                <ArrowUp size={20} />
+              </button>
+            </div>
+            <div className="qa-composer-footer">
+              Đội chuyên gia AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.
             </div>
           </form>
         </section>
@@ -1016,205 +1096,116 @@ export default function AIQAScreen({
           id="qa-agent-panel" 
           className={`qa-trace-panel card ${!traceExpanded ? "collapsed" : ""}`}
         >
-            <div className="card-heading" style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.06)", paddingBottom: "12px" }}>
-              <div>
-                <h2>Tiến trình đa chuyên gia</h2>
-                <p>{runStep > 0 ? `Đang phối hợp · Bước ${runStep}/4` : "Chờ câu hỏi nghiệp vụ"}</p>
-              </div>
-              <Badge tone={runStep === 4 ? "success" : runStep > 0 ? "info" : "neutral"}>
-                {runStep === 4 ? "Hoàn thành" : runStep > 0 ? "Đang chạy" : "Sẵn sàng"}
-              </Badge>
-            </div>
 
             {!runStep ? (
               <div className="trace-empty-state">
                 <Compass size={28} className="spinning" style={{ animationDuration: "12s" }} />
                 <strong>Sẵn sàng phân rã & điều phối</strong>
-                <p>Nhập câu hỏi ở khung chat bên trái. Sơ đồ tương tác và nhật ký phân tích nghiệp vụ của từng Agent con sẽ được cập nhật trực quan tại đây.</p>
+                <p>Nhập câu hỏi ở khung chat bên trái. Sơ đồ tương tác và nhật ký phân tích nghiệp vụ của từng chuyên gia con sẽ được cập nhật trực quan tại đây.</p>
               </div>
             ) : (
               <div className="trace-scroll-area">
-                {/* 1. Interactive Agent Flow Map (SVG + Animated nodes) */}
-                <div className="agent-diagram-wrapper">
-                  <svg className="agent-link-svg">
-                    <path
-                      d="M 175 35 L 45 115"
-                      className={getPathClass("credit")}
-                    />
-                    <path
-                      d="M 175 35 L 175 115"
-                      className={getPathClass("compliance")}
-                    />
-                    <path
-                      d="M 175 35 L 305 115"
-                      className={getPathClass("operations")}
-                    />
-                  </svg>
-
-                  {/* Orchestrator node */}
-                  <div className={`agent-node orchestrator ${runStep === 1 || runStep === 3 ? "active" : ""}`}>
-                    <Bot size={20} />
-                    <span className="pulse-ring" />
-                    <strong>Điều phối viên</strong>
+                {/* 2. Agent Inter-Communication Log */}
+                <div className="agent-chat-container">
+                  <div className="agent-chat-header">
+                    <span>Trao đổi giữa các Chuyên gia</span>
+                    <span>{runStep === 4 ? "6 lượt" : (runStep === 3 ? "5 lượt" : (runStep === 2 ? "3 lượt" : (runStep === 1 ? "1 lượt" : "0 lượt")))}</span>
                   </div>
-
-                  {/* Credit Agent node */}
-                  <div className={`agent-node credit ${runStep === 2 && runStep < 4 ? "active" : ""}`}>
-                    <Sparkles size={20} />
-                    <span className="pulse-ring" />
-                    <strong>Chuyên gia tín dụng</strong>
-                  </div>
-
-                  {/* Compliance Agent node */}
-                  <div className={`agent-node compliance ${runStep === 2 || runStep === 3 ? "active" : ""}`}>
-                    <ShieldCheck size={20} />
-                    <span className="pulse-ring" />
-                    <strong>Chuyên gia tuân thủ</strong>
-                  </div>
-
-                  {/* Operations Agent node */}
-                  <div className={`agent-node operations ${runStep === 2 || runStep === 3 ? "active" : ""}`}>
-                    <FileText size={20} />
-                    <span className="pulse-ring" />
-                    <strong>Chuyên gia vận hành</strong>
-                  </div>
-                </div>
-
-                {/* 2. Collapsible Planning CoT */}
-                <div className="trace-collapsible-section">
-                  <button
-                    type="button"
-                    className="trace-collapsible-header"
-                    onClick={() => setShowThought(!showThought)}
-                  >
-                    <span>💡 Chuỗi tư duy & Kế hoạch (Orchestrator)</span>
-                    {showThought ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                  {showThought && (
-                    <div className="trace-collapsible-body">
-                      <pre className="thought-block">{currentThought}</pre>
-                    </div>
-                  )}
-                </div>
-
-                {/* 3. Collapsible Step Logs */}
-                <div className="trace-collapsible-section">
-                  <button
-                    type="button"
-                    className="trace-collapsible-header"
-                    onClick={() => setShowStepLog(!showStepLog)}
-                  >
-                    <span>⚡ Tiến trình gọi Agent & Tri thức</span>
-                    {showStepLog ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                  {showStepLog && (
-                    <div className="trace-collapsible-body">
-                      <div className="trace-steps">
-                        <div className={getStepClass(1)}>
-                          <span className={getIconClass(1)}>{getStepIcon(1)}</span>
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "8px" }}>
-                              <strong>1. Phân rã & Lập kế hoạch</strong>
-                              {getStepStatusBadge(1)}
-                            </div>
-                            <p>Phân công vai trò chi tiết cho 3 chuyên gia AI con (2.5s)</p>
-                          </div>
-                        </div>
-
-                        <div className={getStepClass(2)}>
-                          <span className={getIconClass(2)}>{getStepIcon(2)}</span>
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "8px" }}>
-                              <strong>2. Gọi song song đánh giá RAG</strong>
-                              {getStepStatusBadge(2)}
-                            </div>
-                            <p>
-                              {runStep === 1 ? "Đang chờ hàng đợi..." : "Đang thực hiện truy xuất cơ sở dữ liệu..."}
-                            </p>
-                            {runStep >= 2 && (
-                              <div className="subagent-badges">
-                                <span className="subagent-badge credit">Tín dụng</span>
-                                <span className="subagent-badge compliance">Tuân thủ</span>
-                                <span className="subagent-badge operations">Vận hành</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className={getStepClass(3)}>
-                          <span className={getIconClass(3)}>{getStepIcon(3)}</span>
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "8px" }}>
-                              <strong>3. Đối chiếu kiểm chéo chính sách</strong>
-                              {getStepStatusBadge(3)}
-                            </div>
-                            <p>
-                              {runStep < 2
-                                ? "Đang đợi kết quả..."
-                                : runStep === 2
-                                ? "Đang so sánh điểm chênh lệch..."
-                                : "Đối chiếu thành công thông tin CIC, DTI và KYC (3.0s)"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className={getStepClass(4)}>
-                          <span className={getIconClass(4)}>{getStepIcon(4)}</span>
-                          <div>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "8px" }}>
-                              <strong>4. Tổng hợp & Xuất báo cáo</strong>
-                              {getStepStatusBadge(4)}
-                            </div>
-                            <p>
-                              {runStep < 3
-                                ? "Đang đợi..."
-                                : runStep === 3
-                                ? "Đang tổng hợp báo cáo trích dẫn..."
-                                : "Báo cáo hoàn tất và gửi lại khung chat (2.5s)"}
-                            </p>
-                          </div>
-                        </div>
+                  
+                  <div className="agent-chat-list">
+                    {runStep >= 1 && (
+                    <div className="agent-chat-msg">
+                      <div className="agent-chat-meta">
+                        <span><strong>RAG / Điều phối</strong> → <strong>Chuyên gia Tín dụng</strong></span>
+                        <span>02:14:03</span>
+                      </div>
+                      <div className="agent-chat-text">
+                        Hãy đánh giá khả năng cấp khoản vay 2,5 tỷ dựa trên hồ sơ khách hàng, CIC và tỷ lệ DTI.
+                      </div>
+                      <div className="agent-chat-status done">
+                        <Check size={14} /> Đã chuyển yêu cầu
                       </div>
                     </div>
                   )}
-                </div>
 
-                {/* 4. Collapsible Agent Results */}
-                {runStep >= 2 && (
-                  <div className="trace-collapsible-section">
-                    <button
-                      type="button"
-                      className="trace-collapsible-header"
-                      onClick={() => setShowAgentResults(!showAgentResults)}
-                    >
-                      <span>📈 Phát hiện nghiệp vụ từ Agent</span>
-                      {showAgentResults ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </button>
-                    {showAgentResults && (
-                      <div className="trace-collapsible-body">
-                        <div className="findings-list">
-                          <div className="agent-finding-card credit">
-                            <strong>{agentNames.credit}</strong>
-                            <p>{agentResults.credit}</p>
-                          </div>
-                          {runStep >= 3 && (
-                            <div className="agent-finding-card compliance">
-                              <strong>{agentNames.compliance}</strong>
-                              <p>{agentResults.compliance}</p>
-                            </div>
-                          )}
-                          {runStep >= 4 && (
-                            <div className="agent-finding-card operations">
-                              <strong>{agentNames.operations}</strong>
-                              <p>{agentResults.operations}</p>
-                            </div>
-                          )}
-                        </div>
+                  {runStep >= 2 && (
+                    <div className="agent-chat-msg">
+                      <div className="agent-chat-meta">
+                        <span><strong>Chuyên gia Tín dụng</strong> → <strong>Chuyên gia Tuân thủ</strong></span>
+                        <span>02:14:05</span>
                       </div>
-                    )}
-                  </div>
-                )}
+                      <div className="agent-chat-text">
+                        Kiểm tra trạng thái KYC/AML và các điều kiện hạn chế cấp tín dụng.
+                      </div>
+                      <div className={runStep >= 3 ? "agent-chat-status done" : "agent-chat-status pending"}>
+                        {runStep >= 3 ? <><Check size={14} /> Hoàn thành</> : <><LoaderCircle size={14} className="spinning"/> Đang xử lý</>}
+                      </div>
+                    </div>
+                  )}
+
+                  {runStep >= 2 && (
+                    <div className="agent-chat-msg">
+                      <div className="agent-chat-meta">
+                        <span><strong>Chuyên gia Tín dụng</strong> → <strong>Chuyên gia Vận hành</strong></span>
+                        <span>02:14:05</span>
+                      </div>
+                      <div className="agent-chat-text">
+                        Kiểm tra tính đầy đủ của hồ sơ và đối chiếu báo cáo tài chính.
+                      </div>
+                      <div className={runStep >= 3 ? "agent-chat-status done" : "agent-chat-status pending"}>
+                        {runStep >= 3 ? <><Check size={14} /> Hoàn thành</> : <><LoaderCircle size={14} className="spinning"/> Đang xử lý</>}
+                      </div>
+                    </div>
+                  )}
+
+                  {runStep >= 3 && (
+                    <div className="agent-chat-msg">
+                      <div className="agent-chat-meta">
+                        <span><strong>Chuyên gia Tuân thủ</strong> → <strong>Chuyên gia Tín dụng</strong></span>
+                        <span>02:14:07</span>
+                      </div>
+                      <div className="agent-chat-text">
+                        Không phát hiện cảnh báo KYC/AML. Khách hàng đáp ứng điều kiện tuân thủ.
+                      </div>
+                      <div className="agent-chat-status done">
+                        <Check size={14} /> Đã phản hồi
+                      </div>
+                    </div>
+                  )}
+
+                  {runStep >= 3 && (
+                    <div className="agent-chat-msg">
+                      <div className="agent-chat-meta">
+                        <span><strong>Chuyên gia Vận hành</strong> → <strong>Chuyên gia Tín dụng</strong></span>
+                        <span>02:14:08</span>
+                      </div>
+                      <div className="agent-chat-text">
+                        Hồ sơ cơ bản đầy đủ. Cần bổ sung sao kê tài khoản trong 3 tháng gần nhất.
+                      </div>
+                      <div className="agent-chat-status warning">
+                        <AlertCircle size={14} /> Cần bổ sung
+                      </div>
+                    </div>
+                  )}
+
+                  {runStep >= 4 && (
+                    <div className="agent-chat-msg">
+                      <div className="agent-chat-meta">
+                        <span><strong>Chuyên gia Tín dụng</strong> → <strong>RAG / Điều phối</strong></span>
+                        <span>02:14:10</span>
+                      </div>
+                      <div className="agent-chat-text">
+                        CIC 742 và DTI 38,5% nằm trong ngưỡng cho phép. Đề xuất phê duyệt có điều kiện.
+                      </div>
+                      <div className="agent-chat-status done">
+                        <Check size={14} /> Đã tổng hợp
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
               </div>
+            </div>
             )}
           </section>
       </div>

@@ -3,7 +3,7 @@
 import { FileText, Search, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { advanceUploadItems, canStartUpload, documentRecords, failedDemoUploadFileName, filterDocumentsByName, isAcceptedUploadFileName, retryUploadItem, uploadStages } from "./prototype-data";
-import { Badge, Button, PageHeading } from "./ui";
+import { Badge, Button } from "./ui";
 
 interface UploadItem {
   id: string;
@@ -141,10 +141,6 @@ export default function DocumentsScreen() {
   }, [uploadOpen]);
 
   return <>
-    <PageHeading title="Kho tài liệu" subtitle="Quản lý dữ liệu và tri thức nghiệp vụ của hệ thống">
-      <button ref={uploadTriggerRef} type="button" className="button primary" onClick={() => setUploadOpen(true)}><Upload size={16} /> Tải tài liệu lên</button>
-    </PageHeading>
-
     <section className="document-summary" aria-label="Tổng quan kho tài liệu">
       {[
         ["1.284", "Tổng tài liệu"],
@@ -157,6 +153,7 @@ export default function DocumentsScreen() {
     <section className="document-workspace">
         <div className="document-controls card">
           <label className="search-box"><Search size={17} /><span className="sr-only">Tìm trong kho tài liệu</span><input aria-label="Tìm trong kho tài liệu" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm trong kho tài liệu" /></label>
+          <button ref={uploadTriggerRef} type="button" className="button primary" style={{ marginLeft: "auto" }} onClick={() => setUploadOpen(true)}><Upload size={16} /> Tải tài liệu lên</button>
         </div>
 
         <div className="document-table-card card" style={{ display: "flex", flexDirection: "column" }}>
@@ -177,8 +174,8 @@ export default function DocumentsScreen() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "14px 20px",
-                borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                background: "rgba(13, 27, 45, 0.1)",
+                borderTop: "1px solid var(--border)",
+                background: "var(--elev)",
                 fontSize: "12px",
                 color: "var(--muted)",
                 flexWrap: "wrap",
@@ -197,7 +194,7 @@ export default function DocumentsScreen() {
                         setCurrentPage(1);
                       }}
                       style={{
-                        background: "rgba(10, 22, 37, 0.6)",
+                        background: "var(--side)",
                         border: "1px solid var(--border)",
                         color: "var(--text)",
                         borderRadius: "5px",
@@ -210,7 +207,7 @@ export default function DocumentsScreen() {
                       }}
                     >
                       {[10, 20, 30, 40, 50, 100].map((num) => (
-                        <option key={num} value={num} style={{ background: "#0b1727", color: "#ffffff" }}>
+                        <option key={num} value={num} style={{ background: "var(--side)", color: "var(--text)" }}>
                           {num}
                         </option>
                       ))}
