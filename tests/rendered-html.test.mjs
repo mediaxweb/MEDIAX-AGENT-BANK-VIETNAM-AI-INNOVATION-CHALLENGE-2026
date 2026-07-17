@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+
+const qaSource = readFileSync(new URL("../app/AIQAScreen.tsx", import.meta.url), "utf8");
+
+assert.match(qaSource, /Cuộc hội thoại/);
+assert.match(qaSource, /Đội agent đang phối hợp/);
+assert.match(qaSource, /Phân rã yêu cầu/);
+assert.match(qaSource, /Kiểm tra chéo/);
+assert.match(qaSource, /Độ tin cậy/);
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);

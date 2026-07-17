@@ -10,6 +10,7 @@ import {
   ZoomIn, ZoomOut
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
+import AIQAScreen from "./AIQAScreen";
 import DocumentsScreen from "./DocumentsScreen";
 import { Badge, Button, PageHeading } from "./ui";
 
@@ -94,6 +95,7 @@ export default function Home() {
         <div className="content">
           {screen === "agents" && <AgentsScreen onStart={() => navigate("team")} onOpenCase={() => navigate("run")} />}
           {screen === "documents" && <DocumentsScreen />}
+          {screen === "qa" && <AIQAScreen />}
           {screen === "team" && <TeamScreen selected={selectedNode} setSelected={setSelectedNode} run={workflowRun} onRun={runWorkflow} onOpenRun={() => navigate("run")} />}
           {screen === "run" && <RunScreen openTrace={() => setTraceDrawer(true)} openApproval={() => { setApproval(true); setApproved(false); setAcknowledged(false); }} />}
           {screen === "comparison" && <ComparisonScreen onRun={() => navigate("run")} />}
