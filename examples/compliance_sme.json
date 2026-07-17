@@ -1,0 +1,19 @@
+{
+  "case_id": "COMPLIANCE-SME-DEMO-001",
+  "loan_type": "sme",
+  "customer_type": "business",
+  "as_of_date": "2026-07-18",
+  "documents": [
+    {
+      "document_type": "business_registration",
+      "status": "provided"
+    },
+    {
+      "document_type": "financial_statement",
+      "status": "pending_verification"
+    }
+  ],
+  "pep_status": "clear",
+  "sanctions_status": "clear",
+  "beneficial_owner_status": "not_checked"
+}

@@ -1,0 +1,19 @@
+{
+  "case_id": "COMPLIANCE-PERSONAL-DEMO-001",
+  "loan_type": "personal",
+  "customer_type": "individual",
+  "as_of_date": "2026-07-18",
+  "documents": [
+    {
+      "document_type": "identity",
+      "status": "provided",
+      "expiry_date": "2030-12-31"
+    },
+    {
+      "document_type": "income",
+      "status": "provided"
+    }
+  ],
+  "pep_status": "clear",
+  "sanctions_status": "clear"
+}

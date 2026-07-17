@@ -1,0 +1,25 @@
+{
+  "case_id": "OPERATIONS-PERSONAL-DEMO-001",
+  "loan_type": "personal",
+  "current_stage": "operations_review",
+  "documents": [
+    {
+      "document_type": "identity",
+      "status": "provided"
+    },
+    {
+      "document_type": "income",
+      "status": "provided"
+    }
+  ],
+  "upstream_gates": [
+    {
+      "agent": "credit",
+      "outcome": "ready"
+    },
+    {
+      "agent": "compliance",
+      "outcome": "ready"
+    }
+  ]
+}

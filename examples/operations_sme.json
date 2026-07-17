@@ -1,0 +1,28 @@
+{
+  "case_id": "OPERATIONS-SME-DEMO-001",
+  "loan_type": "sme",
+  "current_stage": "operations_review",
+  "documents": [
+    {
+      "document_type": "business_registration",
+      "status": "provided"
+    },
+    {
+      "document_type": "financial_statements",
+      "status": "pending_verification"
+    }
+  ],
+  "upstream_gates": [
+    {
+      "agent": "credit",
+      "outcome": "ready"
+    },
+    {
+      "agent": "compliance",
+      "outcome": "needs_information",
+      "blocking_items": [
+        "financial_statements"
+      ]
+    }
+  ]
+}

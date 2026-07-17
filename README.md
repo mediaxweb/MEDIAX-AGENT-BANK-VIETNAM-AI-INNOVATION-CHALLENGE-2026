@@ -225,6 +225,89 @@ curl -X POST "http://localhost:8000/api/v1/knowledge-base/document-text" \
 
 Configure the shared key with `RAG_BRAIN_OPENCLAW_API_KEY`.
 
+## Specialist Agents
+
+MediaX Agent Bank currently provides three specialist agents:
+
+- `agents/credit_agent.py` calculates financial metrics and assesses credit risk.
+- `agents/compliance_agent.py` checks documents, screening results, and compliance
+  blockers.
+- `agents/operations_agent.py` checks case readiness and proposes ordered next
+  actions.
+
+All three accept normalized personal or SME JSON, return structured results for
+manual review, and fail closed when data or trusted policy evidence is missing.
+They do not approve/reject loans, write to MongoDB, create tasks, or update case
+status.
+
+### Shared FastMCP adapter
+
+The shared MCP server exposes exactly five read-only tools:
+
+```text
+search_knowledge(domain: "credit" | "compliance" | "operations", query: str, top_k: int = 5)
+get_document_page(domain: "credit" | "compliance" | "operations", source_id: str)
+get_loan_profile(loan_profile_id: str)
+get_customer(customer_id: str)
+list_reports(loan_profile_id: str)
+```
+
+Each agent searches its own domain first. When a chunk lacks enough context, it
+may read the full page only by reusing a `source_id` from that search. When input
+includes `loan_profile_id`, it may also read the persisted profile, the customer
+referenced by that profile, and existing reports. Loan case data is treated as
+case facts, not policy evidence.
+
+Start the adapter with separate server-side scopes for the three policy
+collections and persisted loan cases:
+
+```powershell
+$env:RAG_MCP_CREDIT_USER_ID="<credit-policy-user-id>"
+$env:RAG_MCP_COMPLIANCE_USER_ID="<compliance-policy-user-id>"
+$env:RAG_MCP_OPERATIONS_USER_ID="<operations-policy-user-id>"
+$env:LOAN_DATA_MCP_USER_ID="<loan-data-user-id>"
+& '.\.venv\Scripts\python.exe' -m app.rag_mcp_server
+```
+
+`RAG_MCP_USER_ID` remains an optional legacy fallback for the credit scope only.
+Compliance and Operations never fall back to it.
+
+The default MCP endpoint is `http://127.0.0.1:8766/mcp`. Override its bind
+address with `RAG_MCP_HOST` and `RAG_MCP_PORT` when needed.
+
+The RAG corpus contains text documents or PDFs with a text layer. OCR is outside
+this project scope.
+
+### Run the agents
+
+Set the shared runtime variables:
+
+```powershell
+$env:OPENAI_API_KEY="..."
+$env:RAG_MCP_URL="http://127.0.0.1:8766/mcp"
+```
+
+Run Credit Agent examples:
+
+```powershell
+& '.\.venv\Scripts\python.exe' agents/credit_agent.py --input examples/credit_personal.json
+& '.\.venv\Scripts\python.exe' agents/credit_agent.py --input examples/credit_sme.json
+```
+
+Run Compliance Agent examples:
+
+```powershell
+& '.\.venv\Scripts\python.exe' agents/compliance_agent.py --input examples/compliance_personal.json
+& '.\.venv\Scripts\python.exe' agents/compliance_agent.py --input examples/compliance_sme.json
+```
+
+Run Operations Agent examples:
+
+```powershell
+& '.\.venv\Scripts\python.exe' agents/operations_agent.py --input examples/operations_personal.json
+& '.\.venv\Scripts\python.exe' agents/operations_agent.py --input examples/operations_sme.json
+```
+
 ## Getting started
 
 ### Prerequisites
@@ -274,8 +357,16 @@ Create a `.env` file in the project root and configure the values you need.
 | `BM25_PERSIST_DIR` | derived | Explicit BM25 persistence path. Overrides `STORAGE_ROOT` when set. |
 | `DOCSTORE_PERSIST_DIR` | derived | Explicit path used to persist the LlamaIndex document store. Overrides `STORAGE_ROOT` when set. |
 | `RAG_BRAIN_OPENCLAW_API_KEY` | unset | Short shared secret accepted with `X-OpenClaw-Api-Key` for OpenClaw access to `retrieve-chunks` and `document-text`; callers must also send `X-OpenClaw-User-Id`. |
+| `RAG_MCP_CREDIT_USER_ID` | — | User scope containing credit policy knowledge. |
+| `RAG_MCP_COMPLIANCE_USER_ID` | — | User scope containing compliance policy knowledge. |
+| `RAG_MCP_OPERATIONS_USER_ID` | — | User scope containing operations policy knowledge. |
+| `RAG_MCP_USER_ID` | unset | Legacy fallback for the credit policy scope only. |
+| `LOAN_DATA_MCP_USER_ID` | — | Server-side user scope for persisted loan case reads. |
+| `RAG_MCP_HOST` / `RAG_MCP_PORT` | `127.0.0.1` / `8766` | Bind address for the shared FastMCP server. |
+| `RAG_MCP_URL` | `http://127.0.0.1:8766/mcp` | FastMCP endpoint used by the specialist agents. |
+| `OPENAI_AGENT_MODEL` | `gpt-5.4-mini` | Model used by the specialist agents. |
 | `TEMP_KB_DIR` | `tmp/knowledge_base` | Ephemeral working directory for uploaded PDF files during ingestion. |
-| `LOAN_UPLOAD_DIR` | derived | Explicit loan-agent upload storage path. Defaults to `STORAGE_ROOT/loan_uploads` when `STORAGE_ROOT` is set, otherwise `./loan_uploads`. |
+| `LOAN_UPLOAD_DIR` | derived | Explicit loan-case upload storage path. Defaults to `STORAGE_ROOT/loan_uploads` when `STORAGE_ROOT` is set, otherwise `./loan_uploads`. |
 
 Persistence resolution rules:
 
