@@ -153,7 +153,7 @@ In `app/page.tsx`:
 type Screen = "agents" | "documents" | "qa" | "team" | "run" | "comparison";
 ```
 
-Move `Badge`, `Button`, and `PageHeading` without behavior changes into `app/ui.tsx`; import them into `app/page.tsx`. Add navigation entries with `LibraryBig` and `MessagesSquare`; map page titles explicitly; render `<DocumentsScreen />` and `<AIQAScreen />` while keeping `useState<Screen>("agents")` unchanged.
+Move `Badge`, `Button`, and `PageHeading` without behavior changes into `app/ui.tsx`; import them into `app/page.tsx`. Add navigation entries with `LibraryBig` and `MessagesSquare`; map page titles explicitly; render `<DocumentsScreen />` for the document route while keeping `useState<Screen>("agents")` unchanged. Defer importing and rendering `<AIQAScreen />` until Task 4, where that component is created.
 
 - [ ] **Step 4: Implement the document library surface**
 
