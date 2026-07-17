@@ -4,6 +4,8 @@ import test from "node:test";
 
 const qaSource = readFileSync(new URL("../app/AIQAScreen.tsx", import.meta.url), "utf8");
 const stageSource = readFileSync(new URL("../app/AgentStage3D.tsx", import.meta.url), "utf8");
+const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const documentsSource = readFileSync(new URL("../app/DocumentsScreen.tsx", import.meta.url), "utf8");
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
 assert.match(qaSource, /Cuộc hội thoại/);
@@ -13,6 +15,10 @@ assert.match(qaSource, /Kiểm tra chéo/);
 assert.match(qaSource, /Độ tin cậy/);
 assert.match(stageSource, /type StageMode = "builder" \| "run" \| "qa"/);
 assert.match(stageSource, /mode === "qa"/);
+assert.doesNotMatch(pageSource, /global-search/);
+assert.doesNotMatch(documentsSource, /Tạo thư mục|Loại tài liệu|Thư mục đích|Quyền sử dụng agent/);
+assert.match(documentsSource, /Tải tài liệu lên/);
+assert.match(documentsSource, /data-stage|--upload-progress/);
 assert.match(css, /\.document-workspace/);
 assert.match(css, /\.upload-dropzone/);
 assert.match(css, /\.qa-workspace/);

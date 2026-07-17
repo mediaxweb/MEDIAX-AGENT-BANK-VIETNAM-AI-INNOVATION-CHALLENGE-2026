@@ -85,7 +85,6 @@ export default function Home() {
           <button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button>
           <div className="breadcrumb"><span>MediaX Agent Bank</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
           <div className="top-actions">
-            <label className="global-search"><Search size={17} /><input placeholder="Tìm kiếm hồ sơ, chuyên gia..." /><kbd>⌘ K</kbd></label>
             <div className="factory-status"><span /><strong>Hệ thống AI</strong><em>Sẵn sàng</em></div>
             <button className="icon-button"><Bell size={19} /><i /></button>
             <div className="avatar small">TA</div>

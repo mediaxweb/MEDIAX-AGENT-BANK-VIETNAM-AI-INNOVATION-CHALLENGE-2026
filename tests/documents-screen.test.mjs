@@ -8,23 +8,21 @@ async function readScreen() {
   return readFile(screenUrl, "utf8");
 }
 
-test("selects a document through a keyboard-operable button", async () => {
+test("renders a flat filename table without document selection controls", async () => {
   const screen = await readScreen();
 
-  assert.match(
-    screen,
-    /<button type="button" className="document-name" onClick=\{\(\) => setSelectedDocumentId\(document\.id\)\}>/,
-  );
+  assert.match(screen, /filterDocuments\(documentRecords, "all", "Tất cả", query\)/);
+  assert.match(screen, /<td><span className="document-name"><FileText size=\{17\} \/>\{document\.name\}<\/span><\/td>/);
+  assert.doesNotMatch(screen, /selectedDocumentId|document-details/);
   assert.doesNotMatch(screen, /<tr[^>]*onClick=/);
 });
 
-test("only shows details for a document in the filtered list", async () => {
+test("leaves manual document organization and agent permissions out of the workspace", async () => {
   const screen = await readScreen();
 
-  assert.match(
-    screen,
-    /const selectedDocument = filteredDocuments\.find\(\(document\) => document\.id === selectedDocumentId\);/,
-  );
+  assert.doesNotMatch(screen, /Tạo thư mục|Loại tài liệu|Thư mục đích|Quyền sử dụng agent/);
+  assert.match(screen, /RAG sẽ tự phân loại và điều phối agent phù hợp\./);
+  assert.match(screen, /<article className="upload-item" data-stage=\{item\.stageIndex\}/);
 });
 
 test("keeps keyboard focus in the upload dialog and restores the trigger on close", async () => {

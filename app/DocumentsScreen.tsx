@@ -1,17 +1,9 @@
 "use client";
 
-import { FileText, FolderPlus, Search, Upload, X } from "lucide-react";
+import { FileText, Search, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { advanceUploadItems, canStartUpload, documentFolders, documentRecords, failedDemoUploadFileName, filterDocuments, isAcceptedUploadFileName, retryUploadItem, uploadStages } from "./prototype-data";
+import { advanceUploadItems, canStartUpload, documentRecords, failedDemoUploadFileName, filterDocuments, isAcceptedUploadFileName, retryUploadItem, uploadStages } from "./prototype-data";
 import { Badge, Button, PageHeading } from "./ui";
-
-const documentTypes = ["Tất cả", "Quy trình", "Chính sách", "Biểu mẫu", "Báo cáo", "Dữ liệu tham chiếu"];
-const agentNames: Record<string, string> = {
-  orchestrator: "Điều phối viên AI",
-  credit: "Chuyên gia tín dụng",
-  compliance: "Chuyên gia tuân thủ",
-  operations: "Chuyên gia vận hành",
-};
 
 interface UploadItem {
   id: string;
@@ -35,30 +27,20 @@ function statusTone(status: string) {
 }
 
 export default function DocumentsScreen() {
-  const [folderId, setFolderId] = useState("all");
-  const [type, setType] = useState("Tất cả");
   const [query, setQuery] = useState("");
-  const [selectedDocumentId, setSelectedDocumentId] = useState(documentRecords[0].id);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>(demoUploadItems);
-  const [uploadType, setUploadType] = useState("Quy trình");
-  const [uploadFolderId, setUploadFolderId] = useState("credit");
-  const [allowedUploadAgents, setAllowedUploadAgents] = useState(Object.keys(agentNames));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTriggerRef = useRef<HTMLButtonElement>(null);
   const uploadDialogRef = useRef<HTMLElement>(null);
   const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const filteredDocuments = useMemo(
-    () => filterDocuments(documentRecords, folderId, type, query),
-    [folderId, type, query],
+    () => filterDocuments(documentRecords, "all", "Tất cả", query),
+    [query],
   );
-  const selectedDocument = filteredDocuments.find((document) => document.id === selectedDocumentId);
-  const selectedFolder = documentFolders.find((folder) => folder.id === selectedDocument?.folderId);
 
   function resetFilters() {
-    setFolderId("all");
-    setType("Tất cả");
     setQuery("");
   }
 
@@ -106,12 +88,6 @@ export default function DocumentsScreen() {
     }))]);
   }
 
-  function toggleUploadAgent(agent: string) {
-    setAllowedUploadAgents((currentAgents) => currentAgents.includes(agent)
-      ? currentAgents.filter((currentAgent) => currentAgent !== agent)
-      : [...currentAgents, agent]);
-  }
-
   useEffect(() => clearUploadTimer, []);
 
   useEffect(() => {
@@ -152,7 +128,6 @@ export default function DocumentsScreen() {
 
   return <>
     <PageHeading title="Kho tài liệu" subtitle="Quản lý nguồn tri thức nghiệp vụ cho đội chuyên gia AI">
-      <Button variant="secondary"><FolderPlus size={16} /> Tạo thư mục</Button>
       <button ref={uploadTriggerRef} type="button" className="button primary" onClick={() => setUploadOpen(true)}><Upload size={16} /> Tải tài liệu lên</button>
     </PageHeading>
 
@@ -165,51 +140,27 @@ export default function DocumentsScreen() {
       ].map(([value, label]) => <article className="card" key={label}><strong>{value}</strong><span>{label}</span></article>)}
     </section>
 
-    <div className="documents-layout">
-      <aside className="document-folders card" aria-label="Thư mục tài liệu">
-        <div><h2>Thư mục</h2><span>6 khu vực lưu trữ</span></div>
-        {documentFolders.map((folder) => <button key={folder.id} className={folderId === folder.id ? "active" : ""} onClick={() => setFolderId(folder.id)}>
-          <span>{folder.name}</span><b>{folder.count}</b>
-        </button>)}
-      </aside>
-
-      <section className="document-workspace">
+    <section className="document-workspace">
         <div className="document-controls card">
           <label className="search-box"><Search size={17} /><span className="sr-only">Tìm trong kho tài liệu</span><input aria-label="Tìm trong kho tài liệu" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm trong kho tài liệu" /></label>
-          <div className="document-type-chips" aria-label="Lọc theo loại tài liệu">
-            {documentTypes.map((item) => <button key={item} className={type === item ? "selected" : ""} onClick={() => setType(item)}>{item}</button>)}
-          </div>
         </div>
 
         <div className="document-table-card card">
           {filteredDocuments.length ? <table className="document-table">
             <caption className="sr-only">Danh sách tài liệu nghiệp vụ</caption>
-            <thead><tr><th>Tên tài liệu</th><th>Loại</th><th>Cập nhật</th><th>Dung lượng</th><th>Trạng thái</th></tr></thead>
-            <tbody>{filteredDocuments.map((document) => <tr key={document.id} className={selectedDocumentId === document.id ? "selected" : ""}>
-              <td><button type="button" className="document-name" onClick={() => setSelectedDocumentId(document.id)}><FileText size={17} />{document.name}</button></td><td>{document.type}</td><td>{document.updatedAt}</td><td>{document.size}</td><td><Badge tone={statusTone(document.status)}>{document.status}</Badge></td>
+            <thead><tr><th>Tên tệp</th><th>Cập nhật</th><th>Dung lượng</th><th>Trạng thái</th></tr></thead>
+            <tbody>{filteredDocuments.map((document) => <tr key={document.id}>
+              <td><span className="document-name"><FileText size={17} />{document.name}</span></td><td>{document.updatedAt}</td><td>{document.size}</td><td><Badge tone={statusTone(document.status)}>{document.status}</Badge></td>
             </tr>)}</tbody>
-          </table> : <div className="document-empty"><FileText size={28} /><strong>Không tìm thấy tài liệu phù hợp</strong><p>Thử thay đổi từ khóa hoặc bộ lọc đang dùng.</p><Button variant="secondary" onClick={resetFilters}>Xóa bộ lọc</Button></div>}
+          </table> : <div className="document-empty"><FileText size={28} /><strong>Không tìm thấy tài liệu phù hợp</strong><p>Thử thay đổi từ khóa tìm kiếm.</p><Button variant="secondary" onClick={resetFilters}>Xóa tìm kiếm</Button></div>}
         </div>
-      </section>
-
-      {selectedDocument && <aside className="document-details card" aria-label="Chi tiết tài liệu đã chọn">
-        <div><span>CHI TIẾT TÀI LIỆU</span><h2>{selectedDocument.name}</h2></div>
-        <dl>
-          <div><dt>Loại tài liệu</dt><dd>{selectedDocument.type}</dd></div>
-          <div><dt>Thư mục</dt><dd>{selectedFolder?.name}</dd></div>
-          <div><dt>Cập nhật</dt><dd>{selectedDocument.updatedAt}</dd></div>
-          <div><dt>Dung lượng</dt><dd>{selectedDocument.size}</dd></div>
-          <div><dt>Trạng thái</dt><dd><Badge tone={statusTone(selectedDocument.status)}>{selectedDocument.status}</Badge></dd></div>
-        </dl>
-        <div className="allowed-agents"><span>AGENT ĐƯỢC PHÉP SỬ DỤNG</span>{selectedDocument.allowedAgents.map((agent) => <p key={agent}>{agentNames[agent]}</p>)}</div>
-      </aside>}
-    </div>
+    </section>
 
     {uploadOpen && <div className="modal-layer">
       <button type="button" className="overlay" aria-label="Đóng cửa sổ tải tài liệu" onClick={closeUploadModal} />
       <section ref={uploadDialogRef} className="modal" tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
         <div className="modal-head">
-          <div><span className="modal-icon"><Upload size={20} /></span><div><h2 id="upload-modal-title">Tải tài liệu lên</h2><p>Thêm tài liệu và cấp quyền sử dụng cho đội chuyên gia AI.</p></div></div>
+          <div><span className="modal-icon"><Upload size={20} /></span><div><h2 id="upload-modal-title">Tải tài liệu lên</h2><p>Thêm tài liệu vào kho tri thức nghiệp vụ.</p></div></div>
           <button type="button" aria-label="Đóng cửa sổ tải tài liệu" onClick={closeUploadModal}><X /></button>
         </div>
         <div className="modal-body">
@@ -231,25 +182,15 @@ export default function DocumentsScreen() {
             <Upload size={22} /><strong>Kéo thả tệp vào đây hoặc chọn tệp</strong><span>Hỗ trợ PDF, DOCX, XLSX</span>
           </button>
 
-          <div className="upload-options">
-            <label>Loại tài liệu<select value={uploadType} onChange={(event) => setUploadType(event.target.value)}>{documentTypes.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label>Thư mục lưu trữ<select value={uploadFolderId} onChange={(event) => setUploadFolderId(event.target.value)}>{documentFolders.filter((folder) => folder.id !== "all").map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>
-          </div>
-
-          <fieldset className="upload-agent-permissions">
-            <legend>Agent được phép sử dụng</legend>
-            {Object.entries(agentNames).map(([agent, name]) => <label key={agent}><input type="checkbox" checked={allowedUploadAgents.includes(agent)} onChange={() => toggleUploadAgent(agent)} /> {name}</label>)}
-          </fieldset>
-
           <section aria-label="Tiến trình tải tài liệu">
             <h3>Tệp chờ xử lý</h3>
-            {uploadItems.map((item) => <article className="upload-item" key={item.id}>
+            {uploadItems.map((item) => <article className="upload-item" data-stage={item.stageIndex} key={item.id}>
               <div><FileText size={16} /><span><strong>{item.name}</strong><small>{item.size} · {item.failed ? "Cần xử lý lại" : uploadStages[item.stageIndex]}</small></span></div>
               {item.failed ? <div><p role="alert">{item.error}</p><button type="button" onClick={() => retryUpload(item.id)}>Thử lại</button></div> : <span>{uploadStages[item.stageIndex]}</span>}
             </article>)}
           </section>
         </div>
-        <div className="modal-actions"><Button variant="secondary" onClick={closeUploadModal}>Hủy</Button><Button onClick={startUploadProcessing} disabled={!canStartUpload(uploadItems)}>Bắt đầu xử lý</Button></div>
+        <div className="modal-actions"><p>RAG sẽ tự phân loại và điều phối agent phù hợp.</p><Button variant="secondary" onClick={closeUploadModal}>Hủy</Button><Button onClick={startUploadProcessing} disabled={!canStartUpload(uploadItems)}>Bắt đầu xử lý</Button></div>
       </section>
     </div>}
   </>;
