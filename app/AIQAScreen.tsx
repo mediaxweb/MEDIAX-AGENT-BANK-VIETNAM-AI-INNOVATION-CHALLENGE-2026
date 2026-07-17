@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import AgentStage3D from "./AgentStage3D";
 import {
   documentFolders,
@@ -32,6 +33,12 @@ type QaMessage = {
 };
 
 type MobileTab = "conversation" | "agents";
+
+const mobileTabs: MobileTab[] = ["conversation", "agents"];
+const mobileTabIds: Record<MobileTab, string> = {
+  conversation: "qa-conversation-tab",
+  agents: "qa-agent-tab",
+};
 
 const agentNames: Record<string, string> = {
   orchestrator: "Điều phối viên AI",
@@ -135,6 +142,25 @@ export default function AIQAScreen() {
     });
   }
 
+  function activateMobileTab(tab: MobileTab) {
+    setActiveMobileTab(tab);
+    document.getElementById(mobileTabIds[tab])?.focus();
+  }
+
+  function handleMobileTabKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+    const currentIndex = mobileTabs.indexOf(activeMobileTab);
+    let nextTab: MobileTab;
+
+    if (event.key === "ArrowRight") nextTab = mobileTabs[(currentIndex + 1) % mobileTabs.length];
+    else if (event.key === "ArrowLeft") nextTab = mobileTabs[(currentIndex - 1 + mobileTabs.length) % mobileTabs.length];
+    else if (event.key === "Home") nextTab = mobileTabs[0];
+    else if (event.key === "End") nextTab = mobileTabs.at(-1)!;
+    else return;
+
+    event.preventDefault();
+    activateMobileTab(nextTab);
+  }
+
   const closeSourceOverlay = useCallback(() => {
     setSelectedSource(null);
     setSelectedSourceAgents([]);
@@ -187,8 +213,8 @@ export default function AIQAScreen() {
     </PageHeading>
 
     <div className="qa-mobile-tabs" role="tablist" aria-label="Khu vực hỏi đáp">
-      <button id="qa-conversation-tab" type="button" role="tab" aria-controls="qa-conversation-panel" aria-selected={activeMobileTab === "conversation"} tabIndex={activeMobileTab === "conversation" ? 0 : -1} onClick={() => setActiveMobileTab("conversation")}>Hội thoại</button>
-      <button id="qa-agent-tab" type="button" role="tab" aria-controls="qa-agent-panel" aria-selected={activeMobileTab === "agents"} tabIndex={activeMobileTab === "agents" ? 0 : -1} onClick={() => setActiveMobileTab("agents")}>Agent 3D</button>
+      <button id="qa-conversation-tab" type="button" role="tab" aria-controls="qa-conversation-panel" aria-selected={activeMobileTab === "conversation"} tabIndex={activeMobileTab === "conversation" ? 0 : -1} onClick={() => activateMobileTab("conversation")} onKeyDown={handleMobileTabKeyDown}>Hội thoại</button>
+      <button id="qa-agent-tab" type="button" role="tab" aria-controls="qa-agent-panel" aria-selected={activeMobileTab === "agents"} tabIndex={activeMobileTab === "agents" ? 0 : -1} onClick={() => activateMobileTab("agents")} onKeyDown={handleMobileTabKeyDown}>Agent 3D</button>
     </div>
 
     <div className="qa-workspace">

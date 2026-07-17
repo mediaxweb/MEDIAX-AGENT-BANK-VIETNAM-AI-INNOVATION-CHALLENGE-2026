@@ -12,6 +12,9 @@ assert.doesNotMatch(qaSource, /Câu hỏi gợi ý|Đặt lại hội thoại|D�
 assert.match(qaSource, /Hội thoại/);
 assert.match(qaSource, /Agent 3D/);
 assert.match(qaSource, /aria-selected/);
+assert.match(qaSource, /onKeyDown={handleMobileTabKeyDown}/);
+assert.match(qaSource, /ArrowRight/);
+assert.match(qaSource, /ArrowLeft/);
 assert.match(qaSource, /Cuộc hội thoại/);
 assert.match(qaSource, /Đội agent đang phối hợp/);
 assert.match(qaSource, /Phân rã yêu cầu/);
