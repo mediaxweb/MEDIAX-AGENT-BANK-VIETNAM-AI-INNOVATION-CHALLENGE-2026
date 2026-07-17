@@ -1,0 +1,50 @@
+<style>
+  .direction-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:22px}
+  .direction{border:1px solid #253b57;border-radius:16px;background:#081321;overflow:hidden;cursor:pointer;transition:.2s}
+  .direction:hover,.direction.selected{border-color:#4d9aff;transform:translateY(-3px);box-shadow:0 16px 38px #0005}
+  .mini{height:340px;display:flex;background:#07111d;color:#d8e5f2;font:10px/1.35 Inter,Arial,sans-serif}
+  .rail{width:44px;background:#0c1a2a;border-right:1px solid #23344a;padding:9px 6px}.rail i{display:block;height:18px;border-radius:5px;background:#172a40;margin:7px 0}.rail i.on{background:#1668c9}
+  .workspace{flex:1;display:flex;flex-direction:column;min-width:0}.top{height:34px;border-bottom:1px solid #24364b;display:flex;align-items:center;justify-content:space-between;padding:0 9px}.top b{font-size:8px}.pill{border-radius:12px;background:#12365f;color:#7db9ff;padding:3px 7px;font-size:6px}
+  .body{flex:1;display:grid;gap:7px;padding:7px;min-height:0}.split55{grid-template-columns:1.05fr .95fr}.split60{grid-template-columns:1.2fr .8fr}.stage-first{grid-template-rows:1.15fr .85fr}
+  .pane{border:1px solid #25394f;border-radius:8px;background:#0d1a2a;overflow:hidden;display:flex;flex-direction:column}.pane-head{height:30px;padding:0 8px;border-bottom:1px solid #26384e;display:flex;align-items:center;justify-content:space-between;font-size:7px}.chat-area{flex:1;padding:8px;display:flex;flex-direction:column;gap:7px;background:linear-gradient(180deg,#0c1928,#091522)}
+  .bubble{max-width:82%;padding:7px;border-radius:7px;font-size:6px;line-height:1.45}.bubble.user{align-self:flex-end;background:#176bc8}.bubble.ai{background:#16273a;border:1px solid #29405a}.source{color:#6eaef8;font-size:5px;margin-top:3px}.composer{height:42px;margin:0 7px 7px;border:1px solid #31465e;border-radius:7px;display:flex;align-items:center;padding:0 7px;color:#687d94;font-size:6px}.composer b{margin-left:auto;background:#1677df;color:white;padding:4px 6px;border-radius:5px}
+  .stage{flex:1;position:relative;background:radial-gradient(circle at 50% 34%,#214d70,#0a1727 54%,#07111d);overflow:hidden}.agent{position:absolute;width:38px;height:70px;bottom:42px;border-radius:17px 17px 10px 10px;background:linear-gradient(180deg,#5fa7ff,#164d88);box-shadow:0 0 22px #3c98ff88}.agent:before{content:'';position:absolute;width:24px;height:24px;border-radius:50%;background:#b9d9f5;left:7px;top:-17px}.agent.a{left:15%;transform:scale(.8);opacity:.7}.agent.b{left:43%;transform:scale(1.08);background:linear-gradient(180deg,#a47cff,#573891)}.agent.c{right:14%;transform:scale(.82);background:linear-gradient(180deg,#54d99a,#227450)}
+  .flow{position:absolute;left:9px;right:9px;bottom:8px;display:flex;gap:4px}.flow span{flex:1;background:#0d2136dd;border:1px solid #2e4c6c;border-radius:5px;padding:4px;font-size:5px;text-align:center}.flow span.active{border-color:#56a5ff;color:#79b7ff}.coord{position:absolute;top:8px;left:8px;background:#111f30dd;border:1px solid #31506e;padding:6px;border-radius:6px;font-size:6px}.trace{width:76px;border-left:1px solid #26384e;padding:7px;background:#0a1725}.trace strong{font-size:6px}.trace span{display:block;padding:6px 4px;margin-top:5px;border-radius:5px;background:#122338;font-size:5px}.trace span.on{border:1px solid #397ac3;color:#75b7ff}
+  .compact-body{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:7px;flex:1;min-height:0}.bottom-bar{height:64px;border-top:1px solid #25384e;display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:6px}.bottom-bar span{background:#112238;border-radius:5px;padding:6px;font-size:5px}
+  .direction-copy{padding:15px}.direction-copy h3{margin:0 0 6px}.direction-copy p{margin:0;color:#8195ad;font-size:13px;line-height:1.5}.tag{display:inline-block;margin-top:10px;color:#72b3ff;background:#102b49;border-radius:10px;padding:4px 8px;font-size:10px}
+  @media(max-width:1100px){.direction-grid{grid-template-columns:1fr}.mini{height:300px}}
+</style>
+<h2>Chọn hướng bố cục cho màn hình Hỏi đáp AI</h2>
+<p class="subtitle">Cả ba phương án đều giữ Tổng quan là trang mặc định, dùng mock data và tự động điều phối nhiều agent 3D theo câu hỏi.</p>
+<div class="direction-grid">
+  <div class="direction" data-choice="a" onclick="toggleSelect(this)">
+    <div class="mini">
+      <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="workspace"><div class="top"><b>Hỏi đáp AI</b><span class="pill">4 agent sẵn sàng</span></div><div class="body split55">
+        <div class="pane"><div class="pane-head"><b>Cuộc hội thoại</b><span>HS-2026-0182</span></div><div class="chat-area"><div class="bubble user">Đánh giá khả năng vay 2,5 tỷ của khách hàng này.</div><div class="bubble ai">Đội chuyên gia đang phân tích hồ sơ theo 3 luồng tín dụng, tuân thủ và vận hành.<div class="source">3 nguồn được trích dẫn</div></div><div class="bubble ai">Khuyến nghị: phê duyệt có điều kiện.</div></div><div class="composer">Nhập câu hỏi tiếp theo… <b>Gửi</b></div></div>
+        <div class="pane"><div class="pane-head"><b>Đội agent đang phối hợp</b><span>Trực tiếp</span></div><div class="stage"><div class="coord">Điều phối viên · đang tổng hợp</div><i class="agent a"></i><i class="agent b"></i><i class="agent c"></i><div class="flow"><span>Phân rã</span><span class="active">Phân tích</span><span>Kiểm tra chéo</span></div></div></div>
+      </div></div>
+    </div>
+    <div class="direction-copy"><h3>A · Cân bằng hội thoại và sân khấu</h3><p>Hai cột gần bằng nhau, vừa đọc hội thoại thoải mái vừa nhìn rõ hoạt động của đội agent.</p><span class="tag">Khuyến nghị</span></div>
+  </div>
+  <div class="direction" data-choice="b" onclick="toggleSelect(this)">
+    <div class="mini">
+      <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="workspace"><div class="top"><b>Hỏi đáp AI</b><span class="pill">Điều phối tự động</span></div><div class="body split60">
+        <div class="pane"><div class="pane-head"><b>Hỏi đáp & bằng chứng</b><span>6 tài liệu</span></div><div class="chat-area"><div class="bubble user">Điểm rủi ro chính của hồ sơ là gì?</div><div class="bubble ai">Có 2 điểm cần lưu ý: DTI gần ngưỡng và thiếu tờ khai thuế mới nhất.<div class="source">Quy trình tín dụng 2026 · CIC</div></div></div><div class="composer">Đặt câu hỏi… <b>Gửi</b></div></div>
+        <div class="pane"><div class="pane-head"><b>Agent 3D</b><span>3 đang làm việc</span></div><div style="display:flex;flex:1;min-height:0"><div class="stage"><i class="agent a"></i><i class="agent b"></i><i class="agent c"></i></div><div class="trace"><strong>NHẬT KÝ</strong><span>Điều phối</span><span class="on">Tín dụng</span><span>Tuân thủ</span><span>Vận hành</span></div></div></div>
+      </div></div>
+    </div>
+    <div class="direction-copy"><h3>B · Hội thoại ưu tiên</h3><p>Cột chat rộng hơn, sân khấu 3D gọn và có nhật ký agent. Phù hợp khi câu trả lời dài, nhiều nguồn.</p><span class="tag">Năng suất cao</span></div>
+  </div>
+  <div class="direction" data-choice="c" onclick="toggleSelect(this)">
+    <div class="mini">
+      <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+      <div class="workspace"><div class="top"><b>Hỏi đáp AI trực quan</b><span class="pill">Đang điều phối</span></div><div class="body stage-first">
+        <div class="pane"><div class="pane-head"><b>Sân khấu đội agent</b><span>Giai đoạn 2/4</span></div><div class="stage"><div class="coord">Tác vụ: thẩm định hồ sơ vay doanh nghiệp</div><i class="agent a"></i><i class="agent b"></i><i class="agent c"></i><div class="flow"><span>Nhận yêu cầu</span><span class="active">Chia tác vụ</span><span>Đối chiếu</span><span>Tổng hợp</span></div></div></div>
+        <div class="compact-body"><div class="pane"><div class="pane-head"><b>Hội thoại</b></div><div class="chat-area"><div class="bubble user">Đánh giá hồ sơ.</div><div class="bubble ai">Đang tổng hợp kết quả…</div></div></div><div class="pane"><div class="pane-head"><b>Kết quả agent</b></div><div class="bottom-bar"><span>Tín dụng<br><b>87%</b></span><span>Tuân thủ<br><b>Đạt</b></span><span>Vận hành<br><b>Thiếu 1</b></span></div></div></div>
+      </div></div>
+    </div>
+    <div class="direction-copy"><h3>C · Sân khấu 3D ưu tiên</h3><p>Hoạt động agent là trung tâm, chat và kết quả nằm dưới. Ấn tượng khi trình diễn nhưng đọc hội thoại kém hơn.</p><span class="tag">Trình diễn mạnh</span></div>
+  </div>
+</div>

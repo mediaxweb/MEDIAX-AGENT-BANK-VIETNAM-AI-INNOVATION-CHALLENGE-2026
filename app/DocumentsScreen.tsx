@@ -35,10 +35,24 @@ export default function DocumentsScreen() {
   const uploadDialogRef = useRef<HTMLElement>(null);
   const uploadTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query]);
+
   const filteredDocuments = useMemo(
     () => filterDocumentsByName(documentRecords, query),
     [query],
   );
+
+  const paginatedDocuments = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredDocuments.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredDocuments, currentPage]);
+
+  const totalPages = Math.ceil(filteredDocuments.length / itemsPerPage);
 
   function resetFilters() {
     setQuery("");
@@ -127,7 +141,7 @@ export default function DocumentsScreen() {
   }, [uploadOpen]);
 
   return <>
-    <PageHeading title="Kho tài liệu" subtitle="Quản lý nguồn tri thức nghiệp vụ cho đội chuyên gia AI">
+    <PageHeading title="Kho tài liệu" subtitle="Quản lý dữ liệu và tri thức nghiệp vụ của hệ thống">
       <button ref={uploadTriggerRef} type="button" className="button primary" onClick={() => setUploadOpen(true)}><Upload size={16} /> Tải tài liệu lên</button>
     </PageHeading>
 
@@ -145,14 +159,111 @@ export default function DocumentsScreen() {
           <label className="search-box"><Search size={17} /><span className="sr-only">Tìm trong kho tài liệu</span><input aria-label="Tìm trong kho tài liệu" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm trong kho tài liệu" /></label>
         </div>
 
-        <div className="document-table-card card">
-          {filteredDocuments.length ? <table className="document-table">
-            <caption className="sr-only">Danh sách tài liệu nghiệp vụ</caption>
-            <thead><tr><th>Tên tệp</th><th>Cập nhật</th><th>Dung lượng</th><th>Trạng thái</th></tr></thead>
-            <tbody>{filteredDocuments.map((document) => <tr key={document.id}>
-              <td><span className="document-name"><FileText size={17} />{document.name}</span></td><td>{document.updatedAt}</td><td>{document.size}</td><td><Badge tone={statusTone(document.status)}>{document.status}</Badge></td>
-            </tr>)}</tbody>
-          </table> : <div className="document-empty"><FileText size={28} /><strong>Không tìm thấy tài liệu phù hợp</strong><p>Thử thay đổi từ khóa tìm kiếm.</p><Button variant="secondary" onClick={resetFilters}>Xóa tìm kiếm</Button></div>}
+        <div className="document-table-card card" style={{ display: "flex", flexDirection: "column" }}>
+          {filteredDocuments.length ? (
+            <>
+              <div style={{ overflowX: "auto", flex: 1 }}>
+                <table className="document-table">
+                  <caption className="sr-only">Danh sách tài liệu nghiệp vụ</caption>
+                  <thead><tr><th>Tên tệp</th><th>Cập nhật</th><th>Dung lượng</th><th>Trạng thái</th></tr></thead>
+                  <tbody>{paginatedDocuments.map((document) => <tr key={document.id}>
+                    <td><span className="document-name"><FileText size={17} />{document.name}</span></td><td>{document.updatedAt}</td><td>{document.size}</td><td><Badge tone={statusTone(document.status)}>{document.status}</Badge></td>
+                  </tr>)}</tbody>
+                </table>
+              </div>
+              
+              <div className="table-footer" style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px 20px",
+                borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+                background: "rgba(13, 27, 45, 0.1)",
+                fontSize: "12px",
+                color: "var(--muted)",
+                flexWrap: "wrap",
+                gap: "12px"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                  <div>
+                    Hiển thị <strong>{Math.min(filteredDocuments.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredDocuments.length, currentPage * itemsPerPage)}</strong> trong tổng số <strong>{filteredDocuments.length}</strong> tài liệu
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ fontSize: "11px", color: "var(--muted)" }}>Số dòng:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      style={{
+                        background: "rgba(10, 22, 37, 0.6)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        borderRadius: "5px",
+                        padding: "3px 6px",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        outline: "none",
+                        width: "auto",
+                        marginTop: 0
+                      }}
+                    >
+                      {[10, 20, 30, 40, 50, 100].map((num) => (
+                        <option key={num} value={num} style={{ background: "#0b1727", color: "#ffffff" }}>
+                          {num}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {totalPages > 1 && (
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      style={{ height: "28px", padding: "0 10px", fontSize: "11px" }}
+                    >
+                      Trang trước
+                    </button>
+                    
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        className={`button ${currentPage === page ? "primary" : "secondary"}`}
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          height: "28px",
+                          width: "28px",
+                          padding: 0,
+                          fontSize: "11px",
+                          display: "grid",
+                          placeItems: "center"
+                        }}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      style={{ height: "28px", padding: "0 10px", fontSize: "11px" }}
+                    >
+                      Trang sau
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="document-empty"><FileText size={28} /><strong>Không tìm thấy tài liệu phù hợp</strong><p>Thử thay đổi từ khóa tìm kiếm.</p><Button variant="secondary" onClick={resetFilters}>Xóa tìm kiếm</Button></div>
+          )}
         </div>
     </section>
 

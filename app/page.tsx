@@ -2,10 +2,10 @@
 
 import {
   Activity, AlertTriangle, ArrowLeft, Bell, BookOpen, Bot, Box, Building2,
-  Check, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, Clock3,
+  Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Clock3,
   Database, FileCheck2, FileText, Filter, GitBranch, KeyRound, LayoutDashboard, LibraryBig,
   Link2, ListChecks, LockKeyhole, Maximize2, Menu, MessagesSquare, MessageSquareText, MoreHorizontal,
-  Network, PanelLeftClose, Play, Plus, RefreshCw, Search, Settings2, ShieldCheck,
+  Network, PanelLeft, PanelLeftClose, PanelRight, Play, Plus, RefreshCw, Search, Settings2, ShieldCheck,
   SlidersHorizontal, Sparkles, TestTube2, Upload, UserCheck, Users, Wrench, X,
   ZoomIn, ZoomOut
 } from "lucide-react";
@@ -20,23 +20,21 @@ type Screen = "agents" | "documents" | "qa" | "team" | "run" | "comparison";
 type DetailTab = "overview" | "knowledge" | "tools" | "playground";
 
 const agents = [
-  { name: "Chuyên gia tín dụng", role: "Chuyên gia thẩm định tín dụng", docs: 682, tools: 8, color: "blue", icon: CircleDollarSign, updated: "12 phút trước" },
-  { name: "Chuyên gia tuân thủ", role: "Chuyên gia KYC, AML và pháp lý", docs: 945, tools: 6, color: "amber", icon: ShieldCheck, updated: "28 phút trước" },
-  { name: "Chuyên gia vận hành", role: "Chuyên gia vận hành hồ sơ", docs: 310, tools: 10, color: "green", icon: FileCheck2, updated: "1 giờ trước" },
-  { name: "Điều phối viên AI", role: "Điều phối và tổng hợp quyết định", docs: 120, tools: 5, color: "purple", icon: Network, updated: "2 giờ trước" },
+  { name: "Chuyên gia tín dụng", role: "Thẩm định năng lực tài chính và điểm tín dụng", docs: 682, tools: 8, color: "blue", icon: CircleDollarSign, updated: "12 phút trước" },
+  { name: "Chuyên gia tuân thủ", role: "Kiểm soát tuân thủ pháp lý KYC & AML", docs: 945, tools: 6, color: "amber", icon: ShieldCheck, updated: "28 phút trước" },
+  { name: "Chuyên gia vận hành", role: "Kiểm tra hồ sơ và đề xuất luồng nghiệp vụ", docs: 310, tools: 10, color: "green", icon: FileCheck2, updated: "1 giờ trước" },
+  { name: "Điều phối viên AI", role: "Phân rã yêu cầu và lập kế hoạch phối hợp", docs: 120, tools: 5, color: "purple", icon: Network, updated: "2 giờ trước" },
 ];
 
 const nav = [
-  { label: "Tổng quan", icon: LayoutDashboard, screen: "agents" as Screen },
-  { label: "Kho tài liệu", icon: LibraryBig, screen: "documents" as Screen },
   { label: "Hỏi đáp AI", icon: MessagesSquare, screen: "qa" as Screen },
+  { label: "Kho tri thức", icon: LibraryBig, screen: "documents" as Screen },
   { label: "Đội chuyên gia AI", icon: Users, screen: "team" as Screen },
-  { label: "Hồ sơ trình diễn", icon: Building2, screen: "run" as Screen },
-  { label: "So sánh hiệu quả", icon: Activity, screen: "comparison" as Screen },
 ];
 
+
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>("agents");
+  const [screen, setScreen] = useState<Screen>("qa");
   const [selectedNode, setSelectedNode] = useState("credit");
   const [traceDrawer, setTraceDrawer] = useState(false);
   const [approval, setApproval] = useState(false);
@@ -44,10 +42,32 @@ export default function Home() {
   const [approved, setApproved] = useState(false);
   const [workflowRun, setWorkflowRun] = useState(0);
   const [mobileNav, setMobileNav] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [traceExpanded, setTraceExpanded] = useState(true);
+  const [leftSidebarExpanded, setLeftSidebarExpanded] = useState(true);
+  const [qaNavTrigger, setQaNavTrigger] = useState(0);
+
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace("#", "") as Screen;
+      const validScreens: Screen[] = ["qa", "documents", "team", "run", "comparison", "agents"];
+      if (validScreens.includes(hash)) {
+        setScreen(hash);
+      } else {
+        window.location.hash = "qa";
+      }
+    };
+
+    handleHashChange();
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
 
   const pageTitles: Record<Screen, string> = {
     agents: "Tổng quan",
-    documents: "Kho tài liệu",
+    documents: "Kho tri thức",
     qa: "Hỏi đáp AI",
     team: "Đội chuyên gia AI",
     run: "Hồ sơ trình diễn",
@@ -56,8 +76,16 @@ export default function Home() {
   const pageTitle = pageTitles[screen];
 
   function navigate(next: Screen) {
-    setScreen(next); setMobileNav(false);
+    window.location.hash = next;
+    setMobileNav(false);
   }
+
+  const handleMenuClick = (itemScreen: Screen) => {
+    if (itemScreen === "qa") {
+      setQaNavTrigger((prev) => prev + 1);
+    }
+    navigate(itemScreen);
+  };
 
   function runWorkflow() {
     setWorkflowRun(1);
@@ -68,33 +96,43 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
-        <div className="brand"><div className="brand-mark"><Sparkles size={18} /></div><div><strong>MediaX</strong><span>Agent Bank</span></div></div>
+      <aside className={`sidebar ${sidebarCollapsed ? "collapsed" : ""} ${mobileNav ? "open" : ""}`}>
+        <div className="brand" style={{ position: "relative" }}>
+          <div className="brand-mark"><Sparkles size={18} /></div>
+          {!sidebarCollapsed && <div><strong>MediaX</strong><span>Agent Bank</span></div>}
+          <button 
+            type="button" 
+            className="sidebar-toggle-btn" 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label={sidebarCollapsed ? "Mở rộng thanh menu" : "Thu gọn thanh menu"}
+          >
+            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
         <nav>
-          <p className="nav-label">KHÔNG GIAN LÀM VIỆC</p>
-          {nav.map((item) => <button key={item.label} className={screen === item.screen ? "active" : ""} onClick={() => navigate(item.screen)}><item.icon size={18} /><span>{item.label}</span>{item.label === "Hồ sơ trình diễn" && <b>1</b>}</button>)}
+          {nav.map((item) => <button key={item.label} className={screen === item.screen ? "active" : ""} onClick={() => handleMenuClick(item.screen)}><item.icon size={18} />{!sidebarCollapsed && <span>{item.label}</span>}{item.label === "Hồ sơ trình diễn" && !sidebarCollapsed && <b>1</b>}</button>)}
         </nav>
         <div className="sidebar-bottom">
-          <div className="system-health"><span className="pulse" /><div><strong>Demo sẵn sàng</strong><small>4 chuyên gia đang hoạt động</small></div></div>
-          <div className="profile"><div className="avatar">TA</div><div><strong>Trần Minh Anh</strong><small>Chuyên viên tín dụng</small></div><MoreHorizontal size={18} /></div>
+          <div className="profile">
+            <div className="avatar">TA</div>
+            {!sidebarCollapsed && <div><strong>Trần Minh Anh</strong><small>Chuyên viên tín dụng</small></div>}
+            {!sidebarCollapsed && <MoreHorizontal size={18} />}
+          </div>
         </div>
       </aside>
 
-      <section className="app-main">
+      <section className={`app-main ${sidebarCollapsed ? "collapsed" : ""}`}>
         <header className="topbar">
           <button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={20} /></button>
           <div className="breadcrumb"><span>MediaX Agent Bank</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
           <div className="top-actions">
-            <div className="factory-status"><span /><strong>Hệ thống AI</strong><em>Sẵn sàng</em></div>
-            <button className="icon-button"><Bell size={19} /><i /></button>
-            <div className="avatar small">TA</div>
           </div>
         </header>
 
         <div className="content">
           {screen === "agents" && <AgentsScreen onStart={() => navigate("team")} onOpenCase={() => navigate("run")} />}
           {screen === "documents" && <DocumentsScreen />}
-          {screen === "qa" && <Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị hỏi đáp AI...</div>}><AIQAScreen /></Suspense>}
+          {screen === "qa" && <Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị hỏi đáp AI...</div>}><AIQAScreen traceExpanded={traceExpanded} setTraceExpanded={setTraceExpanded} leftSidebarExpanded={leftSidebarExpanded} setLeftSidebarExpanded={setLeftSidebarExpanded} /></Suspense>}
           {screen === "team" && <TeamScreen selected={selectedNode} setSelected={setSelectedNode} run={workflowRun} onRun={runWorkflow} onOpenRun={() => navigate("run")} />}
           {screen === "run" && <RunScreen openTrace={() => setTraceDrawer(true)} openApproval={() => { setApproval(true); setApproved(false); setAcknowledged(false); }} />}
           {screen === "comparison" && <ComparisonScreen onRun={() => navigate("run")} />}
@@ -116,13 +154,12 @@ function AgentsScreen({ onStart, onOpenCase }: { onStart: () => void; onOpenCase
   ];
   const orderedAgents = [agents[3], agents[0], agents[1], agents[2]];
   return <>
-    <PageHeading title="Đội chuyên gia AI cho nghiệp vụ ngân hàng" subtitle="Demo đa chuyên gia phối hợp xử lý một hồ sơ tín dụng phức tạp">
-      <Button variant="secondary" onClick={onOpenCase}><FileText size={16} /> Xem hồ sơ mẫu</Button>
+    <PageHeading title="Đội chuyên gia AI nghiệp vụ" subtitle="Thẩm định hồ sơ tín dụng tự động qua hệ thống đa tác nhân">
       <Button onClick={onStart}><Play size={16} /> Bắt đầu trình diễn</Button>
     </PageHeading>
     <section className="problem-banner card">
       <div className="problem-badge"><Sparkles /></div>
-      <div><span>BÀI TOÁN TRÌNH DIỄN</span><h2>Đánh giá hồ sơ vay doanh nghiệp 2,5 tỷ đồng</h2><p>Đội chuyên gia tự phân chia nhiệm vụ, đối chiếu dữ liệu nghiệp vụ, kiểm tra chéo kết quả và đề xuất quyết định có bằng chứng.</p></div>
+      <div><span>BÀI TOÁN TRÌNH DIỄN</span><h2>Đánh giá hồ sơ vay doanh nghiệp 2,5 tỷ đồng</h2><p>Tự động phân rã nhiệm vụ, truy xuất dữ liệu độc lập và đối chiếu chéo chính sách cấp tín dụng.</p></div>
       <div className="problem-outcome"><small>KẾT QUẢ MONG ĐỢI</small><strong>Phê duyệt có điều kiện</strong><span>Chuyên viên quyết định cuối cùng</span></div>
     </section>
     <div className="section-title"><div><h2>Đội chuyên gia tham gia</h2><span>4 vai trò phối hợp</span></div><Badge tone="success">Sẵn sàng</Badge></div>
@@ -225,10 +262,10 @@ function PlaygroundTab() {
 
 function TeamScreen({ selected, setSelected, run, onRun, onOpenRun }: { selected: string; setSelected: (s: string) => void; run: number; onRun: () => void; onOpenRun: () => void }) {
   const details: Record<string, { name: string; task: string; sources: string; result: string; icon: any; color: string }> = {
-    orchestrator: { name: "Điều phối viên AI", task: "Phân rã yêu cầu và giao việc cho từng chuyên gia", sources: "Hồ sơ khách hàng và quy trình cấp tín dụng", result: "Kế hoạch xử lý và thứ tự phối hợp", icon: Network, color: "purple" },
-    credit: { name: "Chuyên gia tín dụng", task: "Đánh giá lịch sử tín dụng, dòng tiền và khả năng trả nợ", sources: "CIC, tỷ lệ DTI và sao kê 6 tháng", result: "Báo cáo tín dụng có bằng chứng", icon: CircleDollarSign, color: "blue" },
-    compliance: { name: "Chuyên gia tuân thủ", task: "Đối chiếu KYC, AML và chính sách nội bộ", sources: "Thông tin định danh, danh sách cảnh báo và quy định", result: "Kết luận tuân thủ và cảnh báo rủi ro", icon: ShieldCheck, color: "amber" },
-    operations: { name: "Chuyên gia vận hành", task: "Kiểm tra tính đầy đủ của hồ sơ và hành động tiếp theo", sources: "Danh mục chứng từ và trạng thái hồ sơ", result: "Danh sách tài liệu cần bổ sung và đề xuất xử lý", icon: FileCheck2, color: "green" },
+    orchestrator: { name: "Điều phối viên AI", task: "Phân rã yêu cầu và phân công nhiệm vụ chuyên môn", sources: "Quy trình tín dụng & Hồ sơ đầu vào", result: "Kế hoạch thực thi phối hợp", icon: Network, color: "purple" },
+    credit: { name: "Chuyên gia tín dụng", task: "Thẩm định năng lực tài chính và điểm tín dụng", sources: "CIC, tỷ lệ DTI & Sao kê tài khoản", result: "Báo cáo phân tích tài chính", icon: CircleDollarSign, color: "blue" },
+    compliance: { name: "Chuyên gia tuân thủ", task: "Kiểm soát tuân thủ pháp lý KYC & AML", sources: "Dữ liệu định danh, danh sách đen AML & Quy định", result: "Chứng nhận tuân thủ pháp lý", icon: ShieldCheck, color: "amber" },
+    operations: { name: "Chuyên gia vận hành", task: "Kiểm tra tính đầy đủ và hợp lệ của chứng từ", sources: "Danh mục hồ sơ vay & Checklists nghiệp vụ", result: "Đề xuất danh mục hồ sơ cần bổ túc", icon: FileCheck2, color: "green" },
   };
   const detail = details[selected] || details.orchestrator;
   const steps = [
@@ -238,9 +275,9 @@ function TeamScreen({ selected, setSelected, run, onRun, onOpenRun }: { selected
     ["Kiểm tra chéo và tổng hợp", run >= 3 ? "Hoàn thành" : run === 2 ? "Đang xử lý" : "Đang chờ"],
     ["Chuyên viên xem xét", run >= 4 ? "Sẵn sàng" : "Đang chờ"],
   ];
-  return <><PageHeading title="Quy trình phối hợp đa chuyên gia" subtitle="Theo dõi cách đội chuyên gia AI xử lý hồ sơ HS-2026-0182"><Button onClick={onRun}><Play size={16} /> Mô phỏng quy trình</Button></PageHeading>
+  return <><PageHeading title="Quy trình phối hợp đa chuyên gia" subtitle="Quy trình tự động thẩm định hồ sơ HS-2026-0182"><Button onClick={onRun}><Play size={16} /> Mô phỏng quy trình</Button></PageHeading>
     <div className="demo-team-layout">
-      <section className="workflow-card card"><div className="workflow-toolbar"><div><h3>Đội chuyên gia AI trong không gian 3D</h3><Badge tone={run && run < 4 ? "info" : "success"}>{run && run < 4 ? "Đang xử lý" : run === 4 ? "Hoàn thành" : "Sẵn sàng"}</Badge></div><div><span>Chọn một chuyên gia để xem nhiệm vụ</span></div></div><Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị đội chuyên gia 3D...</div>}><AgentStage3D mode="builder" selected={selected} onSelect={setSelected} runStep={run} /></Suspense><div className="canvas-footer"><span><ListChecks size={14} /> 4 chuyên gia · 1 bước phê duyệt</span>{run === 4 ? <Button onClick={onOpenRun}>Xem kết quả hồ sơ <ChevronRight size={15} /></Button> : <span>Mọi kết luận đều có bằng chứng</span>}</div></section>
+      <section className="workflow-card card"><div className="workflow-toolbar"><div><h3>Đội chuyên gia AI trong không gian 3D</h3><Badge tone={run && run < 4 ? "info" : "success"}>{run && run < 4 ? "Đang xử lý" : run === 4 ? "Hoàn thành" : "Sẵn sàng"}</Badge></div><div><span>Chọn một chuyên gia để xem nhiệm vụ</span></div></div><Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị đội chuyên gia 3D...</div>}><AgentStage3D mode="builder" selected={selected} onSelect={setSelected} runStep={run} /></Suspense><div className="canvas-footer"><span><ListChecks size={14} /> 4 chuyên gia · 1 bước phê duyệt</span><span>Mọi kết luận đều có bằng chứng</span></div></section>
       <section className="demo-task-panel card">
         <div className="case-brief"><small>HỒ SƠ ĐANG XỬ LÝ</small><strong>HS-2026-0182</strong><span>Nguyễn Văn An · 2,5 tỷ đồng</span></div>
         <div className="selected-expert"><span className={`agent-icon ${detail.color}`}><detail.icon size={19} /></span><div><small>CHUYÊN GIA ĐÃ CHỌN</small><strong>{detail.name}</strong></div></div>
