@@ -13,7 +13,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 
 const AgentStage3D = lazy(() => import("./AgentStage3D"));
 
-type Screen = "agents" | "detail" | "team" | "run";
+type Screen = "agents" | "team" | "run" | "comparison";
 type DetailTab = "overview" | "knowledge" | "tools" | "playground";
 
 const agents = [
@@ -25,13 +25,9 @@ const agents = [
 
 const nav = [
   { label: "Tổng quan", icon: LayoutDashboard, screen: "agents" as Screen },
-  { label: "Chuyên gia AI", icon: Bot, screen: "agents" as Screen },
   { label: "Đội chuyên gia AI", icon: Users, screen: "team" as Screen },
-  { label: "Nghiệp vụ", icon: Building2, screen: "run" as Screen },
-  { label: "Lịch sử xử lý", icon: Clock3 },
-  { label: "Kho tri thức", icon: BookOpen },
-  { label: "Nguồn dữ liệu", icon: Database },
-  { label: "Thiết lập nghiệp vụ", icon: Settings2 },
+  { label: "Hồ sơ trình diễn", icon: Building2, screen: "run" as Screen },
+  { label: "So sánh hiệu quả", icon: Activity, screen: "comparison" as Screen },
 ];
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
@@ -44,9 +40,7 @@ function Button({ children, variant = "primary", onClick, disabled = false, clas
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("agents");
-  const [tab, setTab] = useState<DetailTab>("overview");
   const [selectedNode, setSelectedNode] = useState("credit");
-  const [toolDrawer, setToolDrawer] = useState(false);
   const [traceDrawer, setTraceDrawer] = useState(false);
   const [approval, setApproval] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -54,11 +48,10 @@ export default function Home() {
   const [workflowRun, setWorkflowRun] = useState(0);
   const [mobileNav, setMobileNav] = useState(false);
 
-  const pageTitle = screen === "agents" ? "Chuyên gia AI" : screen === "detail" ? "Chuyên gia tín dụng" : screen === "team" ? "Thiết lập đội chuyên gia" : "Không gian xử lý";
+  const pageTitle = screen === "agents" ? "Tổng quan" : screen === "team" ? "Đội chuyên gia AI" : screen === "comparison" ? "So sánh hiệu quả" : "Hồ sơ trình diễn";
 
   function navigate(next: Screen) {
     setScreen(next); setMobileNav(false);
-    if (next === "detail") setTab("overview");
   }
 
   function runWorkflow() {
@@ -74,12 +67,10 @@ export default function Home() {
         <div className="brand"><div className="brand-mark"><Sparkles size={18} /></div><div><strong>MediaX</strong><span>Agent Bank</span></div></div>
         <nav>
           <p className="nav-label">KHÔNG GIAN LÀM VIỆC</p>
-          {nav.slice(0, 5).map((item) => <button key={item.label} className={(screen === item.screen || (item.label === "Chuyên gia AI" && screen === "detail")) ? "active" : ""} onClick={() => item.screen && navigate(item.screen)}><item.icon size={18} /><span>{item.label}</span>{item.label === "Nghiệp vụ" && <b>3</b>}</button>)}
-          <p className="nav-label second">HỆ THỐNG</p>
-          {nav.slice(5).map((item) => <button key={item.label}><item.icon size={18} /><span>{item.label}</span></button>)}
+          {nav.map((item) => <button key={item.label} className={screen === item.screen ? "active" : ""} onClick={() => navigate(item.screen)}><item.icon size={18} /><span>{item.label}</span>{item.label === "Hồ sơ trình diễn" && <b>1</b>}</button>)}
         </nav>
         <div className="sidebar-bottom">
-          <div className="system-health"><span className="pulse" /><div><strong>Hệ thống ổn định</strong><small>8 chuyên gia sẵn sàng</small></div></div>
+          <div className="system-health"><span className="pulse" /><div><strong>Demo sẵn sàng</strong><small>4 chuyên gia đang hoạt động</small></div></div>
           <div className="profile"><div className="avatar">TA</div><div><strong>Trần Minh Anh</strong><small>Chuyên viên tín dụng</small></div><MoreHorizontal size={18} /></div>
         </div>
       </aside>
@@ -97,14 +88,13 @@ export default function Home() {
         </header>
 
         <div className="content">
-          {screen === "agents" && <AgentsScreen onOpen={() => navigate("detail")} />}
-          {screen === "detail" && <DetailScreen tab={tab} setTab={setTab} onBack={() => navigate("agents")} openTool={() => setToolDrawer(true)} />}
+          {screen === "agents" && <AgentsScreen onStart={() => navigate("team")} onOpenCase={() => navigate("run")} />}
           {screen === "team" && <TeamScreen selected={selectedNode} setSelected={setSelectedNode} run={workflowRun} onRun={runWorkflow} onOpenRun={() => navigate("run")} />}
           {screen === "run" && <RunScreen openTrace={() => setTraceDrawer(true)} openApproval={() => { setApproval(true); setApproved(false); setAcknowledged(false); }} />}
+          {screen === "comparison" && <ComparisonScreen onRun={() => navigate("run")} />}
         </div>
       </section>
 
-      {toolDrawer && <ToolDrawer onClose={() => setToolDrawer(false)} />}
       {traceDrawer && <TraceDrawer onClose={() => setTraceDrawer(false)} />}
       {approval && <ApprovalModal acknowledged={acknowledged} setAcknowledged={setAcknowledged} approved={approved} onApprove={() => setApproved(true)} onClose={() => setApproval(false)} />}
     </main>
@@ -115,35 +105,56 @@ function PageHeading({ title, subtitle, children }: { title: string; subtitle: s
   return <div className="page-heading"><div><h1>{title}</h1><p>{subtitle}</p></div>{children && <div className="heading-actions">{children}</div>}</div>;
 }
 
-function AgentsScreen({ onOpen }: { onOpen: () => void }) {
-  const [filter, setFilter] = useState("Tất cả");
+function AgentsScreen({ onStart, onOpenCase }: { onStart: () => void; onOpenCase: () => void }) {
+  const responsibilities = [
+    ["Phân rã yêu cầu", "Phân công và tổng hợp kết quả"],
+    ["Thẩm định tín dụng", "Tra cứu CIC và tính DTI"],
+    ["Kiểm soát tuân thủ", "Đối chiếu KYC, AML và quy định"],
+    ["Kiểm tra vận hành", "Xác minh hồ sơ và đề xuất hành động"],
+  ];
+  const orderedAgents = [agents[3], agents[0], agents[1], agents[2]];
   return <>
-    <PageHeading title="Chuyên gia AI" subtitle="Xây dựng và quản lý các chuyên gia AI cho nghiệp vụ ngân hàng">
-      <Button><Plus size={17} /> Tạo chuyên gia AI</Button>
+    <PageHeading title="Đội chuyên gia AI cho nghiệp vụ ngân hàng" subtitle="Demo đa chuyên gia phối hợp xử lý một hồ sơ tín dụng phức tạp">
+      <Button variant="secondary" onClick={onOpenCase}><FileText size={16} /> Xem hồ sơ mẫu</Button>
+      <Button onClick={onStart}><Play size={16} /> Bắt đầu trình diễn</Button>
     </PageHeading>
-    <section className="stats-row">
-      <div><span className="stat-icon blue"><Bot /></span><p><strong>12</strong><small>Tổng chuyên gia AI</small></p><em>+2 tháng này</em></div>
-      <div><span className="stat-icon green"><CheckCircle2 /></span><p><strong>8</strong><small>Đang sẵn sàng</small></p><em>Hoạt động ổn định</em></div>
-      <div><span className="stat-icon cyan"><Activity /></span><p><strong>1.248</strong><small>Lượt xử lý tháng này</small></p><em>+18,5%</em></div>
-      <div><span className="stat-icon amber"><Clock3 /></span><p><strong>4,2 giây</strong><small>Thời gian phản hồi TB</small></p><em>−0,8 giây</em></div>
+    <section className="problem-banner card">
+      <div className="problem-badge"><Sparkles /></div>
+      <div><span>BÀI TOÁN TRÌNH DIỄN</span><h2>Đánh giá hồ sơ vay doanh nghiệp 2,5 tỷ đồng</h2><p>Đội chuyên gia tự phân chia nhiệm vụ, đối chiếu dữ liệu nghiệp vụ, kiểm tra chéo kết quả và đề xuất quyết định có bằng chứng.</p></div>
+      <div className="problem-outcome"><small>KẾT QUẢ MONG ĐỢI</small><strong>Phê duyệt có điều kiện</strong><span>Chuyên viên quyết định cuối cùng</span></div>
     </section>
-    <section className="toolbar card">
-      <label className="search-box"><Search size={18} /><input placeholder="Tìm theo tên hoặc vai trò..." /></label>
-      <div className="filter-chips">{["Tất cả", "Tín dụng", "Tuân thủ", "Vận hành"].map((f) => <button className={filter === f ? "selected" : ""} onClick={() => setFilter(f)} key={f}>{f}</button>)}</div>
-      <Button variant="ghost"><Filter size={17} /> Lĩnh vực <ChevronDown size={15} /></Button>
-      <Button variant="ghost"><SlidersHorizontal size={17} /> Trạng thái <ChevronDown size={15} /></Button>
-    </section>
-    <div className="section-title"><div><h2>Danh sách chuyên gia</h2><span>12 chuyên gia</span></div><button>Hoạt động gần đây <ChevronDown size={15} /></button></div>
-    <section className="agent-grid">
-      {agents.map((agent, index) => <article className="agent-card card" key={agent.name}>
-        <div className="agent-card-top"><span className={`agent-icon ${agent.color}`}><agent.icon size={22} /></span><Badge tone="success">Sẵn sàng</Badge><button><MoreHorizontal size={18} /></button></div>
+    <div className="section-title"><div><h2>Đội chuyên gia tham gia</h2><span>4 vai trò phối hợp</span></div><Badge tone="success">Sẵn sàng</Badge></div>
+    <section className="agent-grid focused">
+      {orderedAgents.map((agent, index) => <article className="agent-card card" key={agent.name}>
+        <div className="agent-card-top"><span className={`agent-icon ${agent.color}`}><agent.icon size={22} /></span><Badge tone="success">Sẵn sàng</Badge><span className="agent-order">0{index + 1}</span></div>
         <h3>{agent.name}</h3><p>{agent.role}</p>
-        <div className="provider"><span>AI</span><div><small>Phạm vi nghiệp vụ</small><strong>{index === 0 ? "Tín dụng doanh nghiệp" : index === 1 ? "KYC và AML" : index === 2 ? "Vận hành hồ sơ" : "Điều phối nghiệp vụ"}</strong></div><CheckCircle2 size={16} /></div>
-        <div className="agent-metrics"><div><BookOpen size={16} /><strong>{agent.docs}</strong><small>Tài liệu</small></div><div><Database size={16} /><strong>{agent.tools}</strong><small>Nguồn dữ liệu</small></div><div><Clock3 size={16} /><strong>{index === 0 ? "4,1 giây" : "3,8 giây"}</strong><small>Phản hồi TB</small></div></div>
-        <div className="updated"><RefreshCw size={13} /> Cập nhật {agent.updated}</div>
-        <div className="card-actions"><Button onClick={index === 0 ? onOpen : undefined}>Mở chuyên gia <ChevronRight size={16} /></Button><Button variant="secondary"><FileCheck2 size={16} /> Xem mẫu đánh giá</Button></div>
+        <div className="responsibility"><small>NHIỆM VỤ CHÍNH</small><strong>{responsibilities[index][0]}</strong><span>{responsibilities[index][1]}</span></div>
+        <div className="agent-evidence"><CheckCircle2 /> Mọi kết luận đều kèm nguồn đối chiếu</div>
       </article>)}
     </section>
+    <section className="demo-flow card">
+      {["Tiếp nhận hồ sơ", "Điều phối phân rã", "3 chuyên gia xử lý song song", "Kiểm tra chéo", "Chuyên viên phê duyệt"].map((step, index) => <div key={step}><span>{index + 1}</span><strong>{step}</strong>{index < 4 && <ChevronRight />}</div>)}
+    </section>
+  </>;
+}
+
+function ComparisonScreen({ onRun }: { onRun: () => void }) {
+  const rows = [
+    ["Khả năng phân rã nhiệm vụ", "Một luồng trả lời", "Điều phối theo chuyên môn", 35, 92],
+    ["Kiểm tra chéo kết quả", "Không có", "Ba chuyên gia đối chiếu", 18, 88],
+    ["Bằng chứng nghiệp vụ", "Nguồn tổng quát", "Nguồn riêng theo lĩnh vực", 42, 94],
+    ["Khả năng thực hiện hành động", "Chỉ đề xuất", "Tra cứu và tạo yêu cầu", 30, 86],
+  ];
+  return <>
+    <PageHeading title="So sánh hiệu quả xử lý" subtitle="Kết quả mô phỏng trên cùng hồ sơ HS-2026-0182"><Button onClick={onRun}><Play size={16} /> Xem đội AI xử lý</Button></PageHeading>
+    <section className="comparison-summary">
+      <div className="card"><span>AI đơn lẻ</span><strong>58%</strong><small>Mức độ hoàn chỉnh</small></div>
+      <div className="versus">SO VỚI</div>
+      <div className="card highlighted"><span>Đội chuyên gia AI</span><strong>91%</strong><small>Mức độ hoàn chỉnh</small></div>
+      <div className="card improvement"><Activity /><strong>+33 điểm</strong><small>Nhờ phân công và kiểm tra chéo</small></div>
+    </section>
+    <section className="comparison-table card"><div className="comparison-head"><span>TIÊU CHÍ</span><span>AI ĐƠN LẺ</span><span>ĐỘI CHUYÊN GIA AI</span><span>SO SÁNH</span></div>{rows.map((row) => <div className="comparison-row" key={String(row[0])}><strong>{row[0]}</strong><span>{row[1]}</span><span className="team-value"><CheckCircle2 /> {row[2]}</span><div className="compare-bars"><i className="single" style={{ width: `${row[3]}%` }} /><i className="multi" style={{ width: `${row[4]}%` }} /></div></div>)}</section>
+    <div className="comparison-note"><ShieldCheck /><p><strong>Ý nghĩa đối với SHB</strong><span>Chuyển từ AI chỉ trả lời câu hỏi sang đội chuyên gia có thể lập kế hoạch, phối hợp, sử dụng dữ liệu nghiệp vụ và hỗ trợ thực hiện hành động có kiểm soát.</span></p></div>
   </>;
 }
 
@@ -211,10 +222,31 @@ function PlaygroundTab() {
 }
 
 function TeamScreen({ selected, setSelected, run, onRun, onOpenRun }: { selected: string; setSelected: (s: string) => void; run: number; onRun: () => void; onOpenRun: () => void }) {
-  return <><PageHeading title="Thiết lập đội chuyên gia" subtitle="Đội chuyên gia thẩm định hồ sơ vay doanh nghiệp"><Button variant="secondary"><Check size={16} /> Lưu đội chuyên gia</Button><Button onClick={onRun}><Play size={16} /> Mô phỏng quy trình</Button></PageHeading>
-    <div className="team-layout"><section className="card agent-library"><div className="panel-heading"><div><h3>Thư viện chuyên gia</h3><span>4 chuyên gia</span></div></div><label className="search-box"><Search size={17} /><input placeholder="Tìm chuyên gia..." /></label><select><option>Tất cả lĩnh vực</option></select>{agents.map((a, i) => <button key={a.name} onClick={() => setSelected(["credit", "compliance", "operations", "orchestrator"][i])}><span className={`agent-icon ${a.color}`}><a.icon size={18} /></span><div><strong>{a.name}</strong><small>{a.role}</small></div><span className="drag">⠿</span></button>)}</section>
-      <section className="workflow-card card"><div className="workflow-toolbar"><div><h3>Đội chuyên gia AI trong không gian 3D</h3><Badge tone={run ? "info" : "success"}>{run ? "Đang mô phỏng" : "Sẵn sàng"}</Badge></div><div><span>Chọn một chuyên gia để xem nhiệm vụ</span></div></div><Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị đội chuyên gia 3D...</div>}><AgentStage3D mode="builder" selected={selected} onSelect={setSelected} runStep={run} /></Suspense><div className="canvas-footer"><span><ListChecks size={14} /> 4 chuyên gia · 1 bước phê duyệt</span>{run === 4 ? <Button onClick={onOpenRun}>Mở không gian xử lý <ChevronRight size={15} /></Button> : <span>Tự động lưu lúc 14:03</span>}</div></section>
-      <PropertiesPanel selected={selected} /></div></>;
+  const details: Record<string, { name: string; task: string; sources: string; result: string; icon: any; color: string }> = {
+    orchestrator: { name: "Điều phối viên AI", task: "Phân rã yêu cầu và giao việc cho từng chuyên gia", sources: "Hồ sơ khách hàng và quy trình cấp tín dụng", result: "Kế hoạch xử lý và thứ tự phối hợp", icon: Network, color: "purple" },
+    credit: { name: "Chuyên gia tín dụng", task: "Đánh giá lịch sử tín dụng, dòng tiền và khả năng trả nợ", sources: "CIC, tỷ lệ DTI và sao kê 6 tháng", result: "Báo cáo tín dụng có bằng chứng", icon: CircleDollarSign, color: "blue" },
+    compliance: { name: "Chuyên gia tuân thủ", task: "Đối chiếu KYC, AML và chính sách nội bộ", sources: "Thông tin định danh, danh sách cảnh báo và quy định", result: "Kết luận tuân thủ và cảnh báo rủi ro", icon: ShieldCheck, color: "amber" },
+    operations: { name: "Chuyên gia vận hành", task: "Kiểm tra tính đầy đủ của hồ sơ và hành động tiếp theo", sources: "Danh mục chứng từ và trạng thái hồ sơ", result: "Danh sách tài liệu cần bổ sung và đề xuất xử lý", icon: FileCheck2, color: "green" },
+  };
+  const detail = details[selected] || details.orchestrator;
+  const steps = [
+    ["Tiếp nhận hồ sơ", "Hoàn thành"],
+    ["Phân rã và giao nhiệm vụ", run >= 1 ? "Hoàn thành" : "Sẵn sàng"],
+    ["Ba chuyên gia xử lý song song", run >= 2 ? "Hoàn thành" : run === 1 ? "Đang xử lý" : "Đang chờ"],
+    ["Kiểm tra chéo và tổng hợp", run >= 3 ? "Hoàn thành" : run === 2 ? "Đang xử lý" : "Đang chờ"],
+    ["Chuyên viên xem xét", run >= 4 ? "Sẵn sàng" : "Đang chờ"],
+  ];
+  return <><PageHeading title="Quy trình phối hợp đa chuyên gia" subtitle="Theo dõi cách đội chuyên gia AI xử lý hồ sơ HS-2026-0182"><Button onClick={onRun}><Play size={16} /> Mô phỏng quy trình</Button></PageHeading>
+    <div className="demo-team-layout">
+      <section className="workflow-card card"><div className="workflow-toolbar"><div><h3>Đội chuyên gia AI trong không gian 3D</h3><Badge tone={run && run < 4 ? "info" : "success"}>{run && run < 4 ? "Đang xử lý" : run === 4 ? "Hoàn thành" : "Sẵn sàng"}</Badge></div><div><span>Chọn một chuyên gia để xem nhiệm vụ</span></div></div><Suspense fallback={<div className="agent-stage-fallback">Đang chuẩn bị đội chuyên gia 3D...</div>}><AgentStage3D mode="builder" selected={selected} onSelect={setSelected} runStep={run} /></Suspense><div className="canvas-footer"><span><ListChecks size={14} /> 4 chuyên gia · 1 bước phê duyệt</span>{run === 4 ? <Button onClick={onOpenRun}>Xem kết quả hồ sơ <ChevronRight size={15} /></Button> : <span>Mọi kết luận đều có bằng chứng</span>}</div></section>
+      <section className="demo-task-panel card">
+        <div className="case-brief"><small>HỒ SƠ ĐANG XỬ LÝ</small><strong>HS-2026-0182</strong><span>Nguyễn Văn An · 2,5 tỷ đồng</span></div>
+        <div className="selected-expert"><span className={`agent-icon ${detail.color}`}><detail.icon size={19} /></span><div><small>CHUYÊN GIA ĐÃ CHỌN</small><strong>{detail.name}</strong></div></div>
+        <div className="task-detail"><div><span>Nhiệm vụ</span><strong>{detail.task}</strong></div><div><span>Nguồn đối chiếu</span><strong>{detail.sources}</strong></div><div><span>Kết quả bàn giao</span><strong>{detail.result}</strong></div></div>
+        <div className="coordination-steps"><h3>Tiến trình phối hợp</h3>{steps.map(([name, status], index) => <div key={name} className={status === "Đang xử lý" ? "active" : status === "Hoàn thành" ? "done" : ""}><i>{status === "Hoàn thành" ? <Check size={12} /> : index + 1}</i><p><strong>{name}</strong><small>{status}</small></p></div>)}</div>
+        <div className="human-control"><UserCheck size={18} /><p><strong>Chuyên viên kiểm soát quyết định</strong><span>AI không tự phê duyệt hoặc thay đổi hồ sơ.</span></p></div>
+      </section>
+    </div></>;
 }
 
 function FlowNode({ id, selected, setSelected, run, step, color, icon: Icon, title, status }: any) {

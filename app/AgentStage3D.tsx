@@ -51,7 +51,7 @@ export default function AgentStage3D({ mode, selected = "credit", onSelect, runS
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x07111f, 0.045);
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-    camera.position.set(0, compact ? 3.4 : 4.3, compact ? 8.7 : 9.8);
+    camera.position.set(0, compact ? 3.4 : 4.3, compact ? 8.7 : 11.7);
     camera.lookAt(0, 1, 0);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
@@ -86,7 +86,7 @@ export default function AgentStage3D({ mode, selected = "credit", onSelect, runS
     const characterRoots: THREE.Object3D[] = [];
     const positions = compact
       ? [[-2.55, 0.35], [-0.85, -0.2], [0.85, -0.2], [2.55, 0.35]]
-      : [[-3.15, 0.55], [-1.05, -0.35], [1.05, -0.35], [3.15, 0.55]];
+      : [[-1.9, 0.55], [-0.63, -0.35], [0.63, -0.35], [1.9, 0.55]];
 
     const loader = new GLTFLoader();
     const draco = new DRACOLoader();
@@ -98,7 +98,7 @@ export default function AgentStage3D({ mode, selected = "credit", onSelect, runS
         const root = clone(gltf.scene);
         const box = new THREE.Box3().setFromObject(root);
         const height = Math.max(box.max.y - box.min.y, 0.01);
-        const scale = (compact ? 1.62 : 1.85) / height;
+        const scale = (compact ? 1.62 : 1.55) / height;
         root.scale.setScalar(scale);
         const normalized = new THREE.Box3().setFromObject(root);
         root.position.set(positions[index][0], -normalized.min.y, positions[index][1]);
