@@ -238,7 +238,7 @@ def _coerce_has_answer(value) -> bool | None:
     return None
 
 
-@router.post("/question_and_answer")
+@router.post("/question_and_answer", include_in_schema=False)
 async def question_and_answer(
     request: QuestionRequest,
     service: KnowledgeBaseService = Depends(get_knowledge_base_service),
