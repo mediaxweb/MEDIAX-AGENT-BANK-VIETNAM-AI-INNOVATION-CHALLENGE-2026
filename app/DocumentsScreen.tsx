@@ -184,7 +184,7 @@ export default function DocumentsScreen() {
 
           <section aria-label="Tiến trình tải tài liệu">
             <h3>Tệp chờ xử lý</h3>
-            {uploadItems.map((item) => <article className="upload-item" data-stage={item.stageIndex} key={item.id}>
+            {uploadItems.map((item) => <article className="upload-file" data-stage={item.stageIndex} key={item.id}>
               <div><FileText size={16} /><span><strong>{item.name}</strong><small>{item.size} · {item.failed ? "Cần xử lý lại" : uploadStages[item.stageIndex]}</small></span></div>
               {item.failed ? <div><p role="alert">{item.error}</p><button type="button" onClick={() => retryUpload(item.id)}>Thử lại</button></div> : <span>{uploadStages[item.stageIndex]}</span>}
             </article>)}

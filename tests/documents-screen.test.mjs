@@ -22,7 +22,7 @@ test("leaves manual document organization and agent permissions out of the works
 
   assert.doesNotMatch(screen, /Tạo thư mục|Loại tài liệu|Thư mục đích|Quyền sử dụng agent/);
   assert.match(screen, /RAG sẽ tự phân loại và điều phối agent phù hợp\./);
-  assert.match(screen, /<article className="upload-item" data-stage=\{item\.stageIndex\}/);
+  assert.match(screen, /<article className="upload-file" data-stage=\{item\.stageIndex\}/);
 });
 
 test("keeps keyboard focus in the upload dialog and restores the trigger on close", async () => {

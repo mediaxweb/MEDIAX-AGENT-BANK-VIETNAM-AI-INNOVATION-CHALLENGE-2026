@@ -29,6 +29,7 @@ assert.match(documentsSource, /Tải tài liệu lên/);
 assert.match(documentsSource, /data-stage|--upload-progress/);
 assert.match(css, /\.document-workspace/);
 assert.match(css, /\.upload-dropzone/);
+assert.match(css, /upload-file\[data-stage=/);
 assert.match(css, /\.qa-workspace/);
 assert.match(css, /grid-template-columns:\s*minmax\(0,1fr\)\s+minmax\(0,1fr\)/);
 assert.match(css, /\.qa-mobile-tabs/);
