@@ -1,10 +1,12 @@
 import os
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from slowapi import _rate_limit_exceeded_handler
@@ -15,6 +17,10 @@ from app.core.rate_limiter import limiter
 from app.core.database import init_db
 
 load_dotenv()
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+STATIC_DIR = ROOT_DIR / "static"
+UI_INDEX_PATH = ROOT_DIR / "templates" / "index.html"
 
 # Determine whether to expose the interactive documentation.
 env = os.getenv("ENVIRONMENT", "development").lower()
@@ -59,9 +65,15 @@ if env != "production":
 
 app.include_router(api_router, prefix="/api")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/")
 async def root():
     return {"message": "API ready!"}
+
+
+@app.get("/qa", include_in_schema=False)
+@app.get("/documents", include_in_schema=False)
+async def web_ui():
+    return FileResponse(UI_INDEX_PATH)

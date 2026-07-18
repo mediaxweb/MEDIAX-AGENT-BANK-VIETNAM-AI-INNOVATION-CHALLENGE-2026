@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaX Agent Bank — Hỏi đáp AI &amp; Kho tài liệu</title>
+  <meta name="description" content="Truy vấn dữ liệu và phân tích nghiệp vụ tín dụng với sự trợ giúp từ Đội chuyên gia AI MediaX.">
+  <link rel="stylesheet" href="/static/css/style.css?v=4">
+</head>
+<body>
+
+<!-- ============================================================
+     GLOBAL SIDEBAR
+     ============================================================ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="brand-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #fff;"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">MediaX</div>
+      <div class="brand-sub">Agent Bank</div>
+    </div>
+  </div>
+
+  <button class="sidebar-toggle" title="Thu gọn">&#x2039;</button>
+
+  <nav class="sidebar-nav">
+    <button class="nav-item" id="nav-qa">
+      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Hỏi đáp AI</span>
+    </button>
+    <button class="nav-item" id="nav-docs">
+      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      <span>Kho tri thức</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-avatar">ND</div>
+    <div>
+      <div class="user-name">Người dùng</div>
+      <div class="user-role">Agent Bank</div>
+    </div>
+    <button class="btn-more" title="Tùy chọn">•••</button>
+  </div>
+</aside>
+
+<!-- ============================================================
+     MAIN WRAPPER
+     ============================================================ -->
+<div class="main-wrapper">
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <div>
+      <div class="page-title" id="page-title">Hỏi đáp AI</div>
+      <div class="page-subtitle" id="page-subtitle">Truy vấn dữ liệu và phân tích nghiệp vụ với sự trợ giúp từ Đội chuyên gia AI</div>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="content-area">
+
+    <!-- =====================================================
+         VIEW 1: QA — 3-column Grid
+         ===================================================== -->
+    <section id="qa-view" class="view-section">
+
+      <!-- LEFT: Sessions Panel (240px) -->
+      <div class="sessions-panel panel-collapsible" id="sessions-panel">
+        <div class="panel-header">
+          <span class="panel-header-title">PHIÊN HỎI ĐÁP</span>
+          <span id="session-badge"></span>
+        </div>
+
+        <button class="btn-new-session" id="btn-new-session">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Tạo phiên mới
+        </button>
+
+        <div class="session-list" id="session-list">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- CENTER: Chat Panel (flex 1) -->
+      <div class="chat-panel">
+        <!-- Header -->
+        <div class="chat-header">
+          <span class="panel-header-title" style="flex:1;">HỎI ĐÁP VỚI CHUYÊN GIA</span>
+          <span id="chat-badge"></span>
+        </div>
+
+        <!-- Messages / Empty State -->
+        <div class="chat-messages" id="chat-messages">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Composer -->
+        <div class="chat-composer">
+          <div class="composer-box">
+            <textarea
+              id="composer-input"
+              class="composer-textarea"
+              rows="1"
+              placeholder="Nhập câu hỏi nghiệp vụ..."
+              autocomplete="off"
+            ></textarea>
+            <button class="btn-send" id="btn-send" title="Gửi (Enter)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+            </button>
+          </div>
+          <div class="composer-disclaimer">Đội chuyên gia AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Trace Panel (370px) -->
+      <div class="trace-panel panel-collapsible" id="trace-panel">
+        <!-- Header -->
+        <div class="trace-header">
+          <span class="panel-header-title" style="flex:1;">TRAO ĐỔI GIỮA CÁC CHUYÊN GIA</span>
+          <span id="trace-badge"></span>
+        </div>
+
+        <!-- Empty State -->
+        <div class="trace-empty" id="trace-empty">
+          <div style="color:var(--purple);margin-bottom:4px;">
+            <span class="spinning-slow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+            </span>
+          </div>
+          <div class="trace-empty-title">Sẵn sàng phân rã &amp; điều phối</div>
+          <p class="trace-empty-desc">Nhập câu hỏi ở khung chat bên trái. Sơ đồ tương tác và nhật ký phân tích nghiệp vụ của từng chuyên gia con sẽ được cập nhật trực quan tại đây.</p>
+        </div>
+
+        <!-- Agent card list -->
+        <div class="trace-list" id="trace-list" style="display:none;">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================
+         VIEW 2: Documents (Kho tri thức)
+         ===================================================== -->
+    <section id="documents-view" class="view-section">
+
+      <!-- 4 Summary Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">1.284</div>
+          <div class="stat-label">Tổng tài liệu</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">1.247</div>
+          <div class="stat-label">Sẵn sàng</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">24</div>
+          <div class="stat-label">Đang xử lý</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">13</div>
+          <div class="stat-label">Cần kiểm tra</div>
+        </div>
+      </div>
+
+      <!-- Controls Bar -->
+      <div class="docs-action-bar">
+        <div class="search-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="doc-search" placeholder="Tìm trong kho tài liệu" autocomplete="off">
+        </div>
+        <button class="btn-upload-docs" id="btn-upload-docs">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Tải tài liệu lên
+        </button>
+      </div>
+
+      <!-- Document Table Card -->
+      <div class="document-table-card">
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th>Tên tệp</th>
+              <th>Cập nhật</th>
+              <th>Dung lượng</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="doc-tbody"><!-- Rendered by JS --></tbody>
+        </table>
+
+        <!-- Table Footer / Pagination -->
+        <div class="table-footer">
+          <div class="footer-left">
+            <span id="doc-count-label"></span>
+            <label style="display:flex;align-items:center;gap:6px;">
+              Số dòng:
+              <select class="footer-select" id="page-size-select">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+                <option value="40">40</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
+          <div class="footer-right" id="pagination-controls"><!-- Rendered by JS --></div>
+        </div>
+      </div>
+
+    </section>
+
+  </div><!-- /.content-area -->
+</div><!-- /.main-wrapper -->
+
+<!-- ============================================================
+     SOURCE DETAIL OVERLAY (QA page)
+     ============================================================ -->
+<div class="overlay-backdrop" id="overlay-backdrop"></div>
+
+<div class="source-panel" id="source-panel" role="dialog" aria-modal="true">
+  <div class="source-panel-header">
+    <div class="source-header-text">
+      <div class="source-header-label">CHI TIẾT NGUỒN</div>
+      <div class="source-header-filename" id="source-header-filename">—</div>
+    </div>
+    <button class="btn-close-source" id="btn-close-source" title="Đóng">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <div class="source-panel-body">
+    <div class="source-meta">
+      <dl>
+        <dt>Miền</dt><dd id="source-meta-category">—</dd>
+        <dt>Source ID</dt><dd id="source-meta-folder">—</dd>
+        <dt>Trang</dt><dd id="source-meta-updated">—</dd>
+      </dl>
+    </div>
+    <div class="source-divider"></div>
+    <div class="source-section-label">ĐOẠN TRÍCH</div>
+    <blockquote class="source-excerpt" id="source-excerpt">—</blockquote>
+    <div class="source-divider"></div>
+    <div class="source-section-label">Được sử dụng bởi</div>
+    <div class="source-agents" id="source-agents-list"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     UPLOAD MODAL
+     ============================================================ -->
+<div class="modal-layer" id="upload-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-backdrop" id="modal-backdrop"></div>
+  <div class="modal-dialog">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="modal-header-text">
+        <h2 id="modal-title">Tải tài liệu lên</h2>
+        <p>Thêm tài liệu vào kho tri thức nghiệp vụ.</p>
+      </div>
+      <button class="btn-modal-close" id="btn-modal-close" title="Đóng">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="modal-body">
+
+      <!-- Dropzone -->
+      <button class="upload-dropzone" id="upload-dropzone">
+        <div class="upload-dropzone-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <strong>Kéo thả tệp vào đây hoặc chọn tệp</strong>
+        <span>Hỗ trợ PDF, DOCX, XLSX</span>
+        <input type="file" id="file-input" accept=".pdf,.docx,.xlsx" multiple hidden>
+      </button>
+
+      <!-- File Queue -->
+      <div class="upload-queue-section" id="upload-queue-section">
+        <h3 id="queue-header">Tệp chờ xử lý</h3>
+        <div class="upload-queue" id="upload-queue">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+    </div><!-- /.modal-body -->
+
+    <!-- Footer -->
+    <div class="modal-footer">
+      <p class="modal-footer-note">RAG sẽ tự phân loại và điều phối agent phù hợp.</p>
+      <button class="btn-secondary" id="btn-modal-cancel">Hủy</button>
+      <button class="btn-primary" id="btn-start-processing" disabled>Bắt đầu xử lý</button>
+    </div>
+  </div><!-- /.modal-dialog -->
+</div><!-- /#upload-modal -->
+
+<script src="/static/js/app.js?v=4"></script>
+</body>
+</html>
