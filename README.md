@@ -66,6 +66,18 @@ There are two Orchestrator flows:
 The local `agents/` directory deliberately has no `__init__.py` because
 `agents` is also the installed OpenAI Agents SDK package.
 
+## Web UI
+
+The FastAPI application serves the Agent Bank web shell at:
+
+- `/` redirects to `/qa`.
+- `/qa` for Orchestrator chat.
+- `/documents` for the temporary document-management mock screen.
+
+The `/qa` screen calls `POST /api/v1/orchestrator/chat` directly and keeps the
+returned `session_id` in browser storage for follow-up messages in the same
+conversation.
+
 ## Quick start
 
 ### 1. Prerequisites
