@@ -14,12 +14,10 @@ from compliance_agent import (
 from credit_agent import CreditAssessment, calculate_credit_facts
 from operations_agent import OperationsAssessment, calculate_operations_facts
 from orchestrator_agent import (
-    DEFAULT_UNROUTED_CHAT_ANSWER,
     QuestionAnswerDraft,
     QuestionExecution,
     answer_question,
     assemble_question_answer,
-    build_unrouted_question_execution,
     execute_question,
     load_application,
     run_orchestrator,
@@ -212,11 +210,21 @@ def test_partial_answer_can_cite_trusted_evidence():
     assert result.sources == [source]
 
 
-def test_unrouted_question_returns_default_clarification_answer():
-    result = assemble_question_answer("alo", build_unrouted_question_execution())
+def test_general_question_preserves_orchestrator_answer():
+    execution = QuestionExecution(
+        draft=QuestionAnswerDraft(
+            domain="general",
+            answer="Chào anh/chị, em có thể hỗ trợ gì ạ?",
+            evidence_ids=[],
+            insufficient_information=True,
+        ),
+        trusted_evidence=[],
+    )
+
+    result = assemble_question_answer("alo", execution)
 
     assert result.domain == "general"
-    assert result.answer == DEFAULT_UNROUTED_CHAT_ANSWER
+    assert result.answer == "Chào anh/chị, em có thể hỗ trợ gì ạ?"
     assert result.insufficient_information is True
     assert result.sources == []
 
@@ -269,7 +277,7 @@ def test_collect_specialist_output_logs_raw_answer(monkeypatch):
     assert seen_events[0][1]["raw_output"]["answer"] == "Cần bổ sung hồ sơ pháp lý."
 
 
-def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monkeypatch):
+def test_execute_question_preserves_orchestrator_answer_when_no_specialist(monkeypatch):
     seen_events: list[tuple[str, dict]] = []
 
     class FakeTool:
@@ -288,7 +296,7 @@ def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monke
 
     class FakeRunResult:
         final_output = QuestionAnswerDraft(
-            domain="credit",
+            domain="general",
             answer="Tôi có thể hỗ trợ nghiệp vụ tín dụng.",
             evidence_ids=[],
             insufficient_information=True,
@@ -314,7 +322,7 @@ def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monke
     )
 
     assert execution.draft.domain == "general"
-    assert execution.draft.answer == DEFAULT_UNROUTED_CHAT_ANSWER
+    assert execution.draft.answer == "Tôi có thể hỗ trợ nghiệp vụ tín dụng."
     assert execution.draft.insufficient_information is True
     assert execution.trusted_evidence == []
     assert [

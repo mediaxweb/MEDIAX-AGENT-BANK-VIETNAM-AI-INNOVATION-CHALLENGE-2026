@@ -8,7 +8,9 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from agents import SQLiteSession, trace
+from agents.exceptions import ModelBehaviorError, ModelRefusalError
 from fastapi import APIRouter, Depends, Header, HTTPException
+from openai import OpenAIError
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.core.config import configs
@@ -26,6 +28,7 @@ if str(AGENT_SCRIPTS_DIR) not in sys.path:
 
 from orchestrator_agent import (  # noqa: E402
     ChatDomain,
+    DEFAULT_LLM_ERROR_CHAT_ANSWER,
     DEFAULT_MODEL,
     DEFAULT_RAG_MCP_URL,
     OrchestratorQuestionAnswer,
@@ -37,6 +40,7 @@ from rag_agent_support import KnowledgeEvidence, log_agent_event  # noqa: E402
 router = APIRouter()
 SESSION_DB_PATH = ROOT / configs.resolved_orchestrator_session_db_path
 Message = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+LLM_FALLBACK_ERRORS = (OpenAIError, ModelBehaviorError, ModelRefusalError)
 
 
 def get_chat_history_service() -> ChatHistoryService:
@@ -88,6 +92,16 @@ class ChatResponse(BaseModel):
     sources: list[KnowledgeEvidence]
 
 
+def _build_llm_error_answer(question: str) -> OrchestratorQuestionAnswer:
+    return OrchestratorQuestionAnswer(
+        question=question,
+        domain="general",
+        answer=DEFAULT_LLM_ERROR_CHAT_ANSWER,
+        insufficient_information=True,
+        sources=[],
+    )
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -125,6 +139,15 @@ async def chat(
                     model=os.getenv("OPENAI_AGENT_MODEL", DEFAULT_MODEL),
                     session=session,
                 )
+            except LLM_FALLBACK_ERRORS as error:
+                log_agent_event(
+                    "agent.request.llm_fallback",
+                    session_id=str(session_id),
+                    stage="orchestrator_chat",
+                    error_type=type(error).__name__,
+                    duration_ms=int((perf_counter() - started_at) * 1000),
+                )
+                result = _build_llm_error_answer(request.message)
             except Exception as error:
                 log_agent_event(
                     "agent.request.failed",
