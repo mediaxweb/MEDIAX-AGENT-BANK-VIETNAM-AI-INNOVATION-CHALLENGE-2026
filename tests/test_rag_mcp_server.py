@@ -1,10 +1,11 @@
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import pytest
 
 from app import rag_mcp_server
-from app.rag_mcp_server import retrieve_document_page, retrieve_evidence
+from app.rag_mcp_server import LoggingFastMCP, retrieve_document_page, retrieve_evidence
 
 
 class FakeKnowledgeBaseService:
@@ -352,6 +353,35 @@ def test_fastmcp_exposes_all_agent_tools():
         "create_task",
         "create_report",
     ]
+
+
+def test_fastmcp_logs_tool_success_and_redacted_failure(caplog):
+    server = LoggingFastMCP("test-mcp")
+
+    @server.tool()
+    def succeed():
+        return "ok"
+
+    @server.tool()
+    def fail():
+        raise RuntimeError("secret detail")
+
+    with caplog.at_level(logging.INFO, logger="mcp_server"):
+        asyncio.run(server.call_tool("succeed", {}))
+        with pytest.raises(Exception):
+            asyncio.run(server.call_tool("fail", {}))
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "mcp_server"
+    ]
+    assert any("MCP tool completed tool=succeed" in message for message in messages)
+    assert any(
+        "MCP tool failed tool=fail error_type=RuntimeError" in message
+        for message in messages
+    )
+    assert all("secret detail" not in message for message in messages)
 
 
 def test_fastmcp_tool_reads_user_scope_from_environment(monkeypatch):

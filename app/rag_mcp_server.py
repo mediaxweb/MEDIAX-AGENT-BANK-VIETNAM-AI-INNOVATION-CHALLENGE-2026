@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import Mapping
+from time import perf_counter
 from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
@@ -44,6 +46,30 @@ RAG_USER_ENV_BY_DOMAIN = {
     "compliance": "RAG_MCP_COMPLIANCE_USER_ID",
     "operations": "RAG_MCP_OPERATIONS_USER_ID",
 }
+logger = logging.getLogger("mcp_server")
+
+
+class LoggingFastMCP(FastMCP):
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
+        started = perf_counter()
+        logger.info("MCP tool started tool=%s", name)
+        try:
+            result = await super().call_tool(name, arguments)
+        except Exception as exc:
+            root_error = exc.__cause__ or exc
+            logger.error(
+                "MCP tool failed tool=%s error_type=%s duration_ms=%d",
+                name,
+                type(root_error).__name__,
+                (perf_counter() - started) * 1000,
+            )
+            raise
+        logger.info(
+            "MCP tool completed tool=%s duration_ms=%d",
+            name,
+            (perf_counter() - started) * 1000,
+        )
+        return result
 
 
 class KnowledgeEvidence(BaseModel):
@@ -188,7 +214,7 @@ async def retrieve_document_page(
 
 knowledge_base_service = KnowledgeBaseService()
 loan_agent_service = LoanAgentService()
-mcp = FastMCP(
+mcp = LoggingFastMCP(
     "agent-bank-tools",
     host=os.getenv("RAG_MCP_HOST", "127.0.0.1"),
     port=int(os.getenv("RAG_MCP_PORT", "8766")),
@@ -596,6 +622,12 @@ async def create_report(
 
 
 def main() -> None:
+    logger.info(
+        "Starting MCP server transport=streamable-http host=%s port=%s path=%s",
+        mcp.settings.host,
+        mcp.settings.port,
+        mcp.settings.streamable_http_path,
+    )
     mcp.run(transport="streamable-http")
 
 
