@@ -126,11 +126,11 @@ class _FakeLoanAgentService:
             "agent_dispatches": [
                 {
                     "agent_name": "credit",
-                    "status": "sent",
+                    "status": "completed",
                     "file_count": 1,
                     "routing_batch_id": "ROUTING-BATCH-20260718-DEMO0001",
                     "dispatched_at": NOW,
-                    "message": "File references were dispatched.",
+                    "message": "Credit assessment completed.",
                     "payload": {
                         "dossier_id": dossier_id,
                         "routing_batch_id": "ROUTING-BATCH-20260718-DEMO0001",
@@ -143,6 +143,14 @@ class _FakeLoanAgentService:
                     },
                 }
             ],
+            "assessment": {
+                "status": "completed",
+                "trace_id": "trace-dossier-api-test",
+                "overall_result": "READY",
+                "result": {"report": {"answer": "Đủ điều kiện trình phê duyệt."}},
+                "created_at": NOW,
+                "updated_at": NOW,
+            },
             "agent_packages": [],
             "needs_review_count": 0,
             "needs_review_files": [],
@@ -318,6 +326,8 @@ def test_dispatch_dossier_bundle_accepts_idempotency_key():
     assert response.status_code == 200
     assert response.json()["routing_status"] == "dispatched"
     assert response.json()["routing_batch_id"] == "ROUTING-BATCH-20260718-DEMO0001"
+    assert response.json()["assessment"]["status"] == "completed"
+    assert response.json()["assessment"]["trace_id"] == "trace-dossier-api-test"
     assert fake_service.dispatched_dossier_bundle == {
         "user_id": "user-123",
         "dossier_id": "DOSSIER-20260718-DEMO0001",

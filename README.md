@@ -19,9 +19,8 @@ The current MVP supports:
 - RAG chunk retrieval with full-page fallback when a chunk lacks context.
 - Read and controlled write tools for demo loan-case data.
 
-The dossier upload/routing APIs and the Agent assessment workflow are both
-implemented, but are not connected yet. `POST .../dispatch` currently records
-and returns Agent payloads; it does not call `run_dossier_assessment()`.
+`POST /api/v1/loan/dossiers/{dossier_id}/dispatch` connects the stored dossier
+to `run_dossier_assessment()` and returns the persisted assessment snapshot.
 
 ## Architecture
 
@@ -63,14 +62,11 @@ There are two Orchestrator flows:
    in order, passes validated upstream results to the next specialist, and
    returns a Vietnamese report with dossier and policy sources kept separate.
 
-The dossier path is currently split at the Phase 7 integration boundary:
-
 ```text
 ZIP/PDF upload
   -> validate and store files
   -> classify and create routing packages
   -> persist routing/dispatch snapshots in MongoDB
-  -> [integration pending]
   -> normalize dossier PDFs once from file_ref
   -> Credit gate -> Compliance gate -> Operations
   -> final report + dossier sources + policy sources + trace_id
@@ -88,7 +84,7 @@ ZIP/PDF upload
 | `app/rag_mcp_server.py` | Shared FastMCP adapter for RAG and persisted loan-case tools. |
 | `app/api/v1/orchestrator.py` | Anonymous chat API and SQLite conversation-session lifecycle. |
 | `app/api/v1/loan_agent.py` | Authenticated dossier upload, routing lookup, and dispatch endpoints. |
-| `app/services/loan_agent_service.py` | Dossier validation, storage, classification, MongoDB snapshots, and dispatch payload creation. |
+| `app/services/loan_agent_service.py` | Dossier validation, storage, classification, Agent assessment invocation, and MongoDB snapshots. |
 | `app/services/knowledge_base_service.py` | PDF ingestion, indexing, hybrid retrieval, and full-page lookup. |
 
 The local `agents/` directory deliberately has no `__init__.py` because
@@ -112,8 +108,9 @@ transcript and continue the same backend conversation.
 The same composer accepts one ZIP containing PDFs or multiple PDF files for a
 customer dossier. It calls `POST /api/v1/loan/dossiers/route-bundle`, followed
 by `POST /api/v1/loan/dossiers/{dossier_id}/dispatch`, and displays the Planner
-routing result. This currently stops at payload dispatch; it does not display a
-Credit/Compliance/Operations assessment yet.
+routing result. The dispatch response contains the real assessment snapshot;
+the current frontend still displays only the Planner routing summary rather
+than the final Credit/Compliance/Operations report.
 
 The `/documents` screen calls the knowledge-base APIs to list and upload policy
 PDFs for the selected demo Agent account. It is no longer a static upload mock.
@@ -289,14 +286,13 @@ ZIP and PDF inputs cannot be mixed. The current limits are 100 MB per request,
 members, invalid PDF signatures, and oversized extracted content before saving
 the accepted files under `LOAN_UPLOAD_DIR`.
 
-`dispatch` is idempotent when the request supplies an `idempotency_key`. It
-persists a routing/dispatch snapshot and file-reference payloads for Credit,
-Compliance, and Operations. `_send_dossier_agent_payload()` is still a no-op,
-so a `sent` status currently means the payload was built successfully, not that
-the specialist completed an assessment.
+`dispatch` is idempotent when the request supplies an `idempotency_key`. For a
+dossier without files requiring routing review, it calls
+`run_dossier_assessment()` exactly once at dossier level, then persists the
+assessment and the per-Agent completion/gate status in the dispatch snapshot.
+An idempotency replay returns the existing snapshot without rerunning Agents.
 
-The Agent package already contains the next half of the flow in
-`run_dossier_assessment()`:
+The assessment flow:
 
 1. Validate file references, checksums, PDF signatures, and the upload root.
 2. Read each text-based PDF once and normalize facts with file/page evidence.
@@ -305,8 +301,8 @@ The Agent package already contains the next half of the flow in
 5. Return a Vietnamese final report with separate dossier/policy sources and a
    workflow `trace_id`.
 
-This function is currently exercised directly by Agent tests. Connecting it to
-the dossier lifecycle/API is intentionally deferred to Phase 7.
+The endpoint runs synchronously in the MVP; no queue or background worker is
+introduced.
 
 ## Anonymous chat API
 
@@ -514,10 +510,9 @@ routes support data preparation and agent tools; the main demo entry point is
 
 ## MVP limitations
 
-- The dossier upload/routing frontend stops after Planner dispatch; it does not
-  call the staged assessment workflow or display its final report yet.
-- Dossier `dispatch` persists payload snapshots but the send hook is still a
-  no-op until Phase 7 integrates `run_dossier_assessment()`.
+- The dossier frontend invokes the staged assessment through `dispatch`, but it
+  still renders only the Planner routing summary instead of the returned final
+  assessment report.
 - No OCR; scanned PDFs without an extractable text layer are unsupported.
 - Anonymous chat has no user accounts or authorization.
 - Each chat turn delegates to exactly one specialist; cross-domain aggregation

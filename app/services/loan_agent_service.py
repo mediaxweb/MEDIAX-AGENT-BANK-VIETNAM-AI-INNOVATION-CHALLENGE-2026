@@ -4,10 +4,13 @@ import csv
 import hashlib
 import io
 import json
+import os
 import re
+import sys
 import unicodedata
 import uuid
 import zipfile
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -34,6 +37,7 @@ from app.api.schemas.loan_agent import (
     DossierAgentDispatchResult,
     DossierAgentFile,
     DossierAgentPackage,
+    DossierAssessmentSnapshot,
     DossierDispatchResponse,
     DossierDispatchSnapshot,
     DossierDocumentRecord,
@@ -97,8 +101,13 @@ class LoanAgentService:
         {"title": "Case report is created", "owner_agent": "operations"},
     )
 
-    def __init__(self, database: Database = Database):
+    def __init__(
+        self,
+        database: Database = Database,
+        dossier_assessment_runner: Callable[..., Awaitable[Any]] | None = None,
+    ):
         self.database = database
+        self.dossier_assessment_runner = dossier_assessment_runner
 
     async def create_customer(self, *, user_id: str, payload: CustomerCreateRequest) -> CustomerResponse:
         customer_data = payload.model_dump(mode="json", exclude_none=True)
@@ -893,6 +902,8 @@ class LoanAgentService:
             raise LoanAgentNotFoundError("Dossier routing was not found.")
 
         if normalized_idempotency_key:
+            # ponytail: sufficient for the synchronous MVP; use an atomic reservation
+            # before adding concurrent dispatch workers.
             existing_dispatch = self._find_dossier_dispatch_by_idempotency_key(
                 document,
                 normalized_idempotency_key,
@@ -901,7 +912,9 @@ class LoanAgentService:
                 return self._build_dossier_dispatch_response(document, existing_dispatch)
 
         now = self._now()
+        finished_at = now
         routing_batch_id = self._new_routing_batch_id()
+        assessment: dict[str, Any] | None = None
         if int(document.get("needs_review_count") or 0) > 0:
             routing_status = "blocked_needs_review"
             agent_dispatches = self._blocked_dossier_agent_dispatches(
@@ -911,56 +924,61 @@ class LoanAgentService:
             )
             message = "Tạm dừng gửi hồ sơ vì vẫn còn file cần kiểm tra tuyến xử lý."
         else:
-            agent_dispatches = []
-            for package in self._normalized_dossier_agent_packages(document):
-                payload = self._build_dossier_agent_dispatch_payload(
-                    dossier_id=normalized_dossier_id,
-                    routing_batch_id=routing_batch_id,
-                    package=package,
+            payload = self._build_dossier_assessment_payload(
+                document,
+                routing_batch_id=routing_batch_id,
+            )
+            try:
+                result = await self._run_dossier_assessment(payload)
+                finished_at = self._now()
+                assessment = self._build_dossier_assessment_snapshot(
+                    result,
                     created_at=now,
+                    updated_at=finished_at,
                 )
-                if int(package.get("file_count") or 0) == 0:
-                    agent_dispatches.append(
-                        DossierAgentDispatchResult(
-                            agent_name=package["agent_name"],
-                            status="skipped_no_files",
-                            file_count=0,
-                            routing_batch_id=routing_batch_id,
-                            dispatched_at=None,
-                            message="Không có file nào được route tới agent này.",
-                            payload=payload,
-                        ).model_dump(mode="json")
+                agent_dispatches = self._assessment_agent_dispatches(
+                    document=document,
+                    routing_batch_id=routing_batch_id,
+                    assessment=assessment,
+                    completed_at=finished_at,
+                )
+                failed_count = sum(
+                    dispatch["status"] == "failed" for dispatch in agent_dispatches
+                )
+                completed_count = sum(
+                    dispatch["status"] == "completed" for dispatch in agent_dispatches
+                )
+                if failed_count:
+                    assessment["status"] = "failed"
+                    assessment["error_type"] = "AgentRuntimeFailure"
+                    routing_status = (
+                        "partial_dispatch_failed"
+                        if completed_count
+                        else "dispatch_failed"
                     )
-                    continue
-
-                try:
-                    await self._send_dossier_agent_payload(payload)
-                    agent_dispatches.append(
-                        DossierAgentDispatchResult(
-                            agent_name=package["agent_name"],
-                            status="sent",
-                            file_count=package["file_count"],
-                            routing_batch_id=routing_batch_id,
-                            dispatched_at=now,
-                            message="Đã gửi tham chiếu file tới hàng đợi của agent chuyên gia.",
-                            payload=payload,
-                        ).model_dump(mode="json")
+                    message = "Workflow dừng vì một Agent gặp lỗi runtime."
+                else:
+                    routing_status = "dispatched"
+                    message = (
+                        "Orchestrator đã hoàn tất thẩm định hồ sơ."
+                        if assessment["status"] == "completed"
+                        else "Orchestrator đã dừng vì hồ sơ chưa đủ dữ liệu để thẩm định."
                     )
-                except Exception as exc:
-                    agent_dispatches.append(
-                        DossierAgentDispatchResult(
-                            agent_name=package["agent_name"],
-                            status="failed",
-                            file_count=package["file_count"],
-                            routing_batch_id=routing_batch_id,
-                            dispatched_at=None,
-                            message=f"Gửi hồ sơ thất bại: {exc.__class__.__name__}.",
-                            payload=payload,
-                        ).model_dump(mode="json")
-                    )
-
-            routing_status = self._dossier_dispatch_status(agent_dispatches)
-            message = self._dossier_dispatch_message(routing_status)
+            except Exception as exc:
+                finished_at = self._now()
+                assessment = DossierAssessmentSnapshot(
+                    status="failed",
+                    error_type=type(exc).__name__,
+                    created_at=now,
+                    updated_at=finished_at,
+                ).model_dump(mode="json")
+                agent_dispatches = self._failed_dossier_assessment_dispatches(
+                    document=document,
+                    routing_batch_id=routing_batch_id,
+                    completed_at=finished_at,
+                )
+                routing_status = "dispatch_failed"
+                message = "Orchestrator không thể hoàn tất thẩm định hồ sơ."
 
         latest_dispatch = DossierDispatchSnapshot(
             routing_batch_id=routing_batch_id,
@@ -968,8 +986,9 @@ class LoanAgentService:
             routing_status=routing_status,
             message=message,
             agent_dispatches=agent_dispatches,
+            assessment=assessment,
             created_at=now,
-            updated_at=now,
+            updated_at=finished_at,
         ).model_dump(mode="json")
         dispatch_trace = self._build_dossier_dispatch_trace(
             document=document,
@@ -980,19 +999,22 @@ class LoanAgentService:
         previous_dispatch_runs = list(document.get("dispatch_runs") or [])
         previous_routing_trace = list(document.get("routing_trace") or [])
 
+        set_fields = {
+            "routing_status": routing_status,
+            "routing_batch_id": routing_batch_id,
+            "dispatch_message": message,
+            "latest_dispatch": latest_dispatch,
+            "updated_at": finished_at,
+        }
+        if assessment is not None:
+            set_fields["latest_assessment"] = assessment
         update_result = await collection.update_one(
             {
                 "user_id": normalized_user_id,
                 "dossier_id": normalized_dossier_id,
             },
             {
-                "$set": {
-                    "routing_status": routing_status,
-                    "routing_batch_id": routing_batch_id,
-                    "dispatch_message": message,
-                    "latest_dispatch": latest_dispatch,
-                    "updated_at": now,
-                },
+                "$set": set_fields,
                 "$push": {
                     "dispatch_runs": latest_dispatch,
                     "routing_trace": {"$each": dispatch_trace},
@@ -1006,7 +1028,9 @@ class LoanAgentService:
         document["routing_batch_id"] = routing_batch_id
         document["dispatch_message"] = message
         document["latest_dispatch"] = latest_dispatch
-        document["updated_at"] = now
+        if assessment is not None:
+            document["latest_assessment"] = assessment
+        document["updated_at"] = finished_at
         document["dispatch_runs"] = [*previous_dispatch_runs, latest_dispatch]
         document["routing_trace"] = [*previous_routing_trace, *dispatch_trace]
         return self._build_dossier_dispatch_response(document, latest_dispatch)
@@ -1316,6 +1340,154 @@ class LoanAgentService:
         )
         return payload.model_dump(mode="json")
 
+    @staticmethod
+    def _build_dossier_assessment_payload(
+        document: dict[str, Any],
+        *,
+        routing_batch_id: str,
+    ) -> dict[str, Any]:
+        return {
+            "dossier_id": document["dossier_id"],
+            "routing_batch_id": routing_batch_id,
+            "files": [
+                {
+                    "file_id": item["file_id"],
+                    "file_ref": item["file_ref"],
+                    "original_filename": item["original_filename"],
+                    "source_path": item["source_path"],
+                    "detected_document_type": item.get("detected_document_type"),
+                    "business_group": item.get("business_group"),
+                    "confidence": item.get("confidence") or 0,
+                    "needs_agent_confirm": bool(item.get("needs_agent_confirm")),
+                    "reason": item.get("reason"),
+                    "checksum_sha256": item.get("checksum_sha256"),
+                }
+                for item in document.get("document_registry") or []
+            ],
+        }
+
+    async def _run_dossier_assessment(self, payload: dict[str, Any]) -> Any:
+        runner = self.dossier_assessment_runner
+        if runner is None:
+            agent_dir = Path(__file__).resolve().parents[2] / "agents"
+            if str(agent_dir) not in sys.path:
+                sys.path.insert(0, str(agent_dir))
+            from orchestrator_agent import run_dossier_assessment
+
+            runner = run_dossier_assessment
+            self.dossier_assessment_runner = runner
+        return await runner(
+            payload,
+            allowed_root=Path(configs.resolved_loan_upload_dir).resolve(),
+            mcp_url=os.getenv("RAG_MCP_URL", "http://127.0.0.1:8766/mcp"),
+            model=os.getenv("OPENAI_AGENT_MODEL", "gpt-5.4-mini"),
+        )
+
+    @staticmethod
+    def _build_dossier_assessment_snapshot(
+        result: Any,
+        *,
+        created_at: datetime,
+        updated_at: datetime,
+    ) -> dict[str, Any]:
+        if hasattr(result, "model_dump"):
+            serialized = result.model_dump(mode="json")
+        elif isinstance(result, dict):
+            serialized = result
+        else:
+            raise TypeError("Dossier assessment returned an invalid result")
+        return DossierAssessmentSnapshot(
+            status=serialized.get("status"),
+            trace_id=serialized.get("trace_id"),
+            overall_result=serialized.get("overall_result"),
+            stopped_after=serialized.get("stopped_after"),
+            stop_reason=serialized.get("stop_reason"),
+            result=serialized,
+            created_at=created_at,
+            updated_at=updated_at,
+        ).model_dump(mode="json")
+
+    def _assessment_agent_dispatches(
+        self,
+        *,
+        document: dict[str, Any],
+        routing_batch_id: str,
+        assessment: dict[str, Any],
+        completed_at: datetime,
+    ) -> list[dict[str, Any]]:
+        result = assessment.get("result") or {}
+        stop_reason = assessment.get("stop_reason")
+        input_not_ready_agent = {
+            "dossier_input_not_ready": "credit",
+            "credit_input_incomplete": "credit",
+            "compliance_input_incomplete": "compliance",
+            "operations_input_incomplete": "operations",
+        }.get(stop_reason)
+        dispatches: list[dict[str, Any]] = []
+        for package in self._normalized_dossier_agent_packages(document):
+            agent_name = package["agent_name"]
+            agent_result = result.get(agent_name)
+            runtime_failed = bool(
+                agent_result
+                and "rag_or_agent_runtime" in (agent_result.get("missing_data") or [])
+            )
+            if runtime_failed:
+                status = "failed"
+                message = f"Agent {agent_name.title()} gặp lỗi runtime khi thẩm định."
+            elif agent_result is not None:
+                status = "completed"
+                message = f"Agent {agent_name.title()} đã hoàn tất thẩm định."
+            elif agent_name == input_not_ready_agent:
+                status = "input_not_ready"
+                message = f"Dữ liệu chưa đủ để chạy Agent {agent_name.title()}."
+            else:
+                status = "skipped_by_gate"
+                message = f"Agent {agent_name.title()} không chạy do gate trước đó đã dừng."
+            dispatches.append(
+                DossierAgentDispatchResult(
+                    agent_name=agent_name,
+                    status=status,
+                    file_count=package["file_count"],
+                    routing_batch_id=routing_batch_id,
+                    dispatched_at=(
+                        completed_at if status in {"completed", "failed"} else None
+                    ),
+                    message=message,
+                    payload=self._build_dossier_agent_dispatch_payload(
+                        dossier_id=document["dossier_id"],
+                        routing_batch_id=routing_batch_id,
+                        package=package,
+                        created_at=completed_at,
+                    ),
+                ).model_dump(mode="json")
+            )
+        return dispatches
+
+    def _failed_dossier_assessment_dispatches(
+        self,
+        *,
+        document: dict[str, Any],
+        routing_batch_id: str,
+        completed_at: datetime,
+    ) -> list[dict[str, Any]]:
+        return [
+            DossierAgentDispatchResult(
+                agent_name=package["agent_name"],
+                status="failed",
+                file_count=package["file_count"],
+                routing_batch_id=routing_batch_id,
+                dispatched_at=None,
+                message="Workflow lỗi trước khi xác định được kết quả Agent đáng tin cậy.",
+                payload=self._build_dossier_agent_dispatch_payload(
+                    dossier_id=document["dossier_id"],
+                    routing_batch_id=routing_batch_id,
+                    package=package,
+                    created_at=completed_at,
+                ),
+            ).model_dump(mode="json")
+            for package in self._normalized_dossier_agent_packages(document)
+        ]
+
     def _blocked_dossier_agent_dispatches(
         self,
         *,
@@ -1344,28 +1516,6 @@ class LoanAgentService:
             )
         return dispatches
 
-    @staticmethod
-    def _dossier_dispatch_status(agent_dispatches: list[dict[str, Any]]) -> str:
-        sent_count = sum(1 for dispatch in agent_dispatches if dispatch.get("status") == "sent")
-        failed_count = sum(1 for dispatch in agent_dispatches if dispatch.get("status") == "failed")
-        if failed_count and sent_count:
-            return "partial_dispatch_failed"
-        if failed_count:
-            return "dispatch_failed"
-        return "dispatched"
-
-    @staticmethod
-    def _dossier_dispatch_message(routing_status: str) -> str:
-        if routing_status == "dispatched":
-            return "Planner đã gửi tham chiếu file cho tất cả agent có file được route."
-        if routing_status == "partial_dispatch_failed":
-            return "Planner đã gửi được một phần package, nhưng có ít nhất một agent gửi thất bại."
-        if routing_status == "dispatch_failed":
-            return "Planner chưa gửi được package nào có file được route."
-        if routing_status == "blocked_needs_review":
-            return "Planner tạm giữ điều phối vì có file cần kiểm tra tuyến xử lý."
-        return "Planner đã hoàn tất điều phối."
-
     def _build_dossier_dispatch_trace(
         self,
         *,
@@ -1374,11 +1524,16 @@ class LoanAgentService:
         routing_status: str,
         agent_dispatches: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
+        stage = (
+            "planner_dispatch"
+            if routing_status == "blocked_needs_review"
+            else "agent_assessment"
+        )
         trace_entries: list[dict[str, Any]] = [
             DossierRoutingTraceEntry(
                 file_id=None,
                 source_path=f"dossier:{document['dossier_id']}",
-                stage="planner_dispatch",
+                stage=stage,
                 decision=routing_status,
                 reason=f"routing_batch_id={routing_batch_id}; needs_review_count={document.get('needs_review_count', 0)}.",
                 confidence=None,
@@ -1390,7 +1545,7 @@ class LoanAgentService:
                 DossierRoutingTraceEntry(
                     file_id=None,
                     source_path=f"agent:{dispatch['agent_name']}",
-                    stage="planner_dispatch",
+                    stage=stage,
                     decision=dispatch["status"],
                     reason=f"{dispatch['message']} file_count={dispatch['file_count']}.",
                     confidence=None,
@@ -1403,7 +1558,7 @@ class LoanAgentService:
                 DossierRoutingTraceEntry(
                     file_id=None,
                     source_path=f"dossier:{document['dossier_id']}",
-                    stage="planner_dispatch",
+                    stage=stage,
                     decision="multi_agent_files",
                     reason=f"Files routed to multiple agents: {', '.join(multi_agent_files)}.",
                     confidence=None,
@@ -1448,6 +1603,7 @@ class LoanAgentService:
                 "routing_batch_id": dispatch["routing_batch_id"],
                 "message": dispatch["message"],
                 "agent_dispatches": dispatch.get("agent_dispatches") or [],
+                "assessment": dispatch.get("assessment"),
                 "agent_packages": serialized.get("agent_packages") or [],
                 "needs_review_count": serialized.get("needs_review_count") or 0,
                 "needs_review_files": serialized.get("needs_review_files") or [],
@@ -1458,10 +1614,6 @@ class LoanAgentService:
                 "updated_at": serialized["updated_at"],
             }
         )
-
-    @staticmethod
-    async def _send_dossier_agent_payload(payload: dict[str, Any]) -> None:
-        return None
 
     def _classify_dossier_record(
         self,
