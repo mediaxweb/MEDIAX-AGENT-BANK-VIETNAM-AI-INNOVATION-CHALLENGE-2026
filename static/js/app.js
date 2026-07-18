@@ -752,52 +752,192 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================
-// DOCUMENTS MODULE — Full spec implementation
+// DOCUMENTS MODULE
 // ============================================================
 
-// --- Data ---
-const DOCUMENT_RECORDS = [
-  { name: 'Quy trình cấp tín dụng 2026.pdf',       date: '15/07/2026', size: '4,8 MB', status: 'ready',      ext: 'pdf' },
-  { name: 'Chính sách chấm điểm tín dụng.pdf',     date: '08/07/2026', size: '3,6 MB', status: 'ready',      ext: 'pdf' },
-  { name: 'Báo cáo CIC khách hàng.pdf',             date: '14/07/2026', size: '1,7 MB', status: 'ready',      ext: 'pdf' },
-  { name: 'Quy định tài sản bảo đảm.pdf',           date: '12/07/2026', size: '2,1 MB', status: 'ready',      ext: 'pdf' },
-  { name: 'Danh mục kiểm tra KYC.pdf',              date: '10/07/2026', size: '860 KB', status: 'ready',      ext: 'pdf' },
-  { name: 'Danh mục hồ sơ vay doanh nghiệp.docx',  date: '09/07/2026', size: '540 KB', status: 'processing', ext: 'docx' },
-  { name: 'Biểu phí tín dụng doanh nghiệp.pdf',    date: '01/07/2026', size: '1,2 MB', status: 'ready',      ext: 'pdf' },
-  { name: 'Chính sách tín dụng 2024.pdf',           date: '22/12/2024', size: '5,4 MB', status: 'expired',    ext: 'pdf' },
+const KNOWLEDGE_BASE_FILES_ENDPOINT = '/api/v1/knowledge-base/files';
+const KNOWLEDGE_BASE_PROCESS_ENDPOINT = '/api/v1/knowledge-base/process-document';
+const DOCUMENT_AGENT_SCOPES = {
+  credit: {
+    id: 'credit',
+    name: 'Chuyên gia Tín dụng',
+    userId: '6a5b187063aaa5e0510f2da1',
+  },
+  compliance: {
+    id: 'compliance',
+    name: 'Chuyên gia Chính sách',
+    userId: '6a5b187063aaa5e0510f2da2',
+  },
+  operations: {
+    id: 'operations',
+    name: 'Chuyên gia Vận hành',
+    userId: '6a5b187163aaa5e0510f2da3',
+  },
+};
+
+const STATUS_LABELS = {
+  ready: 'Sẵn sàng',
+  processing: 'Đang xử lý',
+  failed: 'Cần kiểm tra',
+  deleted: 'Đã xoá',
+};
+const UPLOAD_STAGES = ['Chờ tải lên', 'Đang tải lên', 'Đang lập chỉ mục', 'Sẵn sàng'];
+const ACCESS_TOKEN_STORAGE_KEYS = [
+  'access_token',
+  'auth_token',
+  'token',
+  'mediax_access_token',
+  'mediax-auth-token',
+  'mediax-agent-bank-access-token',
 ];
 
-const STATUS_LABELS = { ready: 'Sẵn sàng', processing: 'Đang xử lý', expired: 'Hết hiệu lực' };
-
-// --- Upload demo files ---
-const DEMO_UPLOAD_ITEMS = [
-  { id: 'u1', name: 'Hồ sơ đề nghị cấp tín dụng.pdf',  size: '2,4 MB', stageIndex: 0, failed: false, error: null },
-  { id: 'u2', name: 'Danh mục tài sản bảo đảm.docx',    size: '840 KB', stageIndex: 0, failed: false, error: null },
-  { id: 'u3', name: 'Sao kê giao dịch lỗi.xlsx',        size: '1,1 MB', stageIndex: 0, failed: false, error: null },
-];
-const UPLOAD_STAGES = ['Đang tải', 'Đang phân loại', 'Đang lập chỉ mục', 'Sẵn sàng'];
-
-// --- Documents state ---
 let docState = {
+  selectedAgentId: null,
+  documents: [],
   query: '',
   pageSize: 10,
   currentPage: 1,
-  uploadItems: DEMO_UPLOAD_ITEMS.map(x => ({ ...x })),
-  stageInterval: null,
-  processingStarted: false,
+  isLoading: false,
+  hasLoaded: false,
+  loadError: null,
+  uploadItems: [],
+  isUploading: false,
 };
 
 // --- SVG icons for table ---
 const ICON_PDF  = `<svg class="doc-icon-pdf"  xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
-const ICON_DOCX = `<svg class="doc-icon-docx" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
-const ICON_XLSX = `<svg class="doc-icon-xlsx" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
 const ICON_FILE_EMPTY = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
 const ICON_FILE_UPLOAD = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 
-function getDocIcon(ext) {
-  if (ext === 'docx') return ICON_DOCX;
-  if (ext === 'xlsx') return ICON_XLSX;
+function getDocIcon() {
   return ICON_PDF;
+}
+
+function getStoredAccessToken() {
+  try {
+    for (const key of ACCESS_TOKEN_STORAGE_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+
+      const normalized = raw.trim();
+      if (!normalized) continue;
+      if (normalized.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(normalized);
+          const nestedToken = parsed.access_token || parsed.accessToken || parsed.token;
+          if (nestedToken) return String(nestedToken).replace(/^Bearer\s+/i, '').trim();
+        } catch (_error) {
+          continue;
+        }
+      }
+      return normalized.replace(/^Bearer\s+/i, '').trim();
+    }
+  } catch (_error) {
+    return '';
+  }
+  return '';
+}
+
+function buildKnowledgeBaseHeaders(headers = {}) {
+  const token = getStoredAccessToken();
+  if (!token) return headers;
+  return { ...headers, Authorization: `Bearer ${token}` };
+}
+
+async function readApiJson(response) {
+  try {
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function apiErrorMessage(data, fallbackStatus) {
+  if (!data) return `HTTP ${fallbackStatus}`;
+  if (typeof data.detail === 'string') return data.detail;
+  if (Array.isArray(data.detail)) return data.detail.map(item => item.msg || item.type || 'Lỗi dữ liệu').join(', ');
+  if (typeof data.message === 'string') return data.message;
+  return `HTTP ${fallbackStatus}`;
+}
+
+function getDocumentAgent(agentId = docState.selectedAgentId) {
+  return DOCUMENT_AGENT_SCOPES[agentId] || null;
+}
+
+function setSelectedDocumentAgent(agentId) {
+  docState.selectedAgentId = agentId;
+  document.querySelectorAll('.agent-scope-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.agentId === agentId);
+  });
+  updateDocumentsScopeLabel();
+}
+
+function updateDocumentsScopeLabel() {
+  const label = document.getElementById('docs-current-scope');
+  if (!label) return;
+  const agent = getDocumentAgent();
+  if (!agent) {
+    label.textContent = 'Chọn chuyên gia để xem kho tri thức';
+    return;
+  }
+  if (docState.isLoading) {
+    label.textContent = `Đang tải danh sách của ${agent.name}`;
+    return;
+  }
+  if (docState.loadError) {
+    label.textContent = `Không tải được danh sách của ${agent.name}`;
+    return;
+  }
+  if (docState.hasLoaded) {
+    label.textContent = `${agent.name} · ${docState.documents.length} tài liệu`;
+    return;
+  }
+  label.textContent = `${agent.name} · Chưa tải danh sách`;
+}
+
+function normalizeDocumentRecord(item) {
+  const fileName = item.file_name || item.file_path || 'Tài liệu không tên';
+  const ext = String(fileName).split('.').pop().toLowerCase();
+  const rawStatus = String(item.index_status || 'indexed').toLowerCase();
+  const status = rawStatus === 'indexed'
+    ? 'ready'
+    : rawStatus === 'indexing'
+      ? 'processing'
+      : rawStatus === 'deleted'
+        ? 'deleted'
+        : rawStatus === 'failed'
+          ? 'failed'
+          : 'processing';
+
+  return {
+    name: fileName,
+    ext,
+    status,
+    statusText: STATUS_LABELS[status] || rawStatus,
+    pageCount: Number(item.page_count || 0),
+    chunkCount: Number(item.chunk_count || 0),
+    lastError: item.last_error || '',
+  };
+}
+
+function formatFileSize(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function makeUploadItem(file, { failed = false, error = null, canRetry = true } = {}) {
+  return {
+    id: makeLocalId(),
+    name: file.name,
+    size: formatFileSize(file.size),
+    file,
+    stageIndex: failed ? 2 : 0,
+    status: failed ? 'failed' : 'queued',
+    failed,
+    error,
+    canRetry,
+  };
 }
 
 // ---- Render Table ----
@@ -807,11 +947,12 @@ function renderDocTable() {
   const paginationEl = document.getElementById('pagination-controls');
   if (!tbody) return;
 
+  updateDocumentsScopeLabel();
+
   // Filter by query (locale-aware, case-insensitive)
   const q = docState.query.trim().toLowerCase();
-  const filtered = q
-    ? DOCUMENT_RECORDS.filter(r => r.name.toLowerCase().includes(q))
-    : DOCUMENT_RECORDS;
+  const records = Array.isArray(docState.documents) ? docState.documents : [];
+  const filtered = q ? records.filter(r => r.name.toLowerCase().includes(q)) : records;
 
   const pageSize    = docState.pageSize;
   const totalPages  = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -821,53 +962,114 @@ function renderDocTable() {
   const start   = (page - 1) * pageSize;
   const pageRows = filtered.slice(start, start + pageSize);
 
-  // Count label
-  if (filtered.length === 0) {
+  if (countLabel) {
     countLabel.textContent = '';
-  } else {
-    const endIdx = Math.min(start + pageSize, filtered.length);
-    countLabel.innerHTML = `Hiển thị <strong>${start + 1}–${endIdx}</strong> trong tổng số <strong>${filtered.length}</strong> tài liệu`;
+  }
+  if (paginationEl) {
+    paginationEl.innerHTML = '';
   }
 
   // Table rows
   tbody.innerHTML = '';
+  tbody.classList.toggle(
+    'doc-tbody-empty',
+    filtered.length === 0 || docState.isLoading || Boolean(docState.loadError) || !docState.hasLoaded
+  );
 
-  if (pageRows.length === 0) {
-    // Empty state
+  const renderEmptyRow = ({ title, desc, error = false, button = null }) => {
     const emptyRow = document.createElement('tr');
     emptyRow.innerHTML = `
       <td colspan="4" style="padding:0;border:none;">
         <div class="doc-empty-state">
-          ${ICON_FILE_EMPTY}
-          <div class="doc-empty-title">Không tìm thấy tài liệu phù hợp</div>
-          <div class="doc-empty-desc">Thử thay đổi từ khóa tìm kiếm.</div>
-          <button class="btn-clear-search" id="btn-clear-search">Xóa tìm kiếm</button>
+          ${docState.isLoading ? `<span class="spinning">${ICON.loader}</span>` : ICON_FILE_EMPTY}
+          <div class="doc-empty-title">${escapeHtml(title)}</div>
+          ${desc ? `<div class="doc-empty-desc${error ? ' error' : ''}">${escapeHtml(desc)}</div>` : ''}
+          ${button ? `<button class="btn-clear-search" id="${button.id}">${escapeHtml(button.label)}</button>` : ''}
         </div>
       </td>
     `;
     tbody.appendChild(emptyRow);
-    document.getElementById('btn-clear-search').addEventListener('click', () => {
-      docState.query = '';
-      document.getElementById('doc-search').value = '';
-      docState.currentPage = 1;
-      renderDocTable();
+    if (button && button.onClick) {
+      const btn = document.getElementById(button.id);
+      if (btn) btn.addEventListener('click', button.onClick);
+    }
+  };
+
+  if (!docState.selectedAgentId) {
+    renderEmptyRow({
+      title: 'Chưa chọn chuyên gia',
+      desc: 'Bấm Danh sách trên một chuyên gia để xem kho tài liệu.',
     });
-  } else {
-    pageRows.forEach(rec => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td><div class="doc-filename">${getDocIcon(rec.ext)}<span>${rec.name}</span></div></td>
-        <td>${rec.date}</td>
-        <td>${rec.size}</td>
-        <td><span class="doc-badge ${rec.status}">${STATUS_LABELS[rec.status]}</span></td>
-      `;
-      tbody.appendChild(tr);
-    });
+    return;
   }
 
+  if (docState.isLoading) {
+    renderEmptyRow({
+      title: 'Đang tải danh sách tài liệu',
+      desc: 'Hệ thống đang đọc kho tri thức đã chọn.',
+    });
+    return;
+  }
+
+  if (docState.loadError) {
+    renderEmptyRow({
+      title: 'Không thể tải danh sách tài liệu',
+      desc: docState.loadError,
+      error: true,
+      button: {
+        id: 'btn-reload-documents',
+        label: 'Tải lại',
+        onClick: () => loadDocumentsForAgent(docState.selectedAgentId),
+      },
+    });
+    return;
+  }
+
+  if (!docState.hasLoaded) {
+    renderEmptyRow({
+      title: 'Danh sách chưa được tải',
+      desc: 'Bấm Danh sách để đọc tài liệu của chuyên gia đã chọn.',
+    });
+    return;
+  }
+
+  if (filtered.length === 0) {
+    renderEmptyRow({
+      title: q ? 'Không tìm thấy tài liệu phù hợp' : 'Chưa có tài liệu',
+      desc: q ? 'Thử thay đổi từ khóa tìm kiếm.' : 'Upload tài liệu để lập chỉ mục cho chuyên gia này.',
+      button: q ? {
+        id: 'btn-clear-search',
+        label: 'Xóa tìm kiếm',
+        onClick: () => {
+          docState.query = '';
+          document.getElementById('doc-search').value = '';
+          docState.currentPage = 1;
+          renderDocTable();
+        },
+      } : null,
+    });
+    return;
+  }
+
+  if (countLabel) {
+    const endIdx = Math.min(start + pageSize, filtered.length);
+    countLabel.innerHTML = `Hiển thị <strong>${start + 1}–${endIdx}</strong> trong tổng số <strong>${filtered.length}</strong> tài liệu`;
+  }
+
+  pageRows.forEach(rec => {
+    const tr = document.createElement('tr');
+    const statusTitle = rec.lastError ? ` title="${escapeHtml(rec.lastError)}"` : '';
+    tr.innerHTML = `
+      <td><div class="doc-filename">${getDocIcon()}<span>${escapeHtml(rec.name)}</span></div></td>
+      <td>${rec.pageCount || '-'}</td>
+      <td>${rec.chunkCount || '-'}</td>
+      <td><span class="doc-badge ${rec.status}"${statusTitle}>${escapeHtml(rec.statusText)}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
   // Pagination (only if totalPages > 1)
-  paginationEl.innerHTML = '';
-  if (totalPages > 1) {
+  if (paginationEl && totalPages > 1) {
     const prevBtn = document.createElement('button');
     prevBtn.className = 'pager-btn';
     prevBtn.textContent = 'Trang trước';
@@ -892,19 +1094,60 @@ function renderDocTable() {
   }
 }
 
+async function loadDocumentsForAgent(agentId, { silent = false } = {}) {
+  const agent = getDocumentAgent(agentId);
+  if (!agent) return;
+
+  setSelectedDocumentAgent(agent.id);
+  docState.isLoading = !silent;
+  docState.loadError = null;
+  docState.hasLoaded = true;
+  if (!silent) renderDocTable();
+
+  try {
+    const url = new URL(KNOWLEDGE_BASE_FILES_ENDPOINT, window.location.origin);
+    url.searchParams.set('user_id', agent.userId);
+    const response = await fetch(`${url.pathname}${url.search}`, {
+      method: 'GET',
+      headers: buildKnowledgeBaseHeaders({ Accept: 'application/json' }),
+      credentials: 'include',
+    });
+    const data = await readApiJson(response);
+    if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+
+    const files = Array.isArray(data && data.files) ? data.files : [];
+    docState.documents = files.map(normalizeDocumentRecord);
+    docState.currentPage = 1;
+  } catch (error) {
+    docState.documents = [];
+    docState.loadError = error.message || 'Không thể tải danh sách tài liệu.';
+  } finally {
+    docState.isLoading = false;
+    renderDocTable();
+  }
+}
+
 // ---- Upload Modal ----
-function openUploadModal() {
-  docState.uploadItems = DEMO_UPLOAD_ITEMS.map(x => ({ ...x, stageIndex: 0, failed: false, error: null }));
-  docState.processingStarted = false;
-  if (docState.stageInterval) { clearInterval(docState.stageInterval); docState.stageInterval = null; }
+function openUploadModal(agentId) {
+  const agent = getDocumentAgent(agentId);
+  if (!agent) return;
+
+  setSelectedDocumentAgent(agent.id);
+  docState.uploadItems = [];
+  docState.isUploading = false;
+  const title = document.getElementById('modal-title');
+  const subtitle = document.getElementById('modal-subtitle');
+  const footerNote = document.getElementById('modal-footer-note');
+  if (title) title.textContent = `Tải tài liệu cho ${agent.name}`;
+  if (subtitle) subtitle.textContent = 'Thêm PDF vào kho tri thức của chuyên gia đã chọn.';
+  if (footerNote) footerNote.textContent = `Tài liệu sẽ được lập chỉ mục vào kho của ${agent.name}.`;
   renderUploadQueue();
   document.getElementById('upload-modal').classList.add('open');
-  document.getElementById('btn-start-processing').disabled = (docState.uploadItems.length === 0);
+  document.getElementById('btn-start-processing').disabled = true;
 }
 
 function closeUploadModal() {
   document.getElementById('upload-modal').classList.remove('open');
-  if (docState.stageInterval) { clearInterval(docState.stageInterval); docState.stageInterval = null; }
 }
 
 function renderUploadQueue() {
@@ -913,22 +1156,34 @@ function renderUploadQueue() {
   if (!queue) return;
 
   queue.innerHTML = '';
+  if (docState.uploadItems.length === 0) {
+    queue.innerHTML = `
+      <div class="doc-empty-state" style="padding:18px 12px;">
+        ${ICON_FILE_EMPTY}
+        <div class="doc-empty-title">Chưa chọn tệp</div>
+        <div class="doc-empty-desc">Chọn một hoặc nhiều PDF để tải lên.</div>
+      </div>
+    `;
+    if (startBtn) startBtn.disabled = true;
+    return;
+  }
+
   docState.uploadItems.forEach((item, idx) => {
     const article = document.createElement('article');
     article.className = 'upload-file';
 
-    const currentStage = item.failed ? UPLOAD_STAGES[item.stageIndex] : UPLOAD_STAGES[item.stageIndex];
+    const currentStage = UPLOAD_STAGES[item.stageIndex] || UPLOAD_STAGES[0];
     const stageLabel   = item.failed ? `<span class="stage-label failed">Lỗi tại: ${currentStage}</span>`
                        : item.stageIndex === UPLOAD_STAGES.length - 1
                          ? `<span class="stage-label done">${UPLOAD_STAGES[UPLOAD_STAGES.length - 1]}</span>`
-                         : `<span class="stage-label${docState.processingStarted ? ' active' : ''}">${currentStage}</span>`;
+                         : `<span class="stage-label${item.status === 'uploading' ? ' active' : ''}">${currentStage}</span>`;
 
     // Stage dots
     const dotsHtml = UPLOAD_STAGES.map((_, si) => {
       let cls = '';
       if (item.failed && si === item.stageIndex) cls = 'failed';
       else if (si < item.stageIndex) cls = 'done';
-      else if (si === item.stageIndex && docState.processingStarted && !item.failed) cls = 'active';
+      else if (si === item.stageIndex && item.status === 'uploading' && !item.failed) cls = 'active';
       return `<div class="stage-dot ${cls}"></div>`;
     }).join('');
 
@@ -936,8 +1191,8 @@ function renderUploadQueue() {
       <div class="upload-file-row">
         <div class="upload-file-icon">${ICON_FILE_UPLOAD}</div>
         <div class="upload-file-info">
-          <strong class="upload-file-name">${item.name}</strong>
-          <span class="upload-file-meta">${item.size}</span>
+          <strong class="upload-file-name">${escapeHtml(item.name)}</strong>
+          <span class="upload-file-meta">${escapeHtml(item.size)}</span>
         </div>
       </div>
       <div class="upload-stage-bar">
@@ -946,8 +1201,8 @@ function renderUploadQueue() {
       </div>
       ${item.failed ? `
         <div class="upload-error">
-          <span>${item.error}</span>
-          <button class="btn-retry" data-idx="${idx}">Thử lại</button>
+          <span>${escapeHtml(item.error || 'Không thể tải tệp')}</span>
+          ${item.canRetry === false ? '' : `<button class="btn-retry" data-idx="${idx}">Thử lại</button>`}
         </div>
       ` : ''}
     `;
@@ -958,40 +1213,72 @@ function renderUploadQueue() {
   queue.querySelectorAll('.btn-retry').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.idx);
+      if (!docState.uploadItems[idx] || docState.isUploading) return;
       docState.uploadItems[idx].failed = false;
       docState.uploadItems[idx].error  = null;
       docState.uploadItems[idx].stageIndex = 0;
+      docState.uploadItems[idx].status = 'queued';
       renderUploadQueue();
-      if (docState.processingStarted && !docState.stageInterval) startStageInterval();
     });
   });
 
-  if (startBtn) startBtn.disabled = (docState.uploadItems.length === 0);
+  const hasPendingUpload = docState.uploadItems.some(item => item.file && item.status !== 'done' && item.canRetry !== false);
+  if (startBtn) startBtn.disabled = docState.isUploading || !hasPendingUpload;
 }
 
-function startStageInterval() {
-  docState.processingStarted = true;
-  docState.stageInterval = setInterval(() => {
-    let anyActive = false;
-    docState.uploadItems.forEach((item, idx) => {
-      if (item.failed) return;
-      if (item.stageIndex < UPLOAD_STAGES.length - 1) {
-        // Simulate failure for item index 2 at stage 2
-        if (idx === 2 && item.stageIndex === 2) {
-          item.failed = true;
-          item.error  = 'Tệp bị gián đoạn khi lập chỉ mục';
-        } else {
-          item.stageIndex++;
-        }
-        anyActive = true;
-      }
-    });
+async function uploadKnowledgeBaseFile(agent, item) {
+  const formData = new FormData();
+  formData.append('file', item.file, item.file.name);
+  formData.append('user_id', agent.userId);
+
+  const response = await fetch(KNOWLEDGE_BASE_PROCESS_ENDPOINT, {
+    method: 'POST',
+    headers: buildKnowledgeBaseHeaders({ Accept: 'application/json' }),
+    credentials: 'include',
+    body: formData,
+  });
+  const data = await readApiJson(response);
+  if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+  return data;
+}
+
+async function processUploadQueue() {
+  const agent = getDocumentAgent();
+  if (!agent || docState.isUploading) return;
+
+  const uploadItems = docState.uploadItems.filter(item => item.file && item.status !== 'done' && item.canRetry !== false);
+  if (uploadItems.length === 0) return;
+
+  docState.isUploading = true;
+  renderUploadQueue();
+
+  let successCount = 0;
+  for (const item of uploadItems) {
+    item.status = 'uploading';
+    item.failed = false;
+    item.error = null;
+    item.stageIndex = 1;
     renderUploadQueue();
-    if (!anyActive) {
-      clearInterval(docState.stageInterval);
-      docState.stageInterval = null;
+
+    try {
+      await uploadKnowledgeBaseFile(agent, item);
+      item.stageIndex = UPLOAD_STAGES.length - 1;
+      item.status = 'done';
+      successCount++;
+    } catch (error) {
+      item.stageIndex = 2;
+      item.status = 'failed';
+      item.failed = true;
+      item.error = error.message || 'Không thể tải tài liệu lên.';
     }
-  }, 650);
+    renderUploadQueue();
+  }
+
+  docState.isUploading = false;
+  renderUploadQueue();
+  if (successCount > 0) {
+    await loadDocumentsForAgent(agent.id, { silent: true });
+  }
 }
 
 // ---- Drag & Drop ----
@@ -1001,39 +1288,50 @@ function setupDropzone() {
   if (!dropzone || !fileInput) return;
 
   dropzone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => {
-    Array.from(fileInput.files).forEach(f => {
-      const ext = f.name.split('.').pop().toLowerCase();
-      docState.uploadItems.push({
-        id: 'f' + Date.now() + Math.random(),
-        name: f.name,
-        size: f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB`,
-        stageIndex: 0, failed: false, error: null,
-      });
+  const addFiles = files => {
+    Array.from(files).forEach(file => {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext !== 'pdf') {
+        docState.uploadItems.push(makeUploadItem(file, {
+          failed: true,
+          error: 'Chỉ hỗ trợ tệp PDF.',
+          canRetry: false,
+        }));
+        return;
+      }
+      docState.uploadItems.push(makeUploadItem(file));
     });
-    fileInput.value = '';
     renderUploadQueue();
+  };
+
+  fileInput.addEventListener('change', () => {
+    addFiles(fileInput.files);
+    fileInput.value = '';
   });
 
   dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
   dropzone.addEventListener('dragleave', e => { dropzone.classList.remove('drag-over'); });
   dropzone.addEventListener('drop',      e => {
     e.preventDefault(); dropzone.classList.remove('drag-over');
-    Array.from(e.dataTransfer.files).forEach(f => {
-      docState.uploadItems.push({
-        id: 'f' + Date.now() + Math.random(),
-        name: f.name,
-        size: f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : `${Math.round(f.size / 1024)} KB`,
-        stageIndex: 0, failed: false, error: null,
-      });
-    });
-    renderUploadQueue();
+    addFiles(e.dataTransfer.files);
   });
 }
 
 // ---- Bootstrap Documents ----
 function initDocumentsModule() {
   renderDocTable();
+
+  document.querySelectorAll('[data-doc-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const agentId = btn.dataset.agentId;
+      const action = btn.dataset.docAction;
+      if (action === 'list') {
+        loadDocumentsForAgent(agentId);
+      } else if (action === 'upload') {
+        openUploadModal(agentId);
+      }
+    });
+  });
 
   // Search — real-time, reset to page 1
   const searchInput = document.getElementById('doc-search');
@@ -1055,10 +1353,6 @@ function initDocumentsModule() {
     });
   }
 
-  // Upload modal
-  const btnUpload = document.getElementById('btn-upload-docs');
-  if (btnUpload) btnUpload.addEventListener('click', openUploadModal);
-
   const btnModalClose  = document.getElementById('btn-modal-close');
   const btnModalCancel = document.getElementById('btn-modal-cancel');
   const modalBackdrop  = document.getElementById('modal-backdrop');
@@ -1077,9 +1371,7 @@ function initDocumentsModule() {
   const btnStart = document.getElementById('btn-start-processing');
   if (btnStart) {
     btnStart.addEventListener('click', () => {
-      if (docState.uploadItems.length > 0 && !docState.stageInterval) {
-        startStageInterval();
-      }
+      processUploadQueue();
     });
   }
 
