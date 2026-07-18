@@ -35,6 +35,18 @@ const ICON = {
 // ============================================================
 const CHAT_STORAGE_KEY = 'mediax-agent-bank-chat-state-v1';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mediax-agent-bank-sidebar-collapsed-v1';
+const PRIMARY_ACCESS_TOKEN_STORAGE_KEY = 'mediax-agent-bank-access-token';
+const ACCESS_TOKEN_STORAGE_KEYS = [
+  PRIMARY_ACCESS_TOKEN_STORAGE_KEY,
+  'access_token',
+  'auth_token',
+  'token',
+  'mediax_access_token',
+  'mediax-auth-token',
+];
+const AUTH_LOGIN_ENDPOINT = '/api/v1/auth/login';
+const AUTH_REGISTER_ENDPOINT = '/api/v1/auth/register';
+const AUTH_ME_ENDPOINT = '/api/v1/auth/me';
 const ORCHESTRATOR_CHAT_ENDPOINT = '/api/v1/orchestrator/chat';
 const DOMAIN_LABELS = {
   general: 'Hội thoại chung',
@@ -140,6 +152,63 @@ function escapeHtml(value) {
 
 function formatAnswerText(value) {
   return escapeHtml(value).replace(/\n/g, '<br>');
+}
+
+async function readApiJson(response) {
+  try {
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+function apiErrorMessage(data, fallbackStatus) {
+  if (!data) return `HTTP ${fallbackStatus}`;
+  if (typeof data.detail === 'string') return data.detail;
+  if (Array.isArray(data.detail)) return data.detail.map(item => item.msg || item.type || 'Lỗi dữ liệu').join(', ');
+  if (typeof data.message === 'string') return data.message;
+  return `HTTP ${fallbackStatus}`;
+}
+
+function getStoredAccessToken() {
+  try {
+    for (const key of ACCESS_TOKEN_STORAGE_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+
+      const normalized = raw.trim();
+      if (!normalized) continue;
+      if (normalized.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(normalized);
+          const nestedToken = parsed.access_token || parsed.accessToken || parsed.token;
+          if (nestedToken) return String(nestedToken).replace(/^Bearer\s+/i, '').trim();
+        } catch (_error) {
+          continue;
+        }
+      }
+      return normalized.replace(/^Bearer\s+/i, '').trim();
+    }
+  } catch (_error) {
+    return '';
+  }
+  return '';
+}
+
+function storeAccessToken(token) {
+  const normalizedToken = String(token || '').replace(/^Bearer\s+/i, '').trim();
+  if (!normalizedToken) return;
+  localStorage.setItem(PRIMARY_ACCESS_TOKEN_STORAGE_KEY, normalizedToken);
+}
+
+function clearAccessToken() {
+  ACCESS_TOKEN_STORAGE_KEYS.forEach(key => localStorage.removeItem(key));
+}
+
+function buildKnowledgeBaseHeaders(headers = {}) {
+  const token = getStoredAccessToken();
+  if (!token) return headers;
+  return { ...headers, Authorization: `Bearer ${token}` };
 }
 
 function localizeAgentActionText(value) {
@@ -639,6 +708,179 @@ function initSidebarToggle() {
 }
 
 // ============================================================
+// Authentication
+// ============================================================
+function setAuthMode(mode) {
+  const isRegister = mode === 'register';
+  document.body.classList.toggle('auth-register-mode', isRegister);
+
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.authMode === mode);
+  });
+
+  const submit = document.getElementById('auth-submit');
+  const password = document.getElementById('auth-password');
+  const fullName = document.getElementById('auth-full-name');
+  const error = document.getElementById('auth-error');
+  if (submit) submit.textContent = isRegister ? 'Đăng ký' : 'Đăng nhập';
+  if (password) password.autocomplete = isRegister ? 'new-password' : 'current-password';
+  if (fullName) fullName.required = isRegister;
+  if (error) error.textContent = '';
+}
+
+function updateAuthenticatedUser(user) {
+  if (!user) return;
+  const displayName = user.full_name || user.email || 'Người dùng';
+  const role = user.email || 'Đã đăng nhập';
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase() || 'ND';
+
+  const nameEl = document.querySelector('.user-name');
+  const roleEl = document.querySelector('.user-role');
+  const avatarEl = document.querySelector('.user-avatar');
+  if (nameEl) nameEl.textContent = displayName;
+  if (roleEl) roleEl.textContent = role;
+  if (avatarEl) avatarEl.textContent = initials.slice(0, 2);
+}
+
+function unlockApp(user = null) {
+  document.body.classList.remove('auth-locked');
+  document.body.classList.remove('auth-register-mode');
+  if (user) updateAuthenticatedUser(user);
+}
+
+function lockApp() {
+  document.body.classList.add('auth-locked');
+  setAuthMode('login');
+  const password = document.getElementById('auth-password');
+  if (password) password.value = '';
+}
+
+async function fetchCurrentUser() {
+  const token = getStoredAccessToken();
+  if (!token) return null;
+
+  const response = await fetch(AUTH_ME_ENDPOINT, {
+    method: 'GET',
+    headers: buildKnowledgeBaseHeaders({ Accept: 'application/json' }),
+    credentials: 'include',
+  });
+  const data = await readApiJson(response);
+  if (!response.ok) {
+    const error = new Error(apiErrorMessage(data, response.status));
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+async function loginWithCredentials(email, password) {
+  const response = await fetch(AUTH_LOGIN_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await readApiJson(response);
+  if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+  if (!data || !data.access_token) throw new Error('Không nhận được access token.');
+  storeAccessToken(data.access_token);
+  return data;
+}
+
+async function registerAccount({ email, password, fullName }) {
+  const payload = { email, password };
+  if (fullName) payload.full_name = fullName;
+  const response = await fetch(AUTH_REGISTER_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  const data = await readApiJson(response);
+  if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+  return data;
+}
+
+function initAuthModule() {
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.addEventListener('click', () => setAuthMode(tab.dataset.authMode));
+  });
+
+  const token = getStoredAccessToken();
+  if (token) {
+    unlockApp();
+    fetchCurrentUser().then(updateAuthenticatedUser).catch(error => {
+      if (error.status === 401 || error.status === 403) {
+        clearAccessToken();
+        lockApp();
+      }
+    });
+  } else {
+    lockApp();
+  }
+
+  const form = document.getElementById('auth-form');
+  if (form) {
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const isRegister = document.body.classList.contains('auth-register-mode');
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const fullName = document.getElementById('auth-full-name').value.trim();
+      const submit = document.getElementById('auth-submit');
+      const error = document.getElementById('auth-error');
+
+      if (error) error.textContent = '';
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = isRegister ? 'Đang đăng ký...' : 'Đang đăng nhập...';
+      }
+
+      try {
+        let user = null;
+        if (isRegister) {
+          user = await registerAccount({ email, password, fullName });
+        }
+        await loginWithCredentials(email, password);
+        try {
+          user = await fetchCurrentUser();
+        } catch (_error) {
+          // Token is already stored; the UI can continue even if profile lookup fails.
+        }
+        unlockApp(user);
+      } catch (submitError) {
+        if (error) error.textContent = submitError.message || 'Không thể xác thực.';
+      } finally {
+        if (submit) {
+          submit.disabled = false;
+          submit.textContent = isRegister ? 'Đăng ký' : 'Đăng nhập';
+        }
+      }
+    });
+  }
+
+  const logout = document.getElementById('btn-logout');
+  if (logout) {
+    logout.addEventListener('click', () => {
+      clearAccessToken();
+      lockApp();
+    });
+  }
+}
+
+// ============================================================
 // Auto-resize textarea
 // ============================================================
 function autoResizeTextarea(el) {
@@ -709,6 +951,7 @@ function switchPage(page) {
 // Bootstrap
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  initAuthModule();
 
   // Initial render
   renderSessions();
@@ -782,15 +1025,6 @@ const STATUS_LABELS = {
   deleted: 'Đã xoá',
 };
 const UPLOAD_STAGES = ['Chờ tải lên', 'Đang tải lên', 'Đang lập chỉ mục', 'Sẵn sàng'];
-const ACCESS_TOKEN_STORAGE_KEYS = [
-  'access_token',
-  'auth_token',
-  'token',
-  'mediax_access_token',
-  'mediax-auth-token',
-  'mediax-agent-bank-access-token',
-];
-
 let docState = {
   selectedAgentId: null,
   documents: [],
@@ -811,53 +1045,6 @@ const ICON_FILE_UPLOAD = `<svg xmlns="http://www.w3.org/2000/svg" width="16" hei
 
 function getDocIcon() {
   return ICON_PDF;
-}
-
-function getStoredAccessToken() {
-  try {
-    for (const key of ACCESS_TOKEN_STORAGE_KEYS) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-
-      const normalized = raw.trim();
-      if (!normalized) continue;
-      if (normalized.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(normalized);
-          const nestedToken = parsed.access_token || parsed.accessToken || parsed.token;
-          if (nestedToken) return String(nestedToken).replace(/^Bearer\s+/i, '').trim();
-        } catch (_error) {
-          continue;
-        }
-      }
-      return normalized.replace(/^Bearer\s+/i, '').trim();
-    }
-  } catch (_error) {
-    return '';
-  }
-  return '';
-}
-
-function buildKnowledgeBaseHeaders(headers = {}) {
-  const token = getStoredAccessToken();
-  if (!token) return headers;
-  return { ...headers, Authorization: `Bearer ${token}` };
-}
-
-async function readApiJson(response) {
-  try {
-    return await response.json();
-  } catch (_error) {
-    return null;
-  }
-}
-
-function apiErrorMessage(data, fallbackStatus) {
-  if (!data) return `HTTP ${fallbackStatus}`;
-  if (typeof data.detail === 'string') return data.detail;
-  if (Array.isArray(data.detail)) return data.detail.map(item => item.msg || item.type || 'Lỗi dữ liệu').join(', ');
-  if (typeof data.message === 'string') return data.message;
-  return `HTTP ${fallbackStatus}`;
 }
 
 function getDocumentAgent(agentId = docState.selectedAgentId) {
