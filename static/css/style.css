@@ -441,7 +441,6 @@ body.sidebar-collapsed .btn-more { padding: 0; }
 /* User bubble */
 .msg-row.user-row {
   flex-direction: row-reverse;
-  text-align: right;
 }
 .msg-row.user-row .msg-body {
   display: flex;
@@ -452,7 +451,8 @@ body.sidebar-collapsed .btn-more { padding: 0; }
   background: var(--purple); color: #fff;
   border-radius: 4px 14px 14px 14px;
   padding: 10px 14px; font-size: 13.5px; line-height: 1.5;
-  display: inline-block; max-width: 100%;
+  display: inline-block; max-width: 85%;
+  text-align: left; overflow-wrap: anywhere;
 }
 .msg-row.user-row .msg-bubble-user {
   border-radius: 14px 4px 14px 14px;
