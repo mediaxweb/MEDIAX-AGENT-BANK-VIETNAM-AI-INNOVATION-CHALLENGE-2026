@@ -31,13 +31,20 @@ def test_ui_routes_are_hidden_from_openapi():
     assert "/documents" not in paths
 
 
+def test_ui_offers_ten_demo_accounts_without_credentials_form():
+    html = TestClient(app).get("/qa").text
+
+    assert html.count("data-demo-account=") == 10
+    assert 'id="auth-form"' not in html
+
+
 def test_ui_renders_only_assistant_markdown_with_sanitization():
     client = TestClient(app)
 
     html = client.get("/qa").text
     script = client.get("/static/js/app.js").text
 
-    assert html.index("marked@18.0.6") < html.index("dompurify@3.4.12") < html.index("app.js?v=7")
+    assert html.index("marked@18.0.6") < html.index("dompurify@3.4.12") < html.index("app.js?v=8")
     assert "DOMPurify.sanitize" in script
     assert "formatAssistantAnswer(msg.text)" in script
     assert 'msg-bubble-user">${formatAnswerText(msg.text)}' in script
