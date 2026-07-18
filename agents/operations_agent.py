@@ -25,6 +25,7 @@ from rag_agent_support import (
     evidence_by_id,
     extract_called_tool_names,
     extract_trusted_evidence,
+    log_agent_runtime_failure,
     mutating_tool_names,
 )
 
@@ -603,6 +604,7 @@ async def run_operations_assessment(
         )
     except Exception as error:
         logger.error("Operations assessment runtime/provenance failure [%s]", type(error).__name__)
+        log_agent_runtime_failure("operations", error)
         return fail_closed_assessment(application, facts, ["rag_or_agent_runtime"])
 
 

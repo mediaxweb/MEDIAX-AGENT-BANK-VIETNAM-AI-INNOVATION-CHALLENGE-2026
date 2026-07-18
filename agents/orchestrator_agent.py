@@ -8,10 +8,12 @@ from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Literal
 
-from agents import Agent, Runner, Session
+from agents import Agent, Runner, Session, trace
 from agents.mcp import MCPServerStreamableHttp
+from agents.tracing import get_current_trace
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from compliance_agent import (
@@ -39,6 +41,7 @@ from rag_agent_support import (
     KnowledgeEvidence,
     RAGDomain,
     build_agent_run_config,
+    classify_agent_error,
     evidence_by_id,
     extract_trusted_evidence,
     log_agent_event,
@@ -143,6 +146,7 @@ class DossierFinalReport(StrictModel):
 
 class DossierWorkflowResult(StrictModel):
     status: Literal["completed", "input_not_ready"]
+    trace_id: str | None = None
     dossier_id: str | None = None
     routing_batch_id: str | None = None
     overall_result: OverallResult
@@ -191,6 +195,48 @@ def _validation_error_fields(error: ValidationError) -> list[str]:
     return sorted(
         {".".join(str(part) for part in item["loc"]) for item in error.errors()}
     )
+
+
+async def _run_specialist_stage(
+    domain: RAGDomain,
+    runner: SpecialistRunner,
+    application: Any,
+    *,
+    mcp_url: str,
+    model: str,
+) -> Any:
+    started_at = perf_counter()
+    log_agent_event(
+        f"agent.{domain}.started",
+        dossier_id=application.case_id,
+        stage=domain,
+    )
+    try:
+        assessment = await runner(application, mcp_url=mcp_url, model=model)
+    except Exception as error:
+        log_agent_event(
+            f"agent.{domain}.failed",
+            dossier_id=application.case_id,
+            stage=domain,
+            error_category=classify_agent_error(error),
+            error_type=type(error).__name__,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+        )
+        raise
+
+    runtime_failed = "rag_or_agent_runtime" in assessment.missing_data
+    log_agent_event(
+        f"agent.{domain}.failed" if runtime_failed else f"agent.{domain}.completed",
+        dossier_id=application.case_id,
+        stage=domain,
+        result=assessment.facts.result,
+        error_category="rag_or_agent_runtime" if runtime_failed else None,
+        evidence_count=len(assessment.evidence),
+        missing_information_count=len(assessment.missing_data),
+        hard_stop_count=len(assessment.facts.hard_stop_reasons),
+        duration_ms=int((perf_counter() - started_at) * 1000),
+    )
+    return assessment
 
 
 def build_credit_application(
@@ -288,7 +334,13 @@ async def _run_credit_stage(
             ],
         )
 
-    credit = await credit_runner(application, mcp_url=mcp_url, model=model)
+    credit = await _run_specialist_stage(
+        "credit",
+        credit_runner,
+        application,
+        mcp_url=mcp_url,
+        model=model,
+    )
     can_continue = _credit_can_continue(credit)
     return CreditSliceResult(
         status="completed",
@@ -718,11 +770,14 @@ def _with_final_report(
     result: DossierWorkflowResult,
     normalized: DossierNormalizationResult | None,
 ) -> DossierWorkflowResult:
+    current_trace = get_current_trace()
+    if current_trace is not None:
+        result.trace_id = current_trace.trace_id
     result.report = build_final_report(result, normalized)
     return result
 
 
-async def run_dossier_assessment(
+async def _run_dossier_assessment(
     payload: Any,
     *,
     allowed_root: str | Path,
@@ -736,11 +791,39 @@ async def run_dossier_assessment(
     operations_runner: SpecialistRunner = run_operations_assessment,
     input_preparer: InputPreparer = prepare_dossier_input,
 ) -> DossierWorkflowResult:
-    boundary = await input_preparer(
-        payload,
-        allowed_root=allowed_root,
-        model=model,
-        runner=normalizer_runner,
+    normalization_started_at = perf_counter()
+    log_agent_event("dossier.normalization.started", stage="input")
+    try:
+        boundary = await input_preparer(
+            payload,
+            allowed_root=allowed_root,
+            model=model,
+            runner=normalizer_runner,
+        )
+    except Exception as error:
+        log_agent_event(
+            "dossier.normalization.failed",
+            stage="input",
+            error_category=classify_agent_error(error),
+            error_type=type(error).__name__,
+            duration_ms=int((perf_counter() - normalization_started_at) * 1000),
+        )
+        raise
+    log_agent_event(
+        "dossier.normalization.completed",
+        dossier_id=boundary.dossier_id,
+        stage="input",
+        status=boundary.status,
+        page_count=(boundary.normalized.page_count if boundary.normalized else 0),
+        evidence_count=(
+            len(boundary.normalized.facts.evidence) if boundary.normalized else 0
+        ),
+        missing_information_count=(
+            len(boundary.normalized.facts.missing_information)
+            if boundary.normalized
+            else len(boundary.issues)
+        ),
+        duration_ms=int((perf_counter() - normalization_started_at) * 1000),
     )
     credit_slice = await _run_credit_stage(
         boundary,
@@ -749,6 +832,15 @@ async def run_dossier_assessment(
         credit_runner=credit_runner,
     )
     if credit_slice.credit is None or boundary.normalized is None:
+        log_agent_event(
+            "orchestrator.credit_gate",
+            dossier_id=boundary.dossier_id,
+            stage="credit",
+            decision="stop",
+            stop_reason=credit_slice.stop_reason,
+            error_category="input",
+            missing_information_count=len(credit_slice.issues),
+        )
         return _with_final_report(
             DossierWorkflowResult(
                 status="input_not_ready",
@@ -764,6 +856,24 @@ async def run_dossier_assessment(
         )
 
     credit = credit_slice.credit
+    log_agent_event(
+        "orchestrator.credit_gate",
+        dossier_id=boundary.dossier_id,
+        stage="credit",
+        decision=(
+            "continue_to_compliance"
+            if credit_slice.can_continue_to_compliance
+            else "stop"
+        ),
+        result=credit.facts.result,
+        stop_reason=(
+            None
+            if credit_slice.can_continue_to_compliance
+            else "credit_not_ready_for_compliance"
+        ),
+        missing_information_count=len(credit.missing_data),
+        hard_stop_count=len(credit.facts.hard_stop_reasons),
+    )
     if not credit_slice.can_continue_to_compliance:
         return _with_final_report(
             DossierWorkflowResult(
@@ -785,6 +895,15 @@ async def run_dossier_assessment(
         assessment_date=assessment_date,
     )
     if compliance_application is None:
+        log_agent_event(
+            "orchestrator.compliance_gate",
+            dossier_id=boundary.dossier_id,
+            stage="compliance",
+            decision="stop",
+            stop_reason="compliance_input_incomplete",
+            error_category="input",
+            missing_information_count=len(missing),
+        )
         return _with_final_report(
             DossierWorkflowResult(
                 status="input_not_ready",
@@ -806,12 +925,27 @@ async def run_dossier_assessment(
             boundary.normalized,
         )
 
-    compliance = await compliance_runner(
+    compliance = await _run_specialist_stage(
+        "compliance",
+        compliance_runner,
         compliance_application,
         mcp_url=mcp_url,
         model=model,
     )
-    if not _compliance_can_continue(compliance):
+    compliance_can_continue = _compliance_can_continue(compliance)
+    log_agent_event(
+        "orchestrator.compliance_gate",
+        dossier_id=boundary.dossier_id,
+        stage="compliance",
+        decision="continue_to_operations" if compliance_can_continue else "stop",
+        result=compliance.facts.result,
+        stop_reason=(
+            None if compliance_can_continue else "compliance_not_ready_for_operations"
+        ),
+        missing_information_count=len(compliance.missing_data),
+        hard_stop_count=len(compliance.facts.hard_stop_reasons),
+    )
+    if not compliance_can_continue:
         return _with_final_report(
             DossierWorkflowResult(
                 status="completed",
@@ -834,6 +968,15 @@ async def run_dossier_assessment(
         assessment_at=assessment_at,
     )
     if operations_application is None:
+        log_agent_event(
+            "orchestrator.operations_input_gate",
+            dossier_id=boundary.dossier_id,
+            stage="operations",
+            decision="stop",
+            stop_reason="operations_input_incomplete",
+            error_category="input",
+            missing_information_count=len(missing),
+        )
         return _with_final_report(
             DossierWorkflowResult(
                 status="input_not_ready",
@@ -856,7 +999,9 @@ async def run_dossier_assessment(
             boundary.normalized,
         )
 
-    operations = await operations_runner(
+    operations = await _run_specialist_stage(
+        "operations",
+        operations_runner,
         operations_application,
         mcp_url=mcp_url,
         model=model,
@@ -881,6 +1026,95 @@ async def run_dossier_assessment(
         ),
         boundary.normalized,
     )
+
+
+async def run_dossier_assessment(
+    payload: Any,
+    *,
+    allowed_root: str | Path,
+    mcp_url: str = DEFAULT_RAG_MCP_URL,
+    model: str = DEFAULT_MODEL,
+    assessment_date: date | None = None,
+    assessment_at: datetime | None = None,
+    normalizer_runner: SpecialistRunner = Runner.run,
+    credit_runner: SpecialistRunner = run_credit_assessment,
+    compliance_runner: SpecialistRunner = run_compliance_assessment,
+    operations_runner: SpecialistRunner = run_operations_assessment,
+    input_preparer: InputPreparer = prepare_dossier_input,
+) -> DossierWorkflowResult:
+    raw = payload.model_dump(mode="python") if isinstance(payload, BaseModel) else payload
+    dossier_id = raw.get("dossier_id") if isinstance(raw, dict) else None
+    dossier_id = dossier_id.strip() or None if isinstance(dossier_id, str) else None
+    files = raw.get("files") if isinstance(raw, dict) else None
+    started_at = perf_counter()
+
+    with trace(
+        "MediaX Dossier Assessment",
+        group_id=dossier_id,
+        metadata={"dossier_id": dossier_id} if dossier_id else None,
+    ):
+        log_agent_event(
+            "dossier.assessment.started",
+            dossier_id=dossier_id,
+            stage="input",
+            file_count=len(files) if isinstance(files, list) else None,
+            execution_mode="assess",
+        )
+        try:
+            result = await _run_dossier_assessment(
+                payload,
+                allowed_root=allowed_root,
+                mcp_url=mcp_url,
+                model=model,
+                assessment_date=assessment_date,
+                assessment_at=assessment_at,
+                normalizer_runner=normalizer_runner,
+                credit_runner=credit_runner,
+                compliance_runner=compliance_runner,
+                operations_runner=operations_runner,
+                input_preparer=input_preparer,
+            )
+        except Exception as error:
+            log_agent_event(
+                "dossier.assessment.failed",
+                dossier_id=dossier_id,
+                stage="workflow",
+                error_category=classify_agent_error(error),
+                error_type=type(error).__name__,
+                duration_ms=int((perf_counter() - started_at) * 1000),
+            )
+            raise
+
+        runtime_failed = any(
+            "rag_or_agent_runtime" in assessment.missing_data
+            for assessment in (result.credit, result.compliance, result.operations)
+            if assessment
+        )
+        report = result.report
+        log_agent_event(
+            "dossier.assessment.completed",
+            dossier_id=result.dossier_id,
+            stage=result.stopped_after or "completed",
+            status=result.status,
+            result=result.overall_result,
+            stop_reason=result.stop_reason,
+            error_category=(
+                "input"
+                if result.status == "input_not_ready"
+                else "rag_or_agent_runtime"
+                if runtime_failed
+                else None
+            ),
+            evidence_count=(
+                len(result.dossier_evidence) + len(report.policy_sources)
+                if report
+                else len(result.dossier_evidence)
+            ),
+            missing_information_count=(len(report.missing_information) if report else 0),
+            hard_stop_count=(len(report.hard_stops) if report else 0),
+            duration_ms=int((perf_counter() - started_at) * 1000),
+        )
+        return result
 
 
 def _compliance_input(

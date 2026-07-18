@@ -17,8 +17,10 @@ from rag_agent_support import (
     allowed_agent_tools,
     build_agent_mcp_server,
     build_agent_run_config,
+    classify_agent_error,
     extract_called_tool_names,
     extract_trusted_evidence,
+    log_agent_runtime_failure,
     validate_document_page_call,
     validate_search_knowledge_call,
 )
@@ -132,6 +134,26 @@ def test_agent_trace_sensitive_data_is_disabled_by_default(monkeypatch):
 
     monkeypatch.setenv("OPENAI_AGENTS_TRACE_INCLUDE_SENSITIVE_DATA", "true")
     assert build_agent_run_config("test").trace_include_sensitive_data is True
+
+
+def test_runtime_failure_is_classified_without_logging_error_details(caplog):
+    model_error = type("ModelFailure", (Exception,), {"__module__": "openai.client"})
+    tool_error = type("MCPFailure", (Exception,), {"__module__": "mcp.client"})
+
+    assert classify_agent_error(model_error()) == "model"
+    assert classify_agent_error(tool_error()) == "tool"
+    assert classify_agent_error(ValueError("invalid evidence")) == "rag"
+    assert classify_agent_error(ValueError("invalid deterministic output")) == (
+        "deterministic_validation"
+    )
+
+    with caplog.at_level(logging.INFO, logger="agent_trace"):
+        log_agent_runtime_failure("credit", ValueError("CCCD 001234567890"))
+
+    event = json.loads(caplog.records[-1].getMessage())
+    assert event["error_category"] == "deterministic_validation"
+    assert event["error_type"] == "ValueError"
+    assert "001234567890" not in caplog.text
 
 
 def test_shared_mcp_client_has_five_read_only_tools():

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 import orchestrator_agent
 from compliance_agent import (
@@ -280,9 +283,49 @@ def test_credit_slice_stops_after_undetermined_credit_result():
     assert result.credit.facts.result == "UNDETERMINED"
 
 
-def test_dossier_assessment_stops_when_compliance_fails():
+def test_dossier_trace_logs_failed_specialist_stage(monkeypatch):
+    normalized = normalized_credit_dossier()
+    events: list[tuple[str, dict]] = []
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready", dossier_id=normalized.dossier_id, normalized=normalized
+        )
+
+    async def fail_credit(*_, **__):
+        raise RuntimeError("sensitive runtime detail")
+
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **fields: events.append((event, fields)),
+    )
+
+    with pytest.raises(RuntimeError, match="sensitive runtime detail"):
+        asyncio.run(
+            run_dossier_assessment(
+                {"dossier_id": normalized.dossier_id, "files": []},
+                allowed_root=ROOT,
+                input_preparer=prepare,
+                credit_runner=fail_credit,
+            )
+        )
+
+    assert "agent.credit.failed" in [event for event, _ in events]
+    assert "dossier.assessment.failed" in [event for event, _ in events]
+    assert "agent.compliance.started" not in [event for event, _ in events]
+    assert all("sensitive runtime detail" not in fields.values() for _, fields in events)
+
+
+def test_dossier_assessment_stops_when_compliance_fails(monkeypatch):
     normalized = normalized_credit_dossier()
     calls: list[str] = []
+    events: list[str] = []
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **_fields: events.append(event),
+    )
 
     async def prepare(*_, **__):
         return DossierInputBoundaryResult(
@@ -325,9 +368,10 @@ def test_dossier_assessment_stops_when_compliance_fails():
     assert result.report is not None
     assert result.report.operations is None
     assert "Hồ sơ đang bị chặn" in result.report.answer
+    assert "agent.operations.started" not in events
 
 
-def test_dossier_assessment_runs_three_agents_and_caps_operations_limit():
+def test_dossier_assessment_runs_three_agents_and_caps_operations_limit(caplog):
     dossier_source = DossierEvidence(
         field="loan.requested_amount",
         file_id="FILE-001",
@@ -381,18 +425,19 @@ def test_dossier_assessment_runs_three_agents_and_caps_operations_limit():
         assert application.compliance_result.recommended_limit == Decimal("7000000000")
         return operations_assessment(application)
 
-    result = asyncio.run(
-        run_dossier_assessment(
-            {},
-            allowed_root=ROOT,
-            assessment_date=date(2026, 7, 19),
-            assessment_at=datetime(2026, 7, 19, 9, tzinfo=timezone.utc),
-            input_preparer=prepare,
-            credit_runner=run_credit,
-            compliance_runner=run_compliance,
-            operations_runner=run_operations,
+    with caplog.at_level(logging.INFO, logger="agent_trace"):
+        result = asyncio.run(
+            run_dossier_assessment(
+                {"dossier_id": normalized.dossier_id, "files": []},
+                allowed_root=ROOT,
+                assessment_date=date(2026, 7, 19),
+                assessment_at=datetime(2026, 7, 19, 9, tzinfo=timezone.utc),
+                input_preparer=prepare,
+                credit_runner=run_credit,
+                compliance_runner=run_compliance,
+                operations_runner=run_operations,
+            )
         )
-    )
 
     assert calls == ["credit", "compliance", "operations"]
     assert result.overall_result == "READY"
@@ -406,6 +451,30 @@ def test_dossier_assessment_runs_three_agents_and_caps_operations_limit():
     assert "đã phê duyệt" not in result.report.answer
     assert result.report.dossier_sources[0].file_name == "02_giay_de_nghi_cap_tin_dung.pdf"
     assert result.report.policy_sources == [policy_source]
+    events = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == "agent_trace"
+    ]
+    assert [event["event"] for event in events] == [
+        "dossier.assessment.started",
+        "dossier.normalization.started",
+        "dossier.normalization.completed",
+        "agent.credit.started",
+        "agent.credit.completed",
+        "orchestrator.credit_gate",
+        "agent.compliance.started",
+        "agent.compliance.completed",
+        "orchestrator.compliance_gate",
+        "agent.operations.started",
+        "agent.operations.completed",
+        "dossier.assessment.completed",
+    ]
+    assert result.trace_id
+    assert {event["trace_id"] for event in events} == {result.trace_id}
+    assert {event["dossier_id"] for event in events} == {normalized.dossier_id}
+    assert "0101234567" not in caplog.text
+    assert "001234567890" not in caplog.text
 
 
 def test_final_report_maps_incomplete_and_review_results_without_fake_specialists():
