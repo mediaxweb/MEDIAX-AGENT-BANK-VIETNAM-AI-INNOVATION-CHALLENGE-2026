@@ -216,6 +216,7 @@ Response:
 ```json
 {
   "session_id": "13ba1bdb-1447-4204-902f-178ff457b767",
+  "trace_id": "trace_<openai-trace-id>",
   "answer": "Tỷ lệ cho vay tối đa đối với tài sản bảo đảm là nhà đất là 80%.",
   "domain": "compliance",
   "insufficient_information": false,
@@ -241,6 +242,17 @@ Conversation context is persisted by OpenAI Agents SDK `SQLiteSession` in:
 
 The database is local, gitignored storage intended for the single-instance MVP.
 There is currently no endpoint for listing sessions or loading a UI transcript.
+
+### Agent tracing
+
+Each chat request creates one OpenAI Agents SDK trace. `session_id` is used as
+the trace group ID, while `trace_id` is returned to the caller and can be opened
+in the [OpenAI Traces dashboard](https://platform.openai.com/traces).
+
+Railway logs contain JSON events for request, agent, routing, tool, validation,
+duration, and token usage. They do not contain questions, RAG queries, chunks,
+or loan data. Sensitive trace payloads are disabled by default; enable them only
+for local testing with synthetic data.
 
 ## RAG and MCP contract
 
@@ -333,6 +345,7 @@ session. Use the FastAPI chat endpoint for multi-turn conversation.
 | `RAG_MCP_HOST` / `RAG_MCP_PORT` | FastMCP bind address | `127.0.0.1` / `8766` |
 | `RAG_MCP_URL` | Agent MCP client | `http://127.0.0.1:8766/mcp` |
 | `OPENAI_AGENT_MODEL` | Orchestrator and specialists | `gpt-5.4-mini` |
+| `OPENAI_AGENTS_TRACE_INCLUDE_SENSITIVE_DATA` | Include model/tool payloads in OpenAI traces | `false` |
 
 See `.env.example` for legacy Q&A, JWT, storage, and deployment settings.
 

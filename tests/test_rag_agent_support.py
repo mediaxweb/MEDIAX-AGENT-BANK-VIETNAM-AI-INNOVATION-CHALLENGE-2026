@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+from types import SimpleNamespace
 
 import pytest
 from agents import Agent
@@ -10,14 +12,17 @@ from openai.types.responses import ResponseFunctionToolCall
 
 from rag_agent_support import (
     AGENT_MCP_TOOL_NAMES,
+    AgentLoggingRunHooks,
     DomainRAGRunHooks,
     allowed_agent_tools,
     build_agent_mcp_server,
+    build_agent_run_config,
     extract_called_tool_names,
     extract_trusted_evidence,
     validate_document_page_call,
     validate_search_knowledge_call,
 )
+import rag_agent_support
 
 
 ORIGIN = ToolOrigin(type=ToolOriginType.MCP, mcp_server_name="agent-bank-tools")
@@ -72,6 +77,61 @@ def test_rag_contract_rejects_another_agent_domain():
             json.dumps({"domain": "credit", "query": "policy", "top_k": 5}),
             domain="compliance",
         )
+
+
+def test_agent_hooks_log_safe_structured_events(monkeypatch, caplog):
+    monkeypatch.setattr(
+        rag_agent_support,
+        "get_current_trace",
+        lambda: SimpleNamespace(trace_id="trace-test"),
+    )
+    hooks = AgentLoggingRunHooks("compliance")
+    context = ToolContext(
+        None,
+        tool_name="search_knowledge",
+        tool_call_id="call-search",
+        tool_arguments=json.dumps(
+            {"domain": "compliance", "query": "secret question", "top_k": 5}
+        ),
+    )
+    agent = Agent(name="Compliance Knowledge Agent")
+
+    with caplog.at_level(logging.INFO, logger="agent_trace"):
+        asyncio.run(hooks.on_agent_start(context, agent))
+        asyncio.run(hooks.on_tool_start(context, agent, object()))
+        asyncio.run(
+            hooks.on_tool_end(
+                context,
+                agent,
+                object(),
+                {"evidence": [EVIDENCE, EVIDENCE]},
+            )
+        )
+        asyncio.run(hooks.on_agent_end(context, agent, {}))
+
+    events = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == "agent_trace"
+    ]
+    assert [event["event"] for event in events] == [
+        "agent.started",
+        "agent.tool.started",
+        "agent.tool.completed",
+        "agent.completed",
+    ]
+    assert events[1]["top_k"] == 5
+    assert events[2]["evidence_count"] == 2
+    assert all(event["trace_id"] == "trace-test" for event in events)
+    assert "secret question" not in caplog.text
+
+
+def test_agent_trace_sensitive_data_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("OPENAI_AGENTS_TRACE_INCLUDE_SENSITIVE_DATA", raising=False)
+    assert build_agent_run_config("test").trace_include_sensitive_data is False
+
+    monkeypatch.setenv("OPENAI_AGENTS_TRACE_INCLUDE_SENSITIVE_DATA", "true")
+    assert build_agent_run_config("test").trace_include_sensitive_data is True
 
 
 def test_shared_mcp_client_has_five_read_only_tools():
