@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-13",
+  "test_case_file": "tests/qa_live_testing/cases/TC-13/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:52:00+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng có thu nhập 50 triệu VND/tháng và nghĩa vụ nợ hiện hữu 25 triệu VND/tháng. Nếu ngưỡng DTI tối đa là 40%, Agent hãy tính DTI, mức nợ tối đa cho phép và kết luận.",
+  "actual_answer": {
+    "full_text": "DTI hiện tại = 25/50 = 50%. Mức nợ tối đa theo ngưỡng 40% = 50 x 40% = 20 triệu VND/tháng. Kết luận: Không đạt, vì nghĩa vụ nợ hiện hữu 25 triệu VND/tháng cao hơn mức tối đa 20 triệu VND/tháng.",
+    "extracted_values": {
+      "result": "FAILED_OR_CONDITIONAL_REVIEW",
+      "issue": "Tỷ lệ nợ trên thu nhập vượt ngưỡng 40%.",
+      "required_values": {
+        "debt_to_income_ratio": "50%",
+        "max_allowed_debt": 20000000
+      },
+      "recommendation": "Cần giảm nghĩa vụ nợ/hạn mức để không vượt mức tối đa 20 triệu VND/tháng."
+    },
+    "missing_expected_fields": [
+      "Không dùng kết luận rõ tương đương CONDITIONAL.",
+      "Không nêu đầy đủ hướng bổ sung nguồn thu nhập chứng minh được."
+    ]
+  },
+  "expected_answer": {
+    "result": "CONDITIONAL",
+    "must_identify_issue": "Tỷ lệ nợ trên thu nhập vượt ngưỡng 40%",
+    "required_values": {
+      "debt_to_income_ratio": "50%",
+      "max_allowed_debt": 20000000
+    },
+    "recommendation": "Yêu cầu giảm nghĩa vụ nợ, giảm hạn mức vay hoặc bổ sung nguồn thu nhập chứng minh được."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài chính",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing lệch kỳ vọng Chuyên gia Tài chính, dù nguồn có nội dung rule rủi ro tài chính."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài chính hoặc domain Tài chính tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài chính."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Tỷ lệ nợ trên thu nhập vượt ngưỡng 40%.",
+      "status": "PASS",
+      "evidence": "Agent nêu DTI 50% cao hơn mức tối đa 20 triệu VND/tháng theo ngưỡng 40%."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương CONDITIONAL.",
+      "status": "REVIEW",
+      "evidence": "Agent kết luận \"Không đạt\"; đây là hướng chặn/review nhưng chưa đúng nhãn CONDITIONAL expected."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"debt_to_income_ratio\": \"50%\", \"max_allowed_debt\": 20000000}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không cho phép duyệt khi DTI vượt ngưỡng."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "REVIEW",
+      "evidence": "Có hàm ý cần điều chỉnh để không vượt 20 triệu, nhưng chưa nêu đủ các hướng giảm nợ/giảm hạn mức/bổ sung thu nhập."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 28,
+      "max": 35,
+      "reason": "Agent tính đúng DTI và max debt, phát hiện vượt ngưỡng; trừ điểm vì kết luận không rõ CONDITIONAL."
+    },
+    "groundedness": {
+      "score": 16,
+      "max": 20,
+      "reason": "Có nguồn rule tài chính/rủi ro tài chính trang 2, nhưng domain hiển thị là Chính sách và trạng thái nguồn báo chưa đủ thông tin."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing không khớp kỳ vọng Chuyên gia Tài chính/domain Tài chính."
+    },
+    "completeness": {
+      "score": 17,
+      "max": 20,
+      "reason": "Đủ phép tính và issue chính, thiếu nhãn CONDITIONAL và recommendation đầy đủ."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Giải thích công thức và so sánh ngưỡng rõ ràng."
+    },
+    "total": {
+      "score": 76,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "06_rule_danh_gia_rui_ro_tai_chinh_tuan_thu_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_07fc821148f043df9a66d0d61cd1a0cb"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-13/evidence/result.txt"
+  ],
+  "recommendation": "PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ tính toán đúng, nhưng routing lệch Tài chính và kết luận chưa đúng nhãn CONDITIONAL."
+}

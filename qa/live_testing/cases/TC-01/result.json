@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-01",
+  "test_case_file": "tests/qa_live_testing/cases/TC-01/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:33:48+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng là doanh nghiệp xin vay vốn nhưng hồ sơ chỉ có CCCD người đại diện và điều lệ công ty, chưa có Giấy đăng ký kinh doanh. Theo checklist pháp lý, hồ sơ này có được tạo hồ sơ vay và chuyển tiếp thẩm định không? Hãy nêu kết luận, hard stop và bước xử lý.",
+  "actual_answer": {
+    "full_text": "Kết luận: Không. Hồ sơ này chưa đủ điều kiện để tạo hồ sơ vay và chuyển tiếp thẩm định.\nHard stop: Thiếu Giấy đăng ký kinh doanh là hard stop theo checklist pháp lý doanh nghiệp.\nBước xử lý: Yêu cầu khách hàng bổ sung Giấy đăng ký kinh doanh; sau khi bổ sung đầy đủ mới tiếp tục tạo hồ sơ/chuyển thẩm định. Điều lệ công ty là giấy tờ có thể chờ bổ sung, nhưng không thay thế được Giấy đăng ký kinh doanh.",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Khách hàng doanh nghiệp thiếu Giấy đăng ký kinh doanh.",
+      "required_values": {
+        "hard_stop": true,
+        "can_create_loan_profile": false
+      },
+      "recommendation": "Không tạo/chuyển hồ sơ; yêu cầu bổ sung Giấy đăng ký kinh doanh trước."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Khách hàng doanh nghiệp thiếu Giấy đăng ký kinh doanh",
+    "required_values": {
+      "hard_stop": true,
+      "can_create_loan_profile": false
+    },
+    "recommendation": "Chặn hồ sơ, yêu cầu bổ sung Giấy đăng ký kinh doanh trước khi chuyển bước thẩm định."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Pháp lý",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Tín dụng",
+    "actual_message": "Đã chọn miền Tín dụng để xử lý câu hỏi.",
+    "source_domain": "Tín dụng",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Pháp lý hoặc domain Pháp lý tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Khách hàng doanh nghiệp thiếu Giấy đăng ký kinh doanh",
+      "status": "PASS",
+      "evidence": "Khách hàng doanh nghiệp thiếu Giấy đăng ký kinh doanh."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: FAILED. Agent xử lý đúng hard stop và không cho tạo hồ sơ vay, nhưng routing hiển thị Chuyên gia Tín dụng thay vì Chuyên gia Pháp lý như testcase kỳ vọng."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"hard_stop\": true, \"can_create_loan_profile\": false}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không tạo/chuyển hồ sơ; yêu cầu bổ sung Giấy đăng ký kinh doanh trước."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Không tạo/chuyển hồ sơ; yêu cầu bổ sung Giấy đăng ký kinh doanh trước."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent xử lý đúng hard stop và không cho tạo hồ sơ vay, nhưng routing hiển thị Chuyên gia Tín dụng thay vì Chuyên gia Pháp lý như testcase kỳ vọng."
+    },
+    "groundedness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: 55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf trang 2, domain Tín dụng."
+    },
+    "agent_routing": {
+      "score": 7,
+      "max": 10,
+      "reason": "Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    "completeness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 96,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Tín dụng",
+    "source_file": "55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_9a6460cb93e94721a82ca224f4af4fbf"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-01/evidence/result.txt"
+  ],
+  "recommendation": "Agent xử lý đúng hard stop và không cho tạo hồ sơ vay, nhưng routing hiển thị Chuyên gia Tín dụng thay vì Chuyên gia Pháp lý như testcase kỳ vọng."
+}

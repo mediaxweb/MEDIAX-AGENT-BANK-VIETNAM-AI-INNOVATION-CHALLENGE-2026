@@ -1,0 +1,31 @@
+Test case: TC-01 - Doanh nghiệp thiếu Giấy ĐKKD
+Executed at: 2026-07-18T18:07:52+07:00
+Target URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+
+Layout/evidence note:
+Trước khi gửi câu hỏi, web đang ở trạng thái menu trái dạng hẹp với nút "Mở rộng menu"; không bấm mở rộng menu vì thao tác đó sẽ làm giảm vùng chat. Vùng hội thoại và panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA vẫn cùng hiển thị trong DOM. Screenshot từ in-app browser bị lỗi render trắng, nên text evidence này được lưu làm evidence chính theo quy tắc fallback của workflow.
+
+Input question:
+Khách hàng là doanh nghiệp xin vay vốn nhưng hồ sơ chỉ có CCCD người đại diện và điều lệ công ty, chưa có Giấy đăng ký kinh doanh. Theo checklist pháp lý, hồ sơ này có được tạo hồ sơ vay và chuyển tiếp thẩm định không? Hãy nêu kết luận, hard stop và bước xử lý.
+
+Actual answer:
+"Kết luận: Chưa được tạo hồ sơ vay và chưa chuyển tiếp thẩm định."
+
+"Hard stop: Có — thiếu Giấy đăng ký kinh doanh là hard stop theo checklist pháp lý doanh nghiệp."
+
+"Bước xử lý: Yêu cầu bổ sung Giấy đăng ký kinh doanh trước; Điều lệ công ty là tài liệu có thể bổ sung/chờ bổ sung, nhưng không thay thế được Giấy đăng ký kinh doanh."
+
+Routing panel:
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Tín dụng: Đã chọn miền Tín dụng để xử lý câu hỏi.
+Chuyên gia Tín dụng -> Kho tri thức: Đã truy xuất 1 nguồn từ kho tri thức.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_7a1f70cfe0d64ec29655ad596ed5bafd
+
+Source:
+Domain: Tín dụng
+File: 55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf
+Page: 2
+
+Tester note:
+Nghiệp vụ đúng: hard stop vì thiếu Giấy đăng ký kinh doanh, không được tạo/chuyển hồ sơ thẩm định.
+Routing cần review: testcase kỳ vọng Chuyên gia Pháp lý, nhưng hệ thống chọn Chuyên gia Tín dụng và nguồn vẫn là checklist pháp lý.

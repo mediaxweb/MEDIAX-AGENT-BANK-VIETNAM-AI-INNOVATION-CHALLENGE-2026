@@ -1,0 +1,168 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-44",
+  "title": "Đủ điều kiện tạo báo cáo hồ sơ",
+  "test_mode": "Web Q&A Live Test",
+  "test_category": "Positive",
+  "execution_status": "NOT_RUN",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "target_section": "Hỏi đáp AI",
+  "agent_under_test": "Operations Agent",
+  "priority": "MEDIUM",
+  "severity_if_failed": "MEDIUM",
+  "objective": "Kiểm tra live Q&A có phát hiện đúng tình huống: dữ liệu hồ sơ đủ để tạo báo cáo tổng hợp.",
+  "preconditions": [
+    "Web QA truy cập được tại base_web_url.",
+    "Tester/Codex đang ở mục Hỏi đáp AI.",
+    "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA hiển thị được để kiểm tra routing.",
+    "Không cần gọi API; tester nhập câu hỏi trực tiếp trên web.",
+    "Layout web có thể được mở rộng/thu gọn để screenshot evidence rõ nhất có thể."
+  ],
+  "source_rule": {
+    "document": "06_quy_trinh_giai_ngan_va_kiem_soat_sau_vay_v2.pdf",
+    "section": "Điều kiện giải ngân, checklist vận hành và báo cáo hồ sơ",
+    "rule_summary": "Báo cáo hồ sơ cần tổng hợp thông tin khách hàng, khoản vay, chứng từ, checks và quyết định compliance."
+  },
+  "business_scenario": {
+    "description": "Hồ sơ đã có customer, loan profile, docs, checks và kết quả compliance.",
+    "input_facts": {
+      "customer_created": true,
+      "loan_profile_created": true,
+      "checks_completed": true,
+      "compliance_result": "conditional"
+    },
+    "expected_business_values": {
+      "report_can_be_created": true
+    }
+  },
+  "test_data": {
+    "summary": "Hồ sơ đã có thông tin khách hàng, khoản vay, giấy tờ, các kết quả thẩm định và compliance decision là conditional. Báo cáo tổng hợp cần phản ánh đầy đủ tình trạng hồ sơ và các điều kiện còn tồn tại.",
+    "values": {
+      "customer_created": true,
+      "loan_profile_created": true,
+      "checks_completed": true,
+      "compliance_result": "conditional"
+    }
+  },
+  "tester_instruction": {
+    "step": 1,
+    "action": "Mở trang QA web, nhập nguyên văn input_question, gửi câu hỏi và lưu lại toàn bộ câu trả lời của Agent."
+  },
+  "test_steps": [
+    {
+      "step": 1,
+      "action": "Mở base_web_url và vào mục Hỏi đáp AI. Mở rộng vùng chat/hội thoại tối đa, thu gọn sidebar/menu không cần thiết nếu web hỗ trợ.",
+      "expected": "Trang hỏi đáp sẵn sàng nhận input_question và vùng evidence đủ rộng để chụp câu hỏi/câu trả lời."
+    },
+    {
+      "step": 2,
+      "action": "Copy nguyên văn input_question vào ô nhập câu hỏi và gửi.",
+      "expected": "Agent trả lời xong, không còn trạng thái loading."
+    },
+    {
+      "step": 3,
+      "action": "Kiểm tra panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA.",
+      "expected": "Panel thể hiện Bộ điều phối chọn Chuyên gia Vận hành hoặc domain Vận hành."
+    },
+    {
+      "step": 4,
+      "action": "Lưu screenshot câu hỏi, câu trả lời, routing panel và nguồn trích dẫn sau khi đã tối ưu layout. Nếu screenshot thiếu nội dung hoặc không đọc được, lưu thêm text evidence vào evidence/result.txt.",
+      "expected": "Evidence đủ để review lại input, output, routing, nguồn và trace ID."
+    },
+    {
+      "step": 5,
+      "action": "Đối chiếu actual với expected_answer, pass_criteria và fail_criteria.",
+      "expected": "Có đủ căn cứ để ghi result.json và quyết định có log bug không."
+    }
+  ],
+  "input_question": "Một hồ sơ đã có thông tin khách hàng, khoản vay, giấy tờ, kết quả kiểm tra và compliance decision là conditional. Operations Agent có thể tạo báo cáo tổng hợp không và báo cáo cần nêu gì?",
+  "expected_answer": {
+    "result": "PASSED",
+    "must_identify_issue": "Dữ liệu hồ sơ đủ để tạo báo cáo tổng hợp",
+    "required_values": {
+      "report_can_be_created": true
+    },
+    "recommendation": "Tạo báo cáo tổng hợp hồ sơ, nêu rõ điều kiện còn tồn tại nếu compliance conditional."
+  },
+  "expected_observations": [
+    "Response nêu đúng issue: Dữ liệu hồ sơ đủ để tạo báo cáo tổng hợp.",
+    "Response có kết luận tương đương PASSED.",
+    "Panel routing thể hiện Chuyên gia Vận hành hoặc domain Vận hành.",
+    "Nguồn truy xuất liên quan đến tài liệu/rule trong source_rule."
+  ],
+  "routing_expectation": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Vận hành",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA trên web QA",
+    "expected_message_contains": "Đã chọn miền Vận hành để xử lý câu hỏi",
+    "pass_criteria": [
+      "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA hiển thị Bộ điều phối -> Chuyên gia Vận hành hoặc domain Vận hành.",
+      "Có thông báo routing phù hợp với trọng tâm câu hỏi nghiệp vụ.",
+      "Nguồn truy xuất thuộc miền Vận hành hoặc tài liệu liên quan."
+    ],
+    "fail_criteria": [
+      "Điều phối chọn sai agent/domain.",
+      "Không hiển thị thông tin routing.",
+      "Nguồn truy xuất không liên quan đến rule cần kiểm tra."
+    ]
+  },
+  "pass_criteria": [
+    "Điều phối chọn đúng Chuyên gia Vận hành hoặc domain Vận hành tương đương.",
+    "Agent phát hiện đúng issue: Dữ liệu hồ sơ đủ để tạo báo cáo tổng hợp.",
+    "Agent đưa ra kết luận tương đương PASSED.",
+    "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+    "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+    "Agent nêu recommendation phù hợp với expected_answer.recommendation."
+  ],
+  "fail_criteria": [
+    "Điều phối chọn sai Agent/domain khiến câu trả lời không bám đúng nghiệp vụ.",
+    "Agent bỏ sót issue bắt buộc.",
+    "Agent trả kết luận trái với expected_answer.result.",
+    "Agent tính sai số liệu quan trọng trong expected_answer.required_values.",
+    "Agent đưa ra khuyến nghị gây rủi ro nghiệp vụ hoặc cho phép đi tiếp khi phải chặn/review."
+  ],
+  "scoring_rubric": {
+    "accuracy": {
+      "max": 35,
+      "pass_condition": "Agent kết luận đúng nghiệp vụ và tính đúng giá trị quan trọng nếu có."
+    },
+    "groundedness": {
+      "max": 20,
+      "pass_condition": "Agent bám đúng rule/tài liệu nguồn, không suy diễn trái quy định."
+    },
+    "agent_routing": {
+      "max": 10,
+      "pass_condition": "Bộ điều phối chọn đúng chuyên gia/domain phù hợp với câu hỏi nghiệp vụ."
+    },
+    "completeness": {
+      "max": 20,
+      "pass_condition": "Câu trả lời đủ result, issue chính, số liệu/điều kiện cần kiểm tra và recommendation."
+    },
+    "explainability": {
+      "max": 15,
+      "pass_condition": "Agent giải thích rõ lý do, công thức hoặc căn cứ nghiệp vụ để tester audit được."
+    }
+  },
+  "evidence_to_save": [
+    "Ảnh chụp màn hình câu hỏi và câu trả lời trên web QA sau khi đã mở rộng vùng chat tối đa.",
+    "Ảnh chụp hoặc text từ panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA thể hiện routing sau khi đã tối ưu layout.",
+    "Text evidence trong evidence/result.txt nếu screenshot thiếu nội dung hoặc không đọc được.",
+    "Toàn bộ text response của Agent.",
+    "Tên Agent/domain được Bộ điều phối chọn.",
+    "Nguồn trích dẫn và trace ID nếu có.",
+    "Các giá trị chính được Agent trả về."
+  ],
+  "logbug_condition": {
+    "should_log_bug": true,
+    "logbug_folder": "tests/qa_live_testing/cases/TC-44/logbug/",
+    "bug_title": "[Operations Agent] Đủ điều kiện tạo báo cáo hồ sơ",
+    "bug_severity": "MEDIUM",
+    "log_when": [
+      "Điều phối chọn sai Agent/domain và làm câu trả lời sai hoặc không có nguồn phù hợp.",
+      "Agent trả kết luận trái expected_answer.result.",
+      "Agent không phát hiện issue bắt buộc trong must_identify_issue.",
+      "Agent tính sai số liệu quan trọng hoặc bỏ qua hard stop/rule cảnh báo bắt buộc."
+    ]
+  }
+}

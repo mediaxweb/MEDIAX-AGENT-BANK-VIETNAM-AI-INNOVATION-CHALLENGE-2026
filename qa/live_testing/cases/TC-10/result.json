@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-10",
+  "test_case_file": "tests/qa_live_testing/cases/TC-10/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:44:48+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PASS",
+  "log_bug": false,
+  "input_question": "Khách hàng đề nghị khoản vay thời hạn 400 tháng trong khi giới hạn tối đa là 360 tháng. Agent phải tính/so sánh và kết luận thế nào?",
+  "actual_answer": {
+    "full_text": "Khách hàng đề nghị 400 tháng trong khi giới hạn tối đa là 360 tháng nên vượt 40 tháng, tương đương vượt 11,1% so với giới hạn (40/360). Kết luận: cần điều chỉnh thời hạn về tối đa 360 tháng hoặc yêu cầu giải trình/chỉnh hồ sơ; không thể chấp nhận nguyên 400 tháng.",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Thời hạn vay 400 tháng vượt giới hạn tối đa 360 tháng.",
+      "required_values": {
+        "term_valid": false
+      },
+      "recommendation": "Yêu cầu điều chỉnh thời hạn vay về tối đa 360 tháng hoặc giải trình/chỉnh hồ sơ."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Thời hạn vay vượt giới hạn tối đa 360 tháng",
+    "required_values": {
+      "term_valid": false
+    },
+    "recommendation": "Yêu cầu điều chỉnh thời hạn vay về tối đa 360 tháng hoặc theo sản phẩm phù hợp."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "PASS",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Chính sách hoặc domain Chính sách tương đương.",
+      "status": "PASS",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Thời hạn vay vượt giới hạn tối đa 360 tháng",
+      "status": "PASS",
+      "evidence": "Thời hạn vay 400 tháng vượt giới hạn tối đa 360 tháng."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: FAILED. Agent phát hiện đúng vượt 40 tháng so với giới hạn 360 tháng, routing đúng Chính sách; câu trả lời tương đương FAILED dù không dùng nhãn JSON."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"term_valid\": false}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Yêu cầu điều chỉnh thời hạn vay về tối đa 360 tháng hoặc giải trình/chỉnh hồ sơ."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Yêu cầu điều chỉnh thời hạn vay về tối đa 360 tháng hoặc giải trình/chỉnh hồ sơ."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent phát hiện đúng vượt 40 tháng so với giới hạn 360 tháng, routing đúng Chính sách; câu trả lời tương đương FAILED dù không dùng nhãn JSON."
+    },
+    "groundedness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: 8b91d3074a32484f8bcf759d09192f37_01_ho_so_de_nghi_cap_tin_dung_v2.pdf trang 2, domain Chính sách."
+    },
+    "agent_routing": {
+      "score": 10,
+      "max": 10,
+      "reason": "Routing phù hợp với kỳ vọng của testcase."
+    },
+    "completeness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 99,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "8b91d3074a32484f8bcf759d09192f37_01_ho_so_de_nghi_cap_tin_dung_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_64d82d16931144bf8cde5aadc53fc00d"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-10/evidence/result.txt"
+  ],
+  "recommendation": "Agent phát hiện đúng vượt 40 tháng so với giới hạn 360 tháng, routing đúng Chính sách; câu trả lời tương đương FAILED dù không dùng nhãn JSON."
+}

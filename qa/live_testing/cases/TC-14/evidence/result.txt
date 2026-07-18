@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-14
+
+Executed at: 2026-07-18T19:52:15+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_c670dd05d38e4dd0b5f57980df045423
+
+## Input Question
+Khách hàng có thu nhập 50 triệu VND/tháng và nghĩa vụ nợ 20 triệu VND/tháng. Ngưỡng DTI tối đa là 40%. Hãy tính DTI và kết luận riêng tiêu chí này.
+
+## Actual Agent Answer
+DTI = 20 / 50 = 40%. So với ngưỡng tối đa 40%, khách hàng **đạt** tiêu chí này (vừa đúng ngưỡng).
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Đã truy xuất nguồn từ kho tri thức.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_c670dd05d38e4dd0b5f57980df045423
+
+## Source
+Domain: Chính sách
+Source file: 06_rule_danh_gia_rui_ro_tai_chinh_tuan_thu_v2.pdf
+Source page: 2
+
+## Tester Assessment
+Verdict: PARTIAL_PASS_NEEDS_REVIEW
+Routing status: REVIEW
+Recommendation: PARTIAL_PASS_NEEDS_REVIEW: câu trả lời nghiệp vụ đúng, nhưng routing lệch kỳ vọng Tài chính.

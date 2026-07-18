@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-12",
+  "test_case_file": "tests/qa_live_testing/cases/TC-12/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:51:44+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "LOG_BUG",
+  "log_bug": true,
+  "input_question": "Khách hàng cá nhân đúng 18 tuổi, giấy tờ định danh còn hiệu lực và xin vay theo sản phẩm thông thường. Riêng điều kiện tuổi có đạt không?",
+  "actual_answer": {
+    "full_text": "Theo chính sách tiếp nhận hồ sơ, chỉ có thể xác nhận khách hàng cá nhân đủ điều kiện về giấy tờ định danh còn hiệu lực; không thấy quy định tuổi tối thiểu trong nguồn đã tra cứu. Vì vậy, chưa đủ căn cứ để kết luận riêng điều kiện tuổi có đạt hay không.",
+    "extracted_values": {
+      "result": "REVIEW_NOT_ENOUGH_INFORMATION",
+      "issue": "Agent không xác nhận khách hàng đúng 18 tuổi đáp ứng điều kiện tuổi tối thiểu.",
+      "required_values": {
+        "eligible_age": "NOT_CONFIRMED"
+      },
+      "recommendation": "Chưa đủ căn cứ để kết luận riêng điều kiện tuổi."
+    },
+    "missing_expected_fields": [
+      "Không nêu eligible_age = true.",
+      "Không kết luận PASSED riêng điều kiện tuổi.",
+      "Không khuyến nghị tiếp tục thẩm định các điều kiện khác."
+    ]
+  },
+  "expected_answer": {
+    "result": "PASSED",
+    "must_identify_issue": "Đáp ứng điều kiện tuổi tối thiểu",
+    "required_values": {
+      "eligible_age": true
+    },
+    "recommendation": "Cho phép tiếp tục thẩm định các điều kiện khác."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Tín dụng",
+    "actual_message": "Đã chọn miền Tín dụng để xử lý câu hỏi.",
+    "source_domain": "Tín dụng",
+    "status": "FAIL",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing không phù hợp với kỳ vọng Chuyên gia Chính sách/domain Chính sách."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Chính sách hoặc domain Chính sách tương đương.",
+      "status": "FAIL",
+      "evidence": "Panel routing chọn Chuyên gia Tín dụng/domain Tín dụng."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Đáp ứng điều kiện tuổi tối thiểu.",
+      "status": "FAIL",
+      "evidence": "Agent nói không thấy quy định tuổi tối thiểu trong nguồn đã tra cứu."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương PASSED.",
+      "status": "FAIL",
+      "evidence": "Actual result là chưa đủ căn cứ, không phải PASSED."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "FAIL",
+      "evidence": "Không xác nhận eligible_age = true dù input age = 18 và minimum_age = 18."
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "REVIEW",
+      "evidence": "Không đưa ra khuyến nghị trái rủi ro, nhưng làm dừng/review một điều kiện đáng ra đạt."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "FAIL",
+      "evidence": "Không khuyến nghị tiếp tục thẩm định các điều kiện khác."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 8,
+      "max": 35,
+      "reason": "Agent không xác nhận khách hàng đúng 18 tuổi đạt điều kiện tuổi tối thiểu."
+    },
+    "groundedness": {
+      "score": 5,
+      "max": 20,
+      "reason": "Nguồn truy xuất không thuộc tài liệu/rule Chính sách về tuổi tối thiểu và agent tự báo không đủ căn cứ."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing sai sang Chuyên gia Tín dụng/domain Tín dụng."
+    },
+    "completeness": {
+      "score": 8,
+      "max": 20,
+      "reason": "Thiếu result PASSED, eligible_age = true và recommendation expected."
+    },
+    "explainability": {
+      "score": 8,
+      "max": 15,
+      "reason": "Có nêu lý do thiếu nguồn, nhưng không giải thích theo rule tuổi của testcase."
+    },
+    "total": {
+      "score": 29,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Tín dụng",
+    "source_file": "01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf",
+    "source_page": "4, 1",
+    "trace_id": "trace_a0a21550f6b54e2b98bc59cc44b18117"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-12/evidence/result.txt"
+  ],
+  "recommendation": "LOG_BUG: hệ thống không xác nhận đúng boundary age = 18 và routing sai domain cho câu hỏi chính sách."
+}

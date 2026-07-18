@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-17
+
+Executed at: 2026-07-18T20:00:32+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_6d31dbfac8274e57b41d309b55e12a4b
+
+## Input Question
+Khách hàng có thu nhập 100 triệu/tháng, nợ hiện hữu 20 triệu/tháng, ngưỡng DTI 40%, kỳ hạn vay 12 tháng và đề nghị vay 500 triệu. Hãy tính hạn mức tối đa theo thu nhập và kết luận.
+
+## Actual Agent Answer
+Hạn mức tối đa theo thu nhập (DTI 40%): 100 triệu x 40% = 40 triệu/tháng cho nghĩa vụ trả nợ tối đa. Trừ nợ hiện hữu 20 triệu/tháng, phần còn lại cho khoản vay mới là 20 triệu/tháng. Tuy nhiên, để quy đổi ra số tiền vay tối đa cần có công thức/kỳ trả nợ chi tiết của sản phẩm; tài liệu MCP hiện chỉ có rule về DTI/DSCR và công thức hạn mức theo tài sản, chưa có công thức quy đổi từ 20 triệu/tháng sang dư nợ gốc cho kỳ hạn 12 tháng. Kết luận tạm thời: không đủ dữ liệu để tính chính xác hạn mức tối đa theo thu nhập; với đề nghị vay 500 triệu, chưa thể kết luận đạt hay không chỉ từ thông tin này.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_6d31dbfac8274e57b41d309b55e12a4b
+
+## Source
+Domain: Chính sách
+Source file: 05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf; 01_ho_so_de_nghi_cap_tin_dung_v2.pdf
+Source page: 2
+
+## Tester Assessment
+Verdict: LOG_BUG
+Routing status: FAIL
+Recommendation: LOG_BUG: hệ thống không tính hạn mức theo thu nhập 240 triệu và không kết luận khoản vay 500 triệu vượt hạn mức.

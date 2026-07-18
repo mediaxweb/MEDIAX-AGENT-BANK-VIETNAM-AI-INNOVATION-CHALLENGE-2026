@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-17",
+  "test_case_file": "tests/qa_live_testing/cases/TC-17/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T20:00:32+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "LOG_BUG",
+  "log_bug": true,
+  "input_question": "Khách hàng có thu nhập 100 triệu/tháng, nợ hiện hữu 20 triệu/tháng, ngưỡng DTI 40%, kỳ hạn vay 12 tháng và đề nghị vay 500 triệu. Hãy tính hạn mức tối đa theo thu nhập và kết luận.",
+  "actual_answer": {
+    "full_text": "Hạn mức tối đa theo thu nhập (DTI 40%): 100 triệu x 40% = 40 triệu/tháng cho nghĩa vụ trả nợ tối đa. Trừ nợ hiện hữu 20 triệu/tháng, phần còn lại cho khoản vay mới là 20 triệu/tháng. Tuy nhiên, để quy đổi ra số tiền vay tối đa cần có công thức/kỳ trả nợ chi tiết của sản phẩm; tài liệu MCP hiện chỉ có rule về DTI/DSCR và công thức hạn mức theo tài sản, chưa có công thức quy đổi từ 20 triệu/tháng sang dư nợ gốc cho kỳ hạn 12 tháng. Kết luận tạm thời: không đủ dữ liệu để tính chính xác hạn mức tối đa theo thu nhập; với đề nghị vay 500 triệu, chưa thể kết luận đạt hay không chỉ từ thông tin này.",
+    "extracted_values": {
+      "result": "NOT_ENOUGH_INFORMATION",
+      "issue": "Agent không tính hạn mức tối đa 240 triệu VND và không kết luận khoản vay 500 triệu vượt hạn mức theo thu nhập.",
+      "required_values": {
+        "monthly_available_capacity": 20000000,
+        "income_capacity": "NOT_CALCULATED",
+        "recommended_limit": "NOT_CALCULATED"
+      },
+      "recommendation": "Chưa thể kết luận đạt hay không từ thông tin này."
+    },
+    "missing_expected_fields": [
+      "Không tính income_capacity = 240000000.",
+      "Không tính recommended_limit = 240000000.",
+      "Không kết luận CONDITIONAL.",
+      "Không yêu cầu giảm khoản vay về tối đa 240 triệu VND."
+    ]
+  },
+  "expected_answer": {
+    "result": "CONDITIONAL",
+    "must_identify_issue": "Hạn mức theo thu nhập thấp hơn số tiền đề nghị",
+    "required_values": {
+      "income_capacity": 240000000,
+      "recommended_limit": 240000000
+    },
+    "recommendation": "Giảm khoản vay về tối đa 240 triệu VND hoặc bổ sung nguồn trả nợ hợp lệ."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài chính",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "FAIL",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing không phù hợp với kỳ vọng của testcase."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài chính hoặc domain Tài chính tương đương.",
+      "status": "FAIL",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài chính."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Hạn mức theo thu nhập thấp hơn số tiền đề nghị.",
+      "status": "FAIL",
+      "evidence": "Agent không tính hạn mức 240 triệu và không so sánh với đề nghị vay 500 triệu."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương CONDITIONAL.",
+      "status": "FAIL",
+      "evidence": "Agent kết luận không đủ dữ liệu và chưa thể kết luận đạt hay không."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "FAIL",
+      "evidence": "Agent chỉ tính phần còn lại 20 triệu/tháng, không nhân kỳ hạn 12 tháng để ra 240 triệu."
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "REVIEW",
+      "evidence": "Không duyệt sai khoản vay, nhưng bỏ qua khuyến nghị giảm hạn mức theo công thức testcase."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "FAIL",
+      "evidence": "Không yêu cầu giảm khoản vay về tối đa 240 triệu VND hoặc bổ sung nguồn trả nợ hợp lệ."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 12,
+      "max": 35,
+      "reason": "Agent tính được capacity tháng 20 triệu nhưng không áp dụng công thức kỳ hạn 12 tháng để ra hạn mức 240 triệu."
+    },
+    "groundedness": {
+      "score": 6,
+      "max": 20,
+      "reason": "Nguồn truy xuất lệch tài liệu trọng tâm đánh giá năng lực trả nợ và agent báo thiếu công thức dù testcase có đủ dữ liệu."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing sai sang Chuyên gia Chính sách/domain Chính sách."
+    },
+    "completeness": {
+      "score": 8,
+      "max": 20,
+      "reason": "Thiếu income_capacity, recommended_limit, kết luận CONDITIONAL và recommendation expected."
+    },
+    "explainability": {
+      "score": 10,
+      "max": 15,
+      "reason": "Có giải thích phép tính tháng, nhưng phần từ chối quy đổi làm sai mục tiêu testcase."
+    },
+    "total": {
+      "score": 36,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf; 01_ho_so_de_nghi_cap_tin_dung_v2.pdf",
+    "source_page": "2",
+    "trace_id": "trace_6d31dbfac8274e57b41d309b55e12a4b"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-17/evidence/result.txt"
+  ],
+  "recommendation": "LOG_BUG: hệ thống không tính hạn mức theo thu nhập 240 triệu và không kết luận khoản vay 500 triệu vượt hạn mức."
+}

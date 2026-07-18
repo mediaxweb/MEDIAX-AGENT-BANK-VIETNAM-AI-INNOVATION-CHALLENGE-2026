@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "source_test_case_id": "TC-17",
+  "source_result_file": "tests/qa_live_testing/cases/TC-17/result.json",
+  "should_log": true,
+  "bug": {
+    "title": "[Compliance Agent] Không tính hạn mức theo thu nhập 240 triệu",
+    "severity": "HIGH",
+    "agent_or_component": "Orchestrator / Compliance Agent",
+    "reason": "hệ thống không tính hạn mức theo thu nhập 240 triệu và không kết luận khoản vay 500 triệu vượt hạn mức.",
+    "expected": {
+      "routing": "Bộ điều phối chọn Chuyên gia Tài chính hoặc domain tương đương.",
+      "answer": "Hạn mức theo thu nhập thấp hơn số tiền đề nghị",
+      "business_result": "CONDITIONAL",
+      "required_values": {
+        "income_capacity": 240000000,
+        "recommended_limit": 240000000
+      }
+    },
+    "actual": {
+      "routing": "Bộ điều phối chọn Chuyên gia Chính sách / domain Chính sách.",
+      "answer": "Hạn mức tối đa theo thu nhập (DTI 40%): 100 triệu x 40% = 40 triệu/tháng cho nghĩa vụ trả nợ tối đa. Trừ nợ hiện hữu 20 triệu/tháng, phần còn lại cho khoản vay mới là 20 triệu/tháng. Tuy nhiên, để quy đổi ra số tiền vay tối đa cần có công thức/kỳ trả nợ chi tiết của sản phẩm; tài liệu MCP hiện chỉ có rule về DTI/DSCR và công thức hạn mức theo tài sản, chưa có công thức quy đổi từ 20 triệu/tháng sang dư nợ gốc cho kỳ hạn 12 tháng. Kết luận tạm thời: không đủ dữ liệu để tính chính xác hạn mức tối đa theo thu nhập; với đề nghị vay 500 triệu, chưa thể kết luận đạt hay không chỉ từ thông tin này.",
+      "business_result": "NOT_ENOUGH_INFORMATION",
+      "required_values": {
+        "monthly_available_capacity": 20000000,
+        "income_capacity": "NOT_CALCULATED",
+        "recommended_limit": "NOT_CALCULATED"
+      }
+    },
+    "violated_rule": {
+      "document": "04_bao_cao_tai_chinh_va_danh_gia_nang_luc_tra_no_v2.pdf",
+      "section": "Đánh giá năng lực tài chính và khả năng trả nợ",
+      "rule_summary": "Dữ liệu tài chính phải được tính đúng theo công thức/giá trị kỳ vọng trong testcase để xác định năng lực trả nợ và hạn mức đề xuất."
+    },
+    "business_impact": "Sai hoặc thiếu giá trị tính toán năng lực trả nợ có thể khiến hạn mức vay được review sai, gây rủi ro phê duyệt hoặc chặn hồ sơ không nhất quán.",
+    "steps_to_reproduce": [
+      "1. Mở https://mediax-agent-bank.ai5phut.com/.",
+      "2. Đăng nhập bằng tài khoản tester/admin và vào mục Hỏi đáp AI.",
+      "3. Tạo phiên mới và nhập câu hỏi trong testcase TC-17.",
+      "4. Quan sát câu trả lời, routing panel, source/trace."
+    ],
+    "evidence_files": [
+      "tests/qa_live_testing/cases/TC-17/evidence/result.txt"
+    ],
+    "source_and_trace": {
+      "domain": "Chính sách",
+      "source_file": "05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf; 01_ho_so_de_nghi_cap_tin_dung_v2.pdf",
+      "source_page": "2",
+      "trace_id": "trace_6d31dbfac8274e57b41d309b55e12a4b"
+    }
+  }
+}

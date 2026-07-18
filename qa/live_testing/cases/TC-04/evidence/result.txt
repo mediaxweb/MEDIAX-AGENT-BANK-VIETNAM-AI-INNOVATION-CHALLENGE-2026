@@ -1,0 +1,129 @@
+Test case: TC-04 - Giấy tờ định danh hết hạn
+Executed at: 2026-07-18T19:35:55+07:00
+Target URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+
+Layout/evidence note:
+Menu trái được giữ ở trạng thái hẹp nếu có thể để tối đa vùng hội thoại. Evidence lưu dạng text theo quy trình hiện tại, không lưu ảnh.
+
+Input question:
+Khách hàng cá nhân nộp CCCD đã hết hạn trước ngày nộp hồ sơ vay. Các giấy tờ thu nhập và cư trú đều có. Agent phải kết luận hồ sơ pháp lý thế nào và cần yêu cầu gì?
+
+Actual answer:
+Kết luận hồ sơ pháp lý: **FAILED / chưa đủ điều kiện tiếp nhận hồ sơ** vì **CCCD đã hết hạn** là **hard stop**.
+Cần yêu cầu khách hàng **bổ sung CCCD/hộ chiếu còn hiệu lực** trước khi tiếp tục xử lý. Giấy tờ thu nhập và cư trú có đủ nhưng **không thay thế được CCCD hợp lệ**.
+Nếu cần, agent chỉ nên chuyển sang bước tiếp theo sau khi có giấy tờ định danh hợp lệ.
+
+Routing panel:
+Bộ điều phối -> Chuyên gia Tín dụng: Đã chọn miền Tín dụng để xử lý câu hỏi.
+Source domain: Tín dụng
+Source file: 55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf
+Source page: 4
+Trace ID: trace_0c2329fd516c458e968ba42ab84a7b98
+
+Raw DOM snapshot evidence:
+- complementary:
+  - generic: MediaX
+  - generic: Agent Bank
+  - button "Mở rộng menu": ›
+  - navigation:
+    - button "Hỏi đáp AI":
+      - generic: Hỏi đáp AI
+    - button "Kho tri thức":
+      - generic: Kho tri thức
+  - generic: A
+  - generic: admin
+  - generic: admin@example.com
+  - button "Đăng xuất":
+- banner:
+  - generic: Hỏi đáp AI
+  - generic: Truy vấn dữ liệu và phân tích nghiệp vụ với sự trợ giúp từ Đội chuyên gia AI
+- generic: PHIÊN HỎI ĐÁP
+- generic: • 7
+- button "Tạo phiên mới":
+  - text: Tạo phiên mới
+- generic "Khách hàng cá nhân nộp CCCD đã ..."
+- button "Xoá phiên":
+- generic "Khách hàng doanh nghiệp đã nộp ..."
+- button "Xoá phiên":
+- generic "Khách hàng cá nhân xin vay vốn,..."
+- button "Xoá phiên":
+- generic "Khách hàng là doanh nghiệp xin ..."
+- button "Xoá phiên":
+- generic "Khách hàng là doanh nghiệp xin ..."
+- button "Xoá phiên":
+- generic "Khách hàng là doanh nghiệp xin ..."
+- button "Xoá phiên":
+- generic "Khách hàng có tổng nhu cầu vốn ..."
+- button "Xoá phiên":
+- generic: HỎI ĐÁP VỚI CHUYÊN GIA
+- generic: 2 lượt
+- generic: ND
+- generic: Bạn
+- generic: Khách hàng cá nhân nộp CCCD đã hết hạn trước ngày nộp hồ sơ vay. Các giấy tờ thu nhập và cư trú đều có. Agent phải kết luận hồ sơ pháp lý thế nào và cần yêu cầu gì?
+- generic: Hệ thống
+- generic: Không thể lấy câu trả lời từ Bộ điều phối. HTTP 500
+- generic: ND
+- generic: Bạn
+- generic: Khách hàng cá nhân nộp CCCD đã hết hạn trước ngày nộp hồ sơ vay. Các giấy tờ thu nhập và cư trú đều có. Agent phải kết luận hồ sơ pháp lý thế nào và cần yêu cầu gì?
+- generic: Đội chuyên gia AI
+- text: "Kết luận hồ sơ pháp lý: **FAILED / chưa đủ điều kiện tiếp nhận hồ sơ** vì **CCCD đã hết hạn** là **hard stop**."
+- text: Cần yêu cầu khách hàng **bổ sung CCCD/hộ chiếu còn hiệu lực** trước khi tiếp tục xử lý. Giấy tờ thu nhập và cư trú có đủ nhưng **không thay thế được CCCD hợp lệ**.
+- text: Nếu cần, agent chỉ nên chuyển sang bước tiếp theo sau khi có giấy tờ định danh hợp lệ.
+- text: 1 nguồn trích dẫn
+- text: Miền Tín dụng
+- generic: Nguồn trích dẫn
+- button "55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf · trang 4":
+  - generic: 55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf · trang 4
+- textbox "Nhập câu hỏi nghiệp vụ..."
+- button "Gửi (Enter)":
+- generic: Đội chuyên gia AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.
+- generic: TRAO ĐỔI GIỮA CÁC CHUYÊN GIA
+- generic: 4 lượt
+- generic: Giao diện hỏi đáp
+- generic: →
+- generic: Bộ điều phối
+- generic: 19:35:47
+- generic: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+- text: Đã gửi
+- generic: Bộ điều phối
+- generic: →
+- generic: Chuyên gia Tín dụng
+- generic: 19:35:53
+- generic: Đã chọn miền Tín dụng để xử lý câu hỏi.
+- text: Đã điều phối
+- generic: Chuyên gia Tín dụng
+- generic: →
+- generic: Kho tri thức
+- generic: 19:35:53
+- generic: Đã truy xuất 1 nguồn từ kho tri thức.
+- text: Có nguồn
+- generic: Bộ điều phối
+- generic: →
+- generic: Giao diện hỏi đáp
+- generic: 19:35:53
+- generic: "Đã trả lời. Mã theo dõi: trace_0c2329fd516c458e968ba42ab84a7b98"
+- text: Hoàn thành
+- dialog:
+  - generic: CHI TIẾT NGUỒN
+  - generic: —
+  - button "Đóng":
+  - term: Miền
+  - definition: —
+  - term: Mã nguồn
+  - definition: —
+  - term: Trang
+  - definition: —
+  - generic: ĐOẠN TRÍCH
+  - blockquote: —
+  - generic: Được sử dụng bởi
+- dialog "Tải tài liệu lên":
+  - heading "Tải tài liệu lên" [level=2]
+  - paragraph: Thêm tài liệu vào kho tri thức nghiệp vụ.
+  - button "Đóng":
+  - button "Kéo thả tệp vào đây hoặc chọn tệp Hỗ trợ PDF văn bản":
+    - strong: Kéo thả tệp vào đây hoặc chọn tệp
+    - generic: Hỗ trợ PDF văn bản
+  - heading "Tệp chờ xử lý" [level=3]
+  - paragraph: Tài liệu sẽ được lập chỉ mục vào kho của chuyên gia đã chọn.
+  - button "Hủy"
+  - button "Tải lên" [disabled]

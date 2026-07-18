@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-19
+
+Executed at: 2026-07-18T20:00:51+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_6f2f24f8a9f741d198ab66def460158b
+
+## Input Question
+Tài sản bảo đảm được định giá 1 tỷ VND, tỷ lệ LTV tối đa là 70%, khách hàng đề nghị vay 900 triệu VND. Agent hãy tính LTV, hạn mức tối đa theo tài sản và kết luận.
+
+## Actual Agent Answer
+LTV = 900 triệu / 1 tỷ = 90%. Hạn mức tối đa theo tài sản = 1 tỷ × 70% = 700 triệu VND. Kết luận: Không phù hợp, vì khoản vay đề nghị 900 triệu vượt hạn mức tối đa theo tài sản (700 triệu) và LTV thực tế 90% cao hơn mức tối đa 70%.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Đã truy xuất nguồn từ kho tri thức.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_6f2f24f8a9f741d198ab66def460158b
+
+## Source
+Domain: Chính sách
+Source file: 05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf
+Source page: 2
+
+## Tester Assessment
+Verdict: PARTIAL_PASS_NEEDS_REVIEW
+Routing status: REVIEW
+Recommendation: PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ đúng, nhưng routing lệch kỳ vọng Tài sản bảo đảm.

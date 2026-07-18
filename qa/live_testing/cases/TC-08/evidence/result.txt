@@ -1,0 +1,128 @@
+Test case: TC-08 - Mục đích vay đầu cơ chứng khoán
+Executed at: 2026-07-18T19:40:32+07:00
+Target URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+
+Layout/evidence note:
+Menu trái được giữ ở trạng thái hẹp nếu có thể để tối đa vùng hội thoại. Evidence lưu dạng text theo quy trình hiện tại, không lưu ảnh.
+
+Input question:
+Khách hàng xin vay 2 tỷ VND với mục đích đầu cơ chứng khoán ngắn hạn, không có phương án sản xuất kinh doanh. Theo chính sách tín dụng, Agent phải kết luận thế nào?
+
+Actual answer:
+Kết luận: Không khuyến nghị cấp tín dụng / FAILED. Mục đích vay là đầu tư tài chính/chứng khoán, mà chính sách nêu rõ “Đầu tư tài chính/chứng khoán/crypto” là “Không cho phép trong demo” và “Đầu cơ chứng khoán ngắn hạn” không thuộc mục đích cho phép. Ngoài ra, khách hàng không có phương án sản xuất kinh doanh và không có phương án trả nợ rõ ràng, nên cũng bị FAILED theo quy định về nguồn trả nợ.
+
+Routing panel:
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Source domain: Chính sách
+Source file: e044057fb4594ecf841adbfc80fdb379_05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf
+Source page: 1
+Trace ID: trace_7f96a7399ae145b580a67dde70e89aa0
+
+Raw DOM snapshot evidence:
+- complementary:
+  - generic: MediaX
+  - generic: Agent Bank
+  - button "Mở rộng menu": ›
+  - navigation:
+    - button "Hỏi đáp AI":
+      - generic: Hỏi đáp AI
+    - button "Kho tri thức":
+      - generic: Kho tri thức
+  - generic: A
+  - generic: admin
+  - generic: admin@example.com
+  - button "Đăng xuất":
+- banner:
+  - generic: Hỏi đáp AI
+  - generic: Truy vấn dữ liệu và phân tích nghiệp vụ với sự trợ giúp từ Đội chuyên gia AI
+- generic: PHIÊN HỎI ĐÁP
+- generic: • 11
+- button "Tạo phiên mới":
+  - text: Tạo phiên mới
+- generic "Khách hàng xin vay 2 tỷ VND với..."
+- button "Xoá phiên":
+- generic "Khách hàng khai tổng nhu cầu vố..."
+- button "Xoá phiên":
+- generic "Tổng nhu cầu vốn của phương án ..."
+- button "Xoá phiên":
+- generic "Khách hàng có tổng nhu cầu vốn ..."
+- button "Xoá phiên":
+- generic "Khách hàng cá nhân nộp CCCD đã ..."
+- button "Xoá phiên":
+- generic "Khách hàng doanh nghiệp đã nộp ..."
+- button "Xoá phiên":
+- generic "Khách hàng cá nhân xin vay vốn,..."
+- button "Xoá phiên":
+- generic "Khách hàng là doanh nghiệp xin ..."
+- button "Xoá phiên":
+- generic "Khách hàng là doanh nghiệp xin ..."
+- button "Xoá phiên":
+- generic "Khách hàng là doanh nghiệp xin ..."
+- button "Xoá phiên":
+- generic "Khách hàng có tổng nhu cầu vốn ..."
+- button "Xoá phiên":
+- generic: HỎI ĐÁP VỚI CHUYÊN GIA
+- generic: 1 lượt
+- generic: ND
+- generic: Bạn
+- generic: Khách hàng xin vay 2 tỷ VND với mục đích đầu cơ chứng khoán ngắn hạn, không có phương án sản xuất kinh doanh. Theo chính sách tín dụng, Agent phải kết luận thế nào?
+- generic: Đội chuyên gia AI
+- generic: "Kết luận: Không khuyến nghị cấp tín dụng / FAILED. Mục đích vay là đầu tư tài chính/chứng khoán, mà chính sách nêu rõ “Đầu tư tài chính/chứng khoán/crypto” là “Không cho phép trong demo” và “Đầu cơ chứng khoán ngắn hạn” không thuộc mục đích cho phép. Ngoài ra, khách hàng không có phương án sản xuất kinh doanh và không có phương án trả nợ rõ ràng, nên cũng bị FAILED theo quy định về nguồn trả nợ."
+- text: 1 nguồn trích dẫn
+- text: Miền Chính sách
+- generic: Nguồn trích dẫn
+- button "e044057fb4594ecf841adbfc80fdb379_05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf · trang 1":
+  - generic: e044057fb4594ecf841adbfc80fdb379_05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf · trang 1
+- textbox "Nhập câu hỏi nghiệp vụ..."
+- button "Gửi (Enter)":
+- generic: Đội chuyên gia AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.
+- generic: TRAO ĐỔI GIỮA CÁC CHUYÊN GIA
+- generic: 4 lượt
+- generic: Giao diện hỏi đáp
+- generic: →
+- generic: Bộ điều phối
+- generic: 19:40:19
+- generic: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+- text: Đã gửi
+- generic: Bộ điều phối
+- generic: →
+- generic: Chuyên gia Chính sách
+- generic: 19:40:29
+- generic: Đã chọn miền Chính sách để xử lý câu hỏi.
+- text: Đã điều phối
+- generic: Chuyên gia Chính sách
+- generic: →
+- generic: Kho tri thức
+- generic: 19:40:29
+- generic: Đã truy xuất 1 nguồn từ kho tri thức.
+- text: Có nguồn
+- generic: Bộ điều phối
+- generic: →
+- generic: Giao diện hỏi đáp
+- generic: 19:40:29
+- generic: "Đã trả lời. Mã theo dõi: trace_7f96a7399ae145b580a67dde70e89aa0"
+- text: Hoàn thành
+- dialog:
+  - generic: CHI TIẾT NGUỒN
+  - generic: —
+  - button "Đóng":
+  - term: Miền
+  - definition: —
+  - term: Mã nguồn
+  - definition: —
+  - term: Trang
+  - definition: —
+  - generic: ĐOẠN TRÍCH
+  - blockquote: —
+  - generic: Được sử dụng bởi
+- dialog "Tải tài liệu lên":
+  - heading "Tải tài liệu lên" [level=2]
+  - paragraph: Thêm tài liệu vào kho tri thức nghiệp vụ.
+  - button "Đóng":
+  - button "Kéo thả tệp vào đây hoặc chọn tệp Hỗ trợ PDF văn bản":
+    - strong: Kéo thả tệp vào đây hoặc chọn tệp
+    - generic: Hỗ trợ PDF văn bản
+  - heading "Tệp chờ xử lý" [level=3]
+  - paragraph: Tài liệu sẽ được lập chỉ mục vào kho của chuyên gia đã chọn.
+  - button "Hủy"
+  - button "Tải lên" [disabled]

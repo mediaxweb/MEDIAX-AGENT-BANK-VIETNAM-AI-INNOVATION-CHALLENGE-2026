@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-09",
+  "test_case_file": "tests/qa_live_testing/cases/TC-09/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:44:20+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng ghi mục đích vay là “bổ sung vốn” nhưng không nêu dùng cho hạng mục nào, không có hợp đồng hoặc bảng dự toán. Agent nên kết luận đạt, từ chối hay cần review?",
+  "actual_answer": {
+    "full_text": "Cần review. Mục đích vay phải rõ; nếu chỉ ghi “bổ sung vốn” mà không nêu hạng mục cụ thể thì chưa đạt mức rõ ràng để PASS sơ bộ. Đồng thời, trường hợp mục đích vay chưa rõ thì chưa xác định được thời hạn hợp lệ.\nChưa đủ thông tin",
+    "extracted_values": {
+      "result": "NEEDS_REVIEW",
+      "issue": "Mục đích vay chưa đủ rõ để thẩm định.",
+      "required_values": {
+        "need_clarification": true
+      },
+      "recommendation": "Yêu cầu làm rõ hạng mục/phương án sử dụng vốn và chứng từ liên quan trước khi kết luận."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "NEEDS_REVIEW",
+    "must_identify_issue": "Mục đích vay chưa đủ rõ để thẩm định",
+    "required_values": {
+      "need_clarification": true
+    },
+    "recommendation": "Yêu cầu mô tả cụ thể phương án sử dụng vốn và chứng từ liên quan."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Tín dụng",
+    "actual_message": "Đã chọn miền Tín dụng để xử lý câu hỏi.",
+    "source_domain": "Tín dụng",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Chính sách, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Chính sách hoặc domain Chính sách tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Chính sách, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Mục đích vay chưa đủ rõ để thẩm định",
+      "status": "PASS",
+      "evidence": "Mục đích vay chưa đủ rõ để thẩm định."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương NEEDS_REVIEW.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: NEEDS_REVIEW. Agent nhận diện đúng cần review vì mục đích “bổ sung vốn” còn mơ hồ, nhưng routing/source hiển thị Tín dụng thay vì Chính sách như testcase kỳ vọng."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"need_clarification\": true}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Yêu cầu làm rõ hạng mục/phương án sử dụng vốn và chứng từ liên quan trước khi kết luận."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Yêu cầu làm rõ hạng mục/phương án sử dụng vốn và chứng từ liên quan trước khi kết luận."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 34,
+      "max": 35,
+      "reason": "Agent nhận diện đúng cần review vì mục đích “bổ sung vốn” còn mơ hồ, nhưng routing/source hiển thị Tín dụng thay vì Chính sách như testcase kỳ vọng."
+    },
+    "groundedness": {
+      "score": 17,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: 13d401b7c1954728beaf217dc50defb9_03_mau_de_nghi_cap_tin_dung_de_nghi_vay_von_v2.pdf trang 2, domain Tín dụng."
+    },
+    "agent_routing": {
+      "score": 6,
+      "max": 10,
+      "reason": "Routing cần review vì testcase kỳ vọng Chuyên gia Chính sách, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    "completeness": {
+      "score": 18,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 90,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Tín dụng",
+    "source_file": "13d401b7c1954728beaf217dc50defb9_03_mau_de_nghi_cap_tin_dung_de_nghi_vay_von_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_d9b296297c904af383513c3049433df4"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-09/evidence/result.txt"
+  ],
+  "recommendation": "Agent nhận diện đúng cần review vì mục đích “bổ sung vốn” còn mơ hồ, nhưng routing/source hiển thị Tín dụng thay vì Chính sách như testcase kỳ vọng."
+}

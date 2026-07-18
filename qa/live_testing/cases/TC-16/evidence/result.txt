@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-16
+
+Executed at: 2026-07-18T20:00:21+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_9ea26ac1db484c5e96023b6be5aee67a
+
+## Input Question
+Hồ sơ có tải báo cáo tài chính nhưng báo cáo không thể hiện doanh thu, thu nhập tháng hoặc dòng tiền trả nợ. Agent nên chấm đạt hay yêu cầu review/bổ sung?
+
+## Actual Agent Answer
+Nên yêu cầu review/bổ sung, chưa chấm đạt. Tài liệu nêu báo cáo tài chính phải dùng để đánh giá năng lực tài chính và khả năng trả nợ, đồng thời các chỉ số cần trích xuất gồm doanh thu, lợi nhuận và dòng tiền; báo cáo lưu chuyển tiền tệ dùng để đánh giá dòng tiền, và sao kê/chứng từ chỉ cần khi dòng tiền chưa rõ. Nếu báo cáo không thể hiện doanh thu, thu nhập tháng hoặc dòng tiền trả nợ thì chưa đủ cơ sở đánh giá.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Đã truy xuất nguồn từ kho tri thức.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_9ea26ac1db484c5e96023b6be5aee67a
+
+## Source
+Domain: Chính sách
+Source file: 02_bao_cao_tai_chinh_1_2_nam_gan_nhat_v2.pdf; 06_rule_danh_gia_rui_ro_tai_chinh_tuan_thu_v2.pdf
+Source page: 1, 3
+
+## Tester Assessment
+Verdict: PARTIAL_PASS_NEEDS_REVIEW
+Routing status: REVIEW
+Recommendation: PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ đúng, nhưng routing lệch kỳ vọng Tài chính.

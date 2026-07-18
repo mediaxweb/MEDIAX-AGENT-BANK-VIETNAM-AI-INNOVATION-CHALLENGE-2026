@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-15",
+  "test_case_file": "tests/qa_live_testing/cases/TC-15/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:52:35+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng doanh nghiệp xin vay nhưng chưa nộp báo cáo tài chính, sao kê doanh thu hoặc dữ liệu thu nhập nào. Agent tài chính phải kết luận thế nào?",
+  "actual_answer": {
+    "full_text": "Kết luận: `FAILED` do hồ sơ doanh nghiệp chưa đủ thông tin bắt buộc để chuyển thẩm định, đặc biệt thiếu nguồn lực tài chính/nguồn trả nợ như báo cáo tài chính, sao kê doanh thu hoặc dữ liệu thu nhập.",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Không có báo cáo tài chính/sao kê doanh thu/dữ liệu thu nhập để đánh giá năng lực trả nợ.",
+      "required_values": {
+        "financial_check_status": "FAILED"
+      },
+      "recommendation": "Yêu cầu bổ sung báo cáo tài chính, sao kê doanh thu hoặc dữ liệu thu nhập trước khi thẩm định tiếp."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Không có báo cáo tài chính để đánh giá năng lực trả nợ",
+    "required_values": {
+      "financial_check_status": "FAILED"
+    },
+    "recommendation": "Yêu cầu bổ sung báo cáo tài chính/sao kê phù hợp trước khi thẩm định tiếp."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài chính",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing lệch kỳ vọng Chuyên gia Tài chính, dù câu trả lời nghiệp vụ đúng và có nguồn báo cáo tài chính."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài chính hoặc domain Tài chính tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài chính."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Không có báo cáo tài chính để đánh giá năng lực trả nợ.",
+      "status": "PASS",
+      "evidence": "Agent nêu thiếu nguồn lực tài chính/nguồn trả nợ như báo cáo tài chính, sao kê doanh thu hoặc dữ liệu thu nhập."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Agent trả rõ: Kết luận: `FAILED`."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"financial_check_status\": \"FAILED\"}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không cho phép chuyển thẩm định khi thiếu dữ liệu tài chính."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Câu trả lời yêu cầu bổ sung nguồn lực tài chính/nguồn trả nợ trước khi chuyển thẩm định."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent phát hiện đúng thiếu báo cáo/dữ liệu tài chính và kết luận FAILED."
+    },
+    "groundedness": {
+      "score": 18,
+      "max": 20,
+      "reason": "Có nguồn hồ sơ tín dụng và báo cáo tài chính; trừ điểm nhẹ vì domain hiển thị Chính sách thay vì Tài chính."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing không khớp kỳ vọng Chuyên gia Tài chính/domain Tài chính."
+    },
+    "completeness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Câu trả lời đủ result, issue và ý nghĩa xử lý."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Giải thích rõ thiếu dữ liệu tài chính/nguồn trả nợ là căn cứ FAILED."
+    },
+    "total": {
+      "score": 88,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "01_ho_so_de_nghi_cap_tin_dung_v2.pdf; 02_bao_cao_tai_chinh_1_2_nam_gan_nhat_v2.pdf",
+    "source_page": 1,
+    "trace_id": "trace_0ea44e8865b24af79ea1923bbdffb190"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-15/evidence/result.txt"
+  ],
+  "recommendation": "PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ đúng và có nguồn phù hợp, nhưng routing lệch kỳ vọng Tài chính."
+}

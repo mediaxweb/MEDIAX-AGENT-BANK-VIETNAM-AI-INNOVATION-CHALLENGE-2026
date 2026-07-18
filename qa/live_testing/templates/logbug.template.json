@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "source_test_case_id": "TC-XX",
+  "source_result_file": "tests/qa_live_testing/cases/TC-XX/result.json",
+  "should_log": true,
+  "bug": {
+    "title": "TODO: tiêu đề bug ngắn gọn",
+    "severity": "TODO: HIGH | MEDIUM | LOW",
+    "agent_or_component": "TODO: Orchestrator | Compliance Agent | Credit Agent | Policy Agent | UI",
+    "reason": "TODO: vì sao đây là bug",
+    "expected": {
+      "routing": "TODO",
+      "answer": "TODO",
+      "business_result": "TODO"
+    },
+    "actual": {
+      "routing": "TODO",
+      "answer": "TODO",
+      "business_result": "TODO"
+    },
+    "violated_rule": {
+      "document": "TODO",
+      "section": "TODO",
+      "rule_summary": "TODO"
+    },
+    "business_impact": "TODO: tác động nghiệp vụ",
+    "steps_to_reproduce": [
+      "1. Mở https://mediax-agent-bank.ai5phut.com/.",
+      "2. Vào mục Hỏi đáp AI.",
+      "3. Nhập câu hỏi trong testcase TC-XX.",
+      "4. Quan sát câu trả lời, routing panel, source/trace."
+    ],
+    "evidence_files": [
+      "tests/qa_live_testing/cases/TC-XX/evidence/result.txt"
+    ],
+    "source_and_trace": {
+      "domain": "TODO",
+      "source_file": "TODO",
+      "source_page": "TODO",
+      "trace_id": "TODO"
+    }
+  }
+}

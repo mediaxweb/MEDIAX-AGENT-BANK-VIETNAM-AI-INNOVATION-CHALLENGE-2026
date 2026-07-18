@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-13
+
+Executed at: 2026-07-18T19:52:00+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_07fc821148f043df9a66d0d61cd1a0cb
+
+## Input Question
+Khách hàng có thu nhập 50 triệu VND/tháng và nghĩa vụ nợ hiện hữu 25 triệu VND/tháng. Nếu ngưỡng DTI tối đa là 40%, Agent hãy tính DTI, mức nợ tối đa cho phép và kết luận.
+
+## Actual Agent Answer
+DTI hiện tại = 25/50 = 50%. Mức nợ tối đa theo ngưỡng 40% = 50 x 40% = 20 triệu VND/tháng. Kết luận: Không đạt, vì nghĩa vụ nợ hiện hữu 25 triệu VND/tháng cao hơn mức tối đa 20 triệu VND/tháng.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Đã truy xuất nguồn từ kho tri thức.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_07fc821148f043df9a66d0d61cd1a0cb
+
+## Source
+Domain: Chính sách
+Source file: 06_rule_danh_gia_rui_ro_tai_chinh_tuan_thu_v2.pdf
+Source page: 2
+
+## Tester Assessment
+Verdict: PARTIAL_PASS_NEEDS_REVIEW
+Routing status: REVIEW
+Recommendation: PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ tính toán đúng, nhưng routing lệch Tài chính và kết luận chưa đúng nhãn CONDITIONAL.

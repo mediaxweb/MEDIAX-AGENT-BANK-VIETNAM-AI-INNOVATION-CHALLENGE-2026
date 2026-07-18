@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-04",
+  "test_case_file": "tests/qa_live_testing/cases/TC-04/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:35:55+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng cá nhân nộp CCCD đã hết hạn trước ngày nộp hồ sơ vay. Các giấy tờ thu nhập và cư trú đều có. Agent phải kết luận hồ sơ pháp lý thế nào và cần yêu cầu gì?",
+  "actual_answer": {
+    "full_text": "Kết luận hồ sơ pháp lý: **FAILED / chưa đủ điều kiện tiếp nhận hồ sơ** vì **CCCD đã hết hạn** là **hard stop**.\nCần yêu cầu khách hàng **bổ sung CCCD/hộ chiếu còn hiệu lực** trước khi tiếp tục xử lý. Giấy tờ thu nhập và cư trú có đủ nhưng **không thay thế được CCCD hợp lệ**.\nNếu cần, agent chỉ nên chuyển sang bước tiếp theo sau khi có giấy tờ định danh hợp lệ.",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Giấy tờ định danh hết hạn không hợp lệ và là hard stop.",
+      "required_values": {
+        "hard_stop": true
+      },
+      "recommendation": "Yêu cầu bổ sung CCCD/hộ chiếu còn hiệu lực trước khi xử lý tiếp."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Giấy tờ định danh đã hết hạn không được xem là hợp lệ",
+    "required_values": {
+      "hard_stop": true
+    },
+    "recommendation": "Yêu cầu khách hàng nộp giấy tờ định danh còn hiệu lực."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Pháp lý",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Tín dụng",
+    "actual_message": "Đã chọn miền Tín dụng để xử lý câu hỏi.",
+    "source_domain": "Tín dụng",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Pháp lý hoặc domain Pháp lý tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Giấy tờ định danh đã hết hạn không được xem là hợp lệ",
+      "status": "PASS",
+      "evidence": "Giấy tờ định danh hết hạn không hợp lệ và là hard stop."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: FAILED. Agent kết luận đúng FAILED/hard stop với CCCD hết hạn, nhưng routing hiển thị Chuyên gia Tín dụng thay vì Chuyên gia Pháp lý."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"hard_stop\": true}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Yêu cầu bổ sung CCCD/hộ chiếu còn hiệu lực trước khi xử lý tiếp."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Yêu cầu bổ sung CCCD/hộ chiếu còn hiệu lực trước khi xử lý tiếp."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent kết luận đúng FAILED/hard stop với CCCD hết hạn, nhưng routing hiển thị Chuyên gia Tín dụng thay vì Chuyên gia Pháp lý."
+    },
+    "groundedness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: 55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf trang 4, domain Tín dụng."
+    },
+    "agent_routing": {
+      "score": 7,
+      "max": 10,
+      "reason": "Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    "completeness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 96,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Tín dụng",
+    "source_file": "55c9f4690d7b422a983a169c9ecc53ec_01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf",
+    "source_page": 4,
+    "trace_id": "trace_0c2329fd516c458e968ba42ab84a7b98"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-04/evidence/result.txt"
+  ],
+  "recommendation": "Agent kết luận đúng FAILED/hard stop với CCCD hết hạn, nhưng routing hiển thị Chuyên gia Tín dụng thay vì Chuyên gia Pháp lý."
+}

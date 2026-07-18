@@ -1,0 +1,119 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-18",
+  "test_case_file": "tests/qa_live_testing/cases/TC-18/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T20:00:43+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "LOG_BUG",
+  "log_bug": true,
+  "input_question": "Khách hàng có thu nhập 30 triệu/tháng, nợ hiện hữu 15 triệu/tháng, ngưỡng DTI 40%. Agent hãy tính khả năng trả nợ tăng thêm mỗi tháng và kết luận có nên cấp thêm hạn mức không.",
+  "actual_answer": {
+    "full_text": "Khả năng trả nợ tăng thêm mỗi tháng = 30 triệu x 40% - 15 triệu = -3 triệu/tháng. Kết luận: không nên cấp thêm hạn mức, vì DTI theo ngưỡng 40% chỉ cho phép tổng nghĩa vụ trả nợ tối đa 12 triệu/tháng, trong khi nợ hiện hữu đã là 15 triệu/tháng, tức đã vượt ngưỡng.",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Nghĩa vụ nợ hiện hữu đã vượt khả năng theo DTI.",
+      "required_values": {
+        "available_monthly_capacity": -3000000
+      },
+      "recommendation": "Không nên cấp thêm hạn mức."
+    },
+    "missing_expected_fields": [
+      "Không clamp available_monthly_capacity về 0 theo expected rule.",
+      "Không nêu rõ điều kiện giảm nợ hoặc chứng minh thêm thu nhập."
+    ]
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Nghĩa vụ nợ hiện hữu đã vượt khả năng theo DTI",
+    "required_values": {
+      "available_monthly_capacity": 0
+    },
+    "recommendation": "Không đề xuất thêm hạn mức nếu không giảm nợ hoặc chứng minh thêm thu nhập."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài chính",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "FAIL",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing không phù hợp với kỳ vọng của testcase."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài chính hoặc domain Tài chính tương đương.",
+      "status": "FAIL",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài chính."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Nghĩa vụ nợ hiện hữu đã vượt khả năng theo DTI.",
+      "status": "PASS",
+      "evidence": "Agent nêu nợ hiện hữu 15 triệu vượt mức tối đa 12 triệu theo DTI 40%."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Agent kết luận không nên cấp thêm hạn mức."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "FAIL",
+      "evidence": "Expected available_monthly_capacity = 0 nhưng actual trả -3 triệu/tháng."
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không đề xuất cấp thêm hạn mức."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "REVIEW",
+      "evidence": "Có nói không cấp thêm hạn mức, nhưng chưa nêu điều kiện giảm nợ hoặc chứng minh thêm thu nhập."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 25,
+      "max": 35,
+      "reason": "Kết luận nghiệp vụ đúng, nhưng giá trị required available_monthly_capacity sai vì không chặn về 0."
+    },
+    "groundedness": {
+      "score": 10,
+      "max": 20,
+      "reason": "Nguồn truy xuất không đúng tài liệu trọng tâm 04_bao_cao_tai_chinh_va_danh_gia_nang_luc_tra_no_v2.pdf và trạng thái nguồn báo thiếu dữ liệu."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing sai sang Chuyên gia Chính sách/domain Chính sách."
+    },
+    "completeness": {
+      "score": 16,
+      "max": 20,
+      "reason": "Đủ phép tính, issue và kết luận, nhưng thiếu required value đúng và recommendation đầy đủ."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Giải thích rõ công thức và so sánh 12 triệu với 15 triệu."
+    },
+    "total": {
+      "score": 66,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "03_phuong_an_su_dung_von_va_phuong_an_tra_no_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_6edf9e127ce243df991e848910e467e8"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-18/evidence/result.txt"
+  ],
+  "recommendation": "LOG_BUG: hệ thống kết luận đúng hướng nhưng tính required value sai; khả năng trả nợ tăng thêm phải được ghi nhận là 0 thay vì -3 triệu."
+}

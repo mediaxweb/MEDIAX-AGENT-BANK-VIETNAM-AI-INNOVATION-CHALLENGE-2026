@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "source_test_case_id": "TC-18",
+  "source_result_file": "tests/qa_live_testing/cases/TC-18/result.json",
+  "should_log": true,
+  "bug": {
+    "title": "[Compliance Agent] Khả năng trả nợ tăng thêm không được chặn về 0",
+    "severity": "HIGH",
+    "agent_or_component": "Orchestrator / Compliance Agent",
+    "reason": "hệ thống kết luận đúng hướng nhưng tính required value sai; khả năng trả nợ tăng thêm phải được ghi nhận là 0 thay vì -3 triệu.",
+    "expected": {
+      "routing": "Bộ điều phối chọn Chuyên gia Tài chính hoặc domain tương đương.",
+      "answer": "Nghĩa vụ nợ hiện hữu đã vượt khả năng theo DTI",
+      "business_result": "FAILED",
+      "required_values": {
+        "available_monthly_capacity": 0
+      }
+    },
+    "actual": {
+      "routing": "Bộ điều phối chọn Chuyên gia Chính sách / domain Chính sách.",
+      "answer": "Khả năng trả nợ tăng thêm mỗi tháng = 30 triệu x 40% - 15 triệu = -3 triệu/tháng. Kết luận: không nên cấp thêm hạn mức, vì DTI theo ngưỡng 40% chỉ cho phép tổng nghĩa vụ trả nợ tối đa 12 triệu/tháng, trong khi nợ hiện hữu đã là 15 triệu/tháng, tức đã vượt ngưỡng.",
+      "business_result": "FAILED",
+      "required_values": {
+        "available_monthly_capacity": -3000000
+      }
+    },
+    "violated_rule": {
+      "document": "04_bao_cao_tai_chinh_va_danh_gia_nang_luc_tra_no_v2.pdf",
+      "section": "Đánh giá năng lực tài chính và khả năng trả nợ",
+      "rule_summary": "Dữ liệu tài chính phải được tính đúng theo công thức/giá trị kỳ vọng trong testcase để xác định năng lực trả nợ và hạn mức đề xuất."
+    },
+    "business_impact": "Sai hoặc thiếu giá trị tính toán năng lực trả nợ có thể khiến hạn mức vay được review sai, gây rủi ro phê duyệt hoặc chặn hồ sơ không nhất quán.",
+    "steps_to_reproduce": [
+      "1. Mở https://mediax-agent-bank.ai5phut.com/.",
+      "2. Đăng nhập bằng tài khoản tester/admin và vào mục Hỏi đáp AI.",
+      "3. Tạo phiên mới và nhập câu hỏi trong testcase TC-18.",
+      "4. Quan sát câu trả lời, routing panel, source/trace."
+    ],
+    "evidence_files": [
+      "tests/qa_live_testing/cases/TC-18/evidence/result.txt"
+    ],
+    "source_and_trace": {
+      "domain": "Chính sách",
+      "source_file": "03_phuong_an_su_dung_von_va_phuong_an_tra_no_v2.pdf",
+      "source_page": 2,
+      "trace_id": "trace_6edf9e127ce243df991e848910e467e8"
+    }
+  }
+}

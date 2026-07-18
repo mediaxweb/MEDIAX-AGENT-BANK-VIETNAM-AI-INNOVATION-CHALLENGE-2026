@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-15
+
+Executed at: 2026-07-18T19:52:35+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_0ea44e8865b24af79ea1923bbdffb190
+
+## Input Question
+Khách hàng doanh nghiệp xin vay nhưng chưa nộp báo cáo tài chính, sao kê doanh thu hoặc dữ liệu thu nhập nào. Agent tài chính phải kết luận thế nào?
+
+## Actual Agent Answer
+Kết luận: `FAILED` do hồ sơ doanh nghiệp chưa đủ thông tin bắt buộc để chuyển thẩm định, đặc biệt thiếu nguồn lực tài chính/nguồn trả nợ như báo cáo tài chính, sao kê doanh thu hoặc dữ liệu thu nhập.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Đã truy xuất nguồn từ kho tri thức.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_0ea44e8865b24af79ea1923bbdffb190
+
+## Source
+Domain: Chính sách
+Source file: 01_ho_so_de_nghi_cap_tin_dung_v2.pdf; 02_bao_cao_tai_chinh_1_2_nam_gan_nhat_v2.pdf
+Source page: 1
+
+## Tester Assessment
+Verdict: PARTIAL_PASS_NEEDS_REVIEW
+Routing status: REVIEW
+Recommendation: PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ đúng và có nguồn phù hợp, nhưng routing lệch kỳ vọng Tài chính.

@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-XX",
+  "test_case_file": "tests/qa_live_testing/cases/TC-XX/testcase.json",
+  "execution_status": "NOT_RUN",
+  "executed_at": "TODO: ISO timestamp",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "TODO: actual URL sau khi chạy, nếu khác base URL",
+  "verdict": "TODO: NOT_RUN | PASS | PARTIAL_PASS_NEEDS_REVIEW | FAIL | LOG_BUG | BLOCKED",
+  "log_bug": false,
+  "input_question": "TODO: câu hỏi đã gửi",
+  "actual_answer": {
+    "full_text": "TODO: toàn bộ câu trả lời của Agent",
+    "extracted_values": {
+      "result": "TODO",
+      "issue": "TODO",
+      "recommendation": "TODO"
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "TODO",
+    "required_values": {
+      "field_1": "TODO"
+    },
+    "issue": "TODO",
+    "recommendation": "TODO"
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "TODO",
+    "actual_router": "TODO",
+    "actual_agent_or_domain": "TODO",
+    "actual_message": "TODO",
+    "source_domain": "TODO",
+    "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "TODO"
+  },
+  "criteria_results": [
+    {
+      "criterion": "TODO: tiêu chí cần chấm",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO: đoạn output hoặc quan sát hỗ trợ kết luận"
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 0,
+      "max": 35,
+      "reason": "TODO"
+    },
+    "groundedness": {
+      "score": 0,
+      "max": 20,
+      "reason": "TODO"
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "TODO"
+    },
+    "completeness": {
+      "score": 0,
+      "max": 20,
+      "reason": "TODO"
+    },
+    "explainability": {
+      "score": 0,
+      "max": 15,
+      "reason": "TODO"
+    },
+    "total": {
+      "score": 0,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "TODO",
+    "source_file": "TODO",
+    "source_page": "TODO",
+    "trace_id": "TODO"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-XX/evidence/result.txt"
+  ],
+  "recommendation": "TODO: kết luận tester/Codex sau khi chấm"
+}

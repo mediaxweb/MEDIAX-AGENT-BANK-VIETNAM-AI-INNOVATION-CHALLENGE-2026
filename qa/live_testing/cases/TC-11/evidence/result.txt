@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-11
+
+Executed at: 2026-07-18T19:51:26+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_123a144514094cd6999fc86566582038
+
+## Input Question
+Khách hàng cá nhân 17 tuổi đứng tên vay vốn. Theo điều kiện vay cơ bản, hồ sơ này có đạt không? Hãy nêu rõ lý do.
+
+## Actual Agent Answer
+Không đủ điều kiện theo điều kiện vay cơ bản. Tài liệu chỉ nêu hồ sơ vay của cá nhân phải có đủ thông tin tối thiểu, không có hard stop pháp lý, và Legal score phải ≥ 75 để được mở hồ sơ vay. Tuy nhiên, trong các đoạn trích tìm được không thấy quy định trực tiếp về độ tuổi 17 tuổi có được đứng tên vay hay không, nên chưa thể kết luận riêng từ tiêu chí tuổi. Nếu chỉ xét trên evidence hiện có, hồ sơ này chưa chứng minh đạt điều kiện cơ bản.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Tín dụng: Đã chọn miền Tín dụng để xử lý câu hỏi.
+Chuyên gia Tín dụng -> Kho tri thức: Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_123a144514094cd6999fc86566582038
+
+## Source
+Domain: Tín dụng
+Source file: 02_quy_trinh_tiep_nhan_va_mo_ho_so_vay_v2.pdf
+Source page: 2, 3
+
+## Tester Assessment
+Verdict: LOG_BUG
+Routing status: FAIL
+Recommendation: LOG_BUG: hệ thống không xác nhận đúng điều kiện tuổi tối thiểu và routing sai domain cho câu hỏi chính sách.

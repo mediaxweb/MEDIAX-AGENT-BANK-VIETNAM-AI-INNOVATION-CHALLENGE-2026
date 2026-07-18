@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "source_test_case_id": "TC-12",
+  "source_result_file": "tests/qa_live_testing/cases/TC-12/result.json",
+  "should_log": true,
+  "bug": {
+    "title": "[Compliance Agent] Không xử lý đúng điều kiện tuổi - TC-12",
+    "severity": "MEDIUM",
+    "agent_or_component": "Orchestrator / Compliance Agent",
+    "reason": "hệ thống không xác nhận đúng boundary age = 18 và routing sai domain cho câu hỏi chính sách.",
+    "expected": {
+      "routing": "Bộ điều phối chọn Chuyên gia Chính sách hoặc domain Chính sách.",
+      "answer": "Đáp ứng điều kiện tuổi tối thiểu",
+      "business_result": "PASSED"
+    },
+    "actual": {
+      "routing": "Bộ điều phối chọn Chuyên gia Tín dụng / domain Tín dụng.",
+      "answer": "Theo chính sách tiếp nhận hồ sơ, chỉ có thể xác nhận khách hàng cá nhân đủ điều kiện về giấy tờ định danh còn hiệu lực; không thấy quy định tuổi tối thiểu trong nguồn đã tra cứu. Vì vậy, chưa đủ căn cứ để kết luận riêng điều kiện tuổi có đạt hay không.",
+      "business_result": "REVIEW_NOT_ENOUGH_INFORMATION"
+    },
+    "violated_rule": {
+      "document": "02_chinh_sach_tin_dung_va_dieu_kien_vay_v2.pdf",
+      "section": "Điều kiện vay và chính sách tín dụng",
+      "rule_summary": "Khách hàng vay cá nhân phải đáp ứng điều kiện tuổi tối thiểu 18 tuổi."
+    },
+    "business_impact": "Điều kiện tuổi tối thiểu không được xử lý dứt khoát trong live Q&A, khiến tester/người dùng không xác định được hồ sơ đạt hay bị chặn theo chính sách.",
+    "steps_to_reproduce": [
+      "1. Mở https://mediax-agent-bank.ai5phut.com/.",
+      "2. Đăng nhập bằng tài khoản tester/admin và vào mục Hỏi đáp AI.",
+      "3. Tạo phiên mới và nhập câu hỏi trong testcase TC-12.",
+      "4. Quan sát câu trả lời, routing panel, source/trace."
+    ],
+    "evidence_files": [
+      "tests/qa_live_testing/cases/TC-12/evidence/result.txt"
+    ],
+    "source_and_trace": {
+      "domain": "Tín dụng",
+      "source_file": "01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf",
+      "source_page": "4, 1",
+      "trace_id": "trace_a0a21550f6b54e2b98bc59cc44b18117"
+    }
+  }
+}

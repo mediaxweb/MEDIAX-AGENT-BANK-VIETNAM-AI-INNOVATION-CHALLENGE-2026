@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-12
+
+Executed at: 2026-07-18T19:51:44+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_a0a21550f6b54e2b98bc59cc44b18117
+
+## Input Question
+Khách hàng cá nhân đúng 18 tuổi, giấy tờ định danh còn hiệu lực và xin vay theo sản phẩm thông thường. Riêng điều kiện tuổi có đạt không?
+
+## Actual Agent Answer
+Theo chính sách tiếp nhận hồ sơ, chỉ có thể xác nhận khách hàng cá nhân đủ điều kiện về giấy tờ định danh còn hiệu lực; không thấy quy định tuổi tối thiểu trong nguồn đã tra cứu. Vì vậy, chưa đủ căn cứ để kết luận riêng điều kiện tuổi có đạt hay không.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Tín dụng: Đã chọn miền Tín dụng để xử lý câu hỏi.
+Chuyên gia Tín dụng -> Kho tri thức: Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_a0a21550f6b54e2b98bc59cc44b18117
+
+## Source
+Domain: Tín dụng
+Source file: 01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf
+Source page: 4, 1
+
+## Tester Assessment
+Verdict: LOG_BUG
+Routing status: FAIL
+Recommendation: LOG_BUG: hệ thống không xác nhận đúng boundary age = 18 và routing sai domain cho câu hỏi chính sách.

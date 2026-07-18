@@ -1,0 +1,27 @@
+# Live Test Evidence - TC-18
+
+Executed at: 2026-07-18T20:00:43+07:00
+URL: https://mediax-agent-bank.ai5phut.com/qa#qa
+Trace ID: trace_6edf9e127ce243df991e848910e467e8
+
+## Input Question
+Khách hàng có thu nhập 30 triệu/tháng, nợ hiện hữu 15 triệu/tháng, ngưỡng DTI 40%. Agent hãy tính khả năng trả nợ tăng thêm mỗi tháng và kết luận có nên cấp thêm hạn mức không.
+
+## Actual Agent Answer
+Khả năng trả nợ tăng thêm mỗi tháng = 30 triệu x 40% - 15 triệu = -3 triệu/tháng. Kết luận: không nên cấp thêm hạn mức, vì DTI theo ngưỡng 40% chỉ cho phép tổng nghĩa vụ trả nợ tối đa 12 triệu/tháng, trong khi nợ hiện hữu đã là 15 triệu/tháng, tức đã vượt ngưỡng.
+
+## Routing Panel
+Giao diện hỏi đáp -> Bộ điều phối: Đã gửi câu hỏi tới dịch vụ hỏi đáp.
+Bộ điều phối -> Chuyên gia Chính sách: Đã chọn miền Chính sách để xử lý câu hỏi.
+Chuyên gia Chính sách -> Kho tri thức: Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.
+Bộ điều phối -> Giao diện hỏi đáp: Đã trả lời. Mã theo dõi: trace_6edf9e127ce243df991e848910e467e8
+
+## Source
+Domain: Chính sách
+Source file: 03_phuong_an_su_dung_von_va_phuong_an_tra_no_v2.pdf
+Source page: 2
+
+## Tester Assessment
+Verdict: LOG_BUG
+Routing status: FAIL
+Recommendation: LOG_BUG: hệ thống kết luận đúng hướng nhưng tính required value sai; khả năng trả nợ tăng thêm phải được ghi nhận là 0 thay vì -3 triệu.

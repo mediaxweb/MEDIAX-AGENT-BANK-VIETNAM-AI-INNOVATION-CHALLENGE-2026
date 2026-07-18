@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-14",
+  "test_case_file": "tests/qa_live_testing/cases/TC-14/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:52:15+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng có thu nhập 50 triệu VND/tháng và nghĩa vụ nợ 20 triệu VND/tháng. Ngưỡng DTI tối đa là 40%. Hãy tính DTI và kết luận riêng tiêu chí này.",
+  "actual_answer": {
+    "full_text": "DTI = 20 / 50 = 40%. So với ngưỡng tối đa 40%, khách hàng **đạt** tiêu chí này (vừa đúng ngưỡng).",
+    "extracted_values": {
+      "result": "PASSED",
+      "issue": "DTI bằng ngưỡng tối đa, không vượt quy định.",
+      "required_values": {
+        "debt_to_income_ratio": "40%",
+        "max_allowed_debt": 20000000
+      },
+      "recommendation": "Có thể tiếp tục thẩm định nếu các điều kiện khác đạt."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "PASSED",
+    "must_identify_issue": "DTI bằng ngưỡng tối đa, không vượt quy định",
+    "required_values": {
+      "debt_to_income_ratio": "40%",
+      "max_allowed_debt": 20000000
+    },
+    "recommendation": "Có thể tiếp tục thẩm định nếu các điều kiện khác đạt."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài chính",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing lệch kỳ vọng Chuyên gia Tài chính, dù câu trả lời nghiệp vụ đúng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài chính hoặc domain Tài chính tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài chính."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: DTI bằng ngưỡng tối đa, không vượt quy định.",
+      "status": "PASS",
+      "evidence": "Agent nêu DTI = 40% và đạt vì đúng ngưỡng."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương PASSED.",
+      "status": "PASS",
+      "evidence": "Agent kết luận khách hàng đạt tiêu chí này."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"debt_to_income_ratio\": \"40%\", \"max_allowed_debt\": 20000000}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không có khuyến nghị trái rule; chỉ kết luận đạt riêng tiêu chí DTI."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Kết luận riêng tiêu chí đạt, tương đương có thể tiếp tục thẩm định các điều kiện khác."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent tính đúng DTI 40% và kết luận đạt đúng ngưỡng."
+    },
+    "groundedness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Có nguồn rule rủi ro tài chính trang 2 và câu trả lời bám đúng ngưỡng 40%."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing không khớp kỳ vọng Chuyên gia Tài chính/domain Tài chính."
+    },
+    "completeness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Đủ phép tính, kết luận và issue; recommendation được diễn đạt ngắn."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Giải thích công thức và so sánh ngưỡng rõ ràng."
+    },
+    "total": {
+      "score": 89,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "06_rule_danh_gia_rui_ro_tai_chinh_tuan_thu_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_c670dd05d38e4dd0b5f57980df045423"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-14/evidence/result.txt"
+  ],
+  "recommendation": "PARTIAL_PASS_NEEDS_REVIEW: câu trả lời nghiệp vụ đúng, nhưng routing lệch kỳ vọng Tài chính."
+}

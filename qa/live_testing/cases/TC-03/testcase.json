@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-03",
+  "title": "Hồ sơ pháp lý doanh nghiệp đầy đủ",
+  "test_mode": "Web Q&A Live Test",
+  "test_category": "Positive",
+  "execution_status": "NOT_RUN",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "target_section": "Hỏi đáp AI",
+  "agent_under_test": "Credit Agent",
+  "priority": "MEDIUM",
+  "severity_if_failed": "MEDIUM",
+  "objective": "Kiểm tra live Q&A có phát hiện đúng tình huống: không có thiếu sót pháp lý bắt buộc.",
+  "preconditions": [
+    "Web QA truy cập được tại base_web_url.",
+    "Tester/Codex đang ở mục Hỏi đáp AI.",
+    "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA hiển thị được để kiểm tra routing.",
+    "Không cần gọi API; tester nhập câu hỏi trực tiếp trên web.",
+    "Layout web có thể được mở rộng/thu gọn để screenshot evidence rõ nhất có thể."
+  ],
+  "source_rule": {
+    "document": "01_checklist_ho_so_phap_ly_vay_1_lan_v2.pdf",
+    "section": "Checklist hồ sơ pháp lý và điều kiện hard stop",
+    "rule_summary": "Hồ sơ pháp lý đầy đủ giấy tờ bắt buộc thì không bị hard stop ở bước pháp lý."
+  },
+  "business_scenario": {
+    "description": "Doanh nghiệp nộp đủ giấy tờ pháp lý cốt lõi.",
+    "input_facts": {
+      "customer_type": "Doanh nghiệp",
+      "submitted_documents": [
+        "Giấy đăng ký kinh doanh",
+        "CCCD người đại diện",
+        "Điều lệ công ty",
+        "Quyết định bổ nhiệm người đại diện"
+      ]
+    },
+    "expected_business_values": {
+      "hard_stop": false
+    }
+  },
+  "test_data": {
+    "summary": "Khách hàng doanh nghiệp đã nộp Giấy đăng ký kinh doanh, giấy tờ của người đại diện, điều lệ công ty và quyết định bổ nhiệm người đại diện. Hồ sơ pháp lý có đủ các giấy tờ cốt lõi để xem xét chuyển sang bước thẩm định tiếp theo.",
+    "values": {
+      "customer_type": "Doanh nghiệp",
+      "submitted_documents": [
+        "Giấy đăng ký kinh doanh",
+        "CCCD người đại diện",
+        "Điều lệ công ty",
+        "Quyết định bổ nhiệm người đại diện"
+      ]
+    }
+  },
+  "tester_instruction": {
+    "step": 1,
+    "action": "Mở trang QA web, nhập nguyên văn input_question, gửi câu hỏi và lưu lại toàn bộ câu trả lời của Agent."
+  },
+  "test_steps": [
+    {
+      "step": 1,
+      "action": "Mở base_web_url và vào mục Hỏi đáp AI. Mở rộng vùng chat/hội thoại tối đa, thu gọn sidebar/menu không cần thiết nếu web hỗ trợ.",
+      "expected": "Trang hỏi đáp sẵn sàng nhận input_question và vùng evidence đủ rộng để chụp câu hỏi/câu trả lời."
+    },
+    {
+      "step": 2,
+      "action": "Copy nguyên văn input_question vào ô nhập câu hỏi và gửi.",
+      "expected": "Agent trả lời xong, không còn trạng thái loading."
+    },
+    {
+      "step": 3,
+      "action": "Kiểm tra panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA.",
+      "expected": "Panel thể hiện Bộ điều phối chọn Chuyên gia Pháp lý hoặc domain Pháp lý."
+    },
+    {
+      "step": 4,
+      "action": "Lưu screenshot câu hỏi, câu trả lời, routing panel và nguồn trích dẫn sau khi đã tối ưu layout. Nếu screenshot thiếu nội dung hoặc không đọc được, lưu thêm text evidence vào evidence/result.txt.",
+      "expected": "Evidence đủ để review lại input, output, routing, nguồn và trace ID."
+    },
+    {
+      "step": 5,
+      "action": "Đối chiếu actual với expected_answer, pass_criteria và fail_criteria.",
+      "expected": "Có đủ căn cứ để ghi result.json và quyết định có log bug không."
+    }
+  ],
+  "input_question": "Khách hàng doanh nghiệp đã nộp Giấy đăng ký kinh doanh, CCCD người đại diện, điều lệ công ty và quyết định bổ nhiệm người đại diện. Theo checklist pháp lý, bước pháp lý có đạt để chuyển sang thẩm định tiếp theo không?",
+  "expected_answer": {
+    "result": "PASSED",
+    "must_identify_issue": "Không có thiếu sót pháp lý bắt buộc",
+    "required_values": {
+      "hard_stop": false
+    },
+    "recommendation": "Cho phép chuyển sang bước thẩm định chính sách/tuân thủ tiếp theo."
+  },
+  "expected_observations": [
+    "Response nêu đúng issue: Không có thiếu sót pháp lý bắt buộc.",
+    "Response có kết luận tương đương PASSED.",
+    "Panel routing thể hiện Chuyên gia Pháp lý hoặc domain Pháp lý.",
+    "Nguồn truy xuất liên quan đến tài liệu/rule trong source_rule."
+  ],
+  "routing_expectation": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Pháp lý",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA trên web QA",
+    "expected_message_contains": "Đã chọn miền Pháp lý để xử lý câu hỏi",
+    "pass_criteria": [
+      "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA hiển thị Bộ điều phối -> Chuyên gia Pháp lý hoặc domain Pháp lý.",
+      "Có thông báo routing phù hợp với trọng tâm câu hỏi nghiệp vụ.",
+      "Nguồn truy xuất thuộc miền Pháp lý hoặc tài liệu liên quan."
+    ],
+    "fail_criteria": [
+      "Điều phối chọn sai agent/domain.",
+      "Không hiển thị thông tin routing.",
+      "Nguồn truy xuất không liên quan đến rule cần kiểm tra."
+    ]
+  },
+  "pass_criteria": [
+    "Điều phối chọn đúng Chuyên gia Pháp lý hoặc domain Pháp lý tương đương.",
+    "Agent phát hiện đúng issue: Không có thiếu sót pháp lý bắt buộc.",
+    "Agent đưa ra kết luận tương đương PASSED.",
+    "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+    "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+    "Agent nêu recommendation phù hợp với expected_answer.recommendation."
+  ],
+  "fail_criteria": [
+    "Điều phối chọn sai Agent/domain khiến câu trả lời không bám đúng nghiệp vụ.",
+    "Agent bỏ sót issue bắt buộc.",
+    "Agent trả kết luận trái với expected_answer.result.",
+    "Agent tính sai số liệu quan trọng trong expected_answer.required_values.",
+    "Agent đưa ra khuyến nghị gây rủi ro nghiệp vụ hoặc cho phép đi tiếp khi phải chặn/review."
+  ],
+  "scoring_rubric": {
+    "accuracy": {
+      "max": 35,
+      "pass_condition": "Agent kết luận đúng nghiệp vụ và tính đúng giá trị quan trọng nếu có."
+    },
+    "groundedness": {
+      "max": 20,
+      "pass_condition": "Agent bám đúng rule/tài liệu nguồn, không suy diễn trái quy định."
+    },
+    "agent_routing": {
+      "max": 10,
+      "pass_condition": "Bộ điều phối chọn đúng chuyên gia/domain phù hợp với câu hỏi nghiệp vụ."
+    },
+    "completeness": {
+      "max": 20,
+      "pass_condition": "Câu trả lời đủ result, issue chính, số liệu/điều kiện cần kiểm tra và recommendation."
+    },
+    "explainability": {
+      "max": 15,
+      "pass_condition": "Agent giải thích rõ lý do, công thức hoặc căn cứ nghiệp vụ để tester audit được."
+    }
+  },
+  "evidence_to_save": [
+    "Ảnh chụp màn hình câu hỏi và câu trả lời trên web QA sau khi đã mở rộng vùng chat tối đa.",
+    "Ảnh chụp hoặc text từ panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA thể hiện routing sau khi đã tối ưu layout.",
+    "Text evidence trong evidence/result.txt nếu screenshot thiếu nội dung hoặc không đọc được.",
+    "Toàn bộ text response của Agent.",
+    "Tên Agent/domain được Bộ điều phối chọn.",
+    "Nguồn trích dẫn và trace ID nếu có.",
+    "Các giá trị chính được Agent trả về."
+  ],
+  "logbug_condition": {
+    "should_log_bug": true,
+    "logbug_folder": "tests/qa_live_testing/cases/TC-03/logbug/",
+    "bug_title": "[Credit Agent] Hồ sơ pháp lý doanh nghiệp đầy đủ",
+    "bug_severity": "MEDIUM",
+    "log_when": [
+      "Điều phối chọn sai Agent/domain và làm câu trả lời sai hoặc không có nguồn phù hợp.",
+      "Agent trả kết luận trái expected_answer.result.",
+      "Agent không phát hiện issue bắt buộc trong must_identify_issue.",
+      "Agent tính sai số liệu quan trọng hoặc bỏ qua hard stop/rule cảnh báo bắt buộc."
+    ]
+  }
+}

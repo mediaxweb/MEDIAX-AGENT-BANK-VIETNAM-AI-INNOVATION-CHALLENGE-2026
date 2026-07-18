@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-16",
+  "test_case_file": "tests/qa_live_testing/cases/TC-16/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T20:00:21+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Hồ sơ có tải báo cáo tài chính nhưng báo cáo không thể hiện doanh thu, thu nhập tháng hoặc dòng tiền trả nợ. Agent nên chấm đạt hay yêu cầu review/bổ sung?",
+  "actual_answer": {
+    "full_text": "Nên yêu cầu review/bổ sung, chưa chấm đạt. Tài liệu nêu báo cáo tài chính phải dùng để đánh giá năng lực tài chính và khả năng trả nợ, đồng thời các chỉ số cần trích xuất gồm doanh thu, lợi nhuận và dòng tiền; báo cáo lưu chuyển tiền tệ dùng để đánh giá dòng tiền, và sao kê/chứng từ chỉ cần khi dòng tiền chưa rõ. Nếu báo cáo không thể hiện doanh thu, thu nhập tháng hoặc dòng tiền trả nợ thì chưa đủ cơ sở đánh giá.",
+    "extracted_values": {
+      "result": "NEEDS_REVIEW",
+      "issue": "Báo cáo tài chính không có doanh thu, thu nhập tháng hoặc dòng tiền trả nợ nên chưa đủ cơ sở đánh giá.",
+      "required_values": {
+        "issue_code": "missing_income"
+      },
+      "recommendation": "Yêu cầu review/bổ sung số liệu doanh thu, thu nhập hoặc dòng tiền trả nợ."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "NEEDS_REVIEW",
+    "must_identify_issue": "Báo cáo tài chính không có thông tin thu nhập/doanh thu cần thiết",
+    "required_values": {
+      "issue_code": "missing_income"
+    },
+    "recommendation": "Yêu cầu bổ sung số liệu doanh thu/thu nhập hoặc báo cáo chuẩn."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài chính",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing lệch kỳ vọng nhưng câu trả lời nghiệp vụ cần được review riêng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài chính hoặc domain Tài chính tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài chính."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Báo cáo tài chính không có thông tin thu nhập/doanh thu cần thiết.",
+      "status": "PASS",
+      "evidence": "Agent nêu báo cáo không thể hiện doanh thu, thu nhập tháng hoặc dòng tiền trả nợ thì chưa đủ cơ sở đánh giá."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương NEEDS_REVIEW.",
+      "status": "PASS",
+      "evidence": "Agent trả lời: Nên yêu cầu review/bổ sung, chưa chấm đạt."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"issue_code\": \"missing_income\"}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không chấm đạt khi thiếu dữ liệu tài chính."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Khuyến nghị review/bổ sung số liệu phù hợp."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent phát hiện đúng thiếu doanh thu/thu nhập/dòng tiền và yêu cầu review/bổ sung."
+    },
+    "groundedness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Có nguồn báo cáo tài chính và rule rủi ro tài chính liên quan, dù domain hiển thị là Chính sách."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing không khớp kỳ vọng Chuyên gia Tài chính/domain Tài chính."
+    },
+    "completeness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Câu trả lời đủ issue, kết luận review và hướng bổ sung."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Giải thích rõ vì sao thiếu chỉ tiêu tài chính khiến chưa đủ cơ sở đánh giá."
+    },
+    "total": {
+      "score": 89,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "02_bao_cao_tai_chinh_1_2_nam_gan_nhat_v2.pdf; 06_rule_danh_gia_rui_ro_tai_chinh_tuan_thu_v2.pdf",
+    "source_page": "1, 3",
+    "trace_id": "trace_9ea26ac1db484c5e96023b6be5aee67a"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-16/evidence/result.txt"
+  ],
+  "recommendation": "PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ đúng, nhưng routing lệch kỳ vọng Tài chính."
+}

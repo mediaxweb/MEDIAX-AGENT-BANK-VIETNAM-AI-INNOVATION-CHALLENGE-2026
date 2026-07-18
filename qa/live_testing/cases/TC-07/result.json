@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-07",
+  "test_case_file": "tests/qa_live_testing/cases/TC-07/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:40:14+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PASS",
+  "log_bug": false,
+  "input_question": "Khách hàng khai tổng nhu cầu vốn bằng 0 VND nhưng đề nghị vay 500 triệu VND. Agent phải xử lý phép tính tỷ lệ vay thế nào và kết luận hồ sơ ra sao?",
+  "actual_answer": {
+    "full_text": "Agent phải coi tỷ lệ vay = 500 triệu / 0 VND là không thể tính hợp lệ (chia cho 0), nên không thể kết luận đạt theo tỷ lệ này. Ngoài ra, hồ sơ không đạt vì tổng nhu cầu vốn phải > 0; nếu tổng nhu cầu vốn bằng 0 thì hồ sơ bị `FAILED`.\nChưa đủ thông tin",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Không thể tính tỷ lệ vay khi tổng nhu cầu vốn bằng 0.",
+      "required_values": {
+        "calculation_status": "INVALID_INPUT"
+      },
+      "recommendation": "Không xét duyệt; yêu cầu làm rõ tổng nhu cầu vốn hợp lệ trước khi tính hạn mức."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Không thể tính tỷ lệ vay khi tổng nhu cầu vốn bằng 0",
+    "required_values": {
+      "calculation_status": "INVALID_INPUT"
+    },
+    "recommendation": "Không xét duyệt; yêu cầu làm rõ tổng nhu cầu vốn hợp lệ trước khi tính hạn mức."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "PASS",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Chính sách hoặc domain Chính sách tương đương.",
+      "status": "PASS",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Không thể tính tỷ lệ vay khi tổng nhu cầu vốn bằng 0",
+      "status": "PASS",
+      "evidence": "Không thể tính tỷ lệ vay khi tổng nhu cầu vốn bằng 0."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: FAILED. Agent nhận diện đúng input không hợp lệ do chia cho 0 và kết luận hồ sơ FAILED; routing đúng Chính sách."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"calculation_status\": \"INVALID_INPUT\"}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không xét duyệt; yêu cầu làm rõ tổng nhu cầu vốn hợp lệ trước khi tính hạn mức."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Không xét duyệt; yêu cầu làm rõ tổng nhu cầu vốn hợp lệ trước khi tính hạn mức."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent nhận diện đúng input không hợp lệ do chia cho 0 và kết luận hồ sơ FAILED; routing đúng Chính sách."
+    },
+    "groundedness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: 8b91d3074a32484f8bcf759d09192f37_01_ho_so_de_nghi_cap_tin_dung_v2.pdf trang 2, domain Chính sách."
+    },
+    "agent_routing": {
+      "score": 10,
+      "max": 10,
+      "reason": "Routing phù hợp với kỳ vọng của testcase."
+    },
+    "completeness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 98,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "8b91d3074a32484f8bcf759d09192f37_01_ho_so_de_nghi_cap_tin_dung_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_f0a76902b88342fb81625aee7223b4f4"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-07/evidence/result.txt"
+  ],
+  "recommendation": "Agent nhận diện đúng input không hợp lệ do chia cho 0 và kết luận hồ sơ FAILED; routing đúng Chính sách."
+}

@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-05",
+  "test_case_file": "tests/qa_live_testing/cases/TC-05/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:36:12+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng có tổng nhu cầu vốn là 10 tỷ VND và đề nghị vay 9 tỷ VND. Theo quy định số tiền vay không được vượt quá 80% tổng nhu cầu vốn, hồ sơ này có đạt điều kiện không? Hãy tính tỷ lệ vay, hạn mức tối đa được phép vay và đưa ra kết luận cho Compliance Agent.",
+  "actual_answer": {
+    "full_text": "Tỷ lệ vay = 9/10 = 90%.\nHạn mức tối đa được phép vay = 10 tỷ x 80% = 8 tỷ VND.\nKết luận: Hồ sơ không đạt điều kiện vì số tiền đề nghị vay 9 tỷ VND vượt mức tối đa 8 tỷ VND.",
+    "extracted_values": {
+      "result": "CONDITIONAL",
+      "issue": "Số tiền vay 9 tỷ vượt 80% tổng nhu cầu vốn 10 tỷ.",
+      "required_values": {
+        "loan_to_capital_need_ratio": "90%",
+        "max_amount_by_capital_need": 8000000000
+      },
+      "recommendation": "Hạn mức tối đa là 8 tỷ VND; hồ sơ không đạt với số tiền đề nghị 9 tỷ VND."
+    },
+    "missing_expected_fields": [
+      "Nhãn CONDITIONAL chưa được nêu rõ bằng chữ."
+    ]
+  },
+  "expected_answer": {
+    "result": "CONDITIONAL",
+    "must_identify_issue": "Số tiền vay vượt 80% tổng nhu cầu vốn",
+    "required_values": {
+      "loan_to_capital_need_ratio": "90%",
+      "max_amount_by_capital_need": 8000000000
+    },
+    "recommendation": "Yêu cầu giảm số tiền vay xuống tối đa 8 tỷ VND hoặc chứng minh thêm vốn tự có."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "PASS",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Chính sách hoặc domain Chính sách tương đương.",
+      "status": "PASS",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Số tiền vay vượt 80% tổng nhu cầu vốn",
+      "status": "PASS",
+      "evidence": "Số tiền vay 9 tỷ vượt 80% tổng nhu cầu vốn 10 tỷ."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương CONDITIONAL.",
+      "status": "REVIEW",
+      "evidence": "Actual extracted result: CONDITIONAL. Agent tính đúng tỷ lệ 90% và trần 8 tỷ, routing đúng Chính sách; cần review nhẹ vì câu trả lời nói không đạt thay vì nêu rõ trạng thái CONDITIONAL/giảm hạn mức."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"loan_to_capital_need_ratio\": \"90%\", \"max_amount_by_capital_need\": 8000000000}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Hạn mức tối đa là 8 tỷ VND; hồ sơ không đạt với số tiền đề nghị 9 tỷ VND."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "REVIEW",
+      "evidence": "Hạn mức tối đa là 8 tỷ VND; hồ sơ không đạt với số tiền đề nghị 9 tỷ VND."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 33,
+      "max": 35,
+      "reason": "Agent tính đúng tỷ lệ 90% và trần 8 tỷ, routing đúng Chính sách; cần review nhẹ vì câu trả lời nói không đạt thay vì nêu rõ trạng thái CONDITIONAL/giảm hạn mức."
+    },
+    "groundedness": {
+      "score": 18,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: 8b91d3074a32484f8bcf759d09192f37_01_ho_so_de_nghi_cap_tin_dung_v2.pdf trang 2, domain Chính sách."
+    },
+    "agent_routing": {
+      "score": 10,
+      "max": 10,
+      "reason": "Routing phù hợp với kỳ vọng của testcase."
+    },
+    "completeness": {
+      "score": 17,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 93,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "8b91d3074a32484f8bcf759d09192f37_01_ho_so_de_nghi_cap_tin_dung_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_52034f538a7b4c8686260291510cba59"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-05/evidence/result.txt"
+  ],
+  "recommendation": "Agent tính đúng tỷ lệ 90% và trần 8 tỷ, routing đúng Chính sách; cần review nhẹ vì câu trả lời nói không đạt thay vì nêu rõ trạng thái CONDITIONAL/giảm hạn mức."
+}

@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-03",
+  "test_case_file": "tests/qa_live_testing/cases/TC-03/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:34:17+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Khách hàng doanh nghiệp đã nộp Giấy đăng ký kinh doanh, CCCD người đại diện, điều lệ công ty và quyết định bổ nhiệm người đại diện. Theo checklist pháp lý, bước pháp lý có đạt để chuyển sang thẩm định tiếp theo không?",
+  "actual_answer": {
+    "full_text": "Có. Theo checklist pháp lý, bộ hồ sơ doanh nghiệp với Giấy đăng ký kinh doanh, CCCD người đại diện, điều lệ công ty và quyết định bổ nhiệm người đại diện là đủ để bước pháp lý đạt và chuyển sang thẩm định tiếp theo, với điều kiện thông tin người đại diện/người ký khớp và hồ sơ không thiếu mục bắt buộc khác. Lưu ý: Giấy đăng ký kinh doanh là bắt buộc, điều lệ công ty là mục có điều kiện/thiếu thì chờ bổ sung, quyết định bổ nhiệm là có điều kiện và CCCD người đại diện pháp luật là bắt buộc. Nếu người ký không phải đại diện pháp luật thì cần ủy quyền, nếu không sẽ hard stop.",
+    "extracted_values": {
+      "result": "PASSED",
+      "issue": "Không phát hiện thiếu sót pháp lý bắt buộc trong bộ hồ sơ được mô tả.",
+      "required_values": {
+        "hard_stop": false
+      },
+      "recommendation": "Có thể chuyển sang bước thẩm định tiếp theo nếu thông tin người đại diện/người ký khớp và hồ sơ không thiếu mục bắt buộc khác."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "PASSED",
+    "must_identify_issue": "Không có thiếu sót pháp lý bắt buộc",
+    "required_values": {
+      "hard_stop": false
+    },
+    "recommendation": "Cho phép chuyển sang bước thẩm định chính sách/tuân thủ tiếp theo."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Pháp lý",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Tín dụng",
+    "actual_message": "Đã chọn miền Tín dụng để xử lý câu hỏi.",
+    "source_domain": "Tín dụng",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Pháp lý hoặc domain Pháp lý tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Tín dụng; message: Đã chọn miền Tín dụng để xử lý câu hỏi.; source domain: Tín dụng. Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Không có thiếu sót pháp lý bắt buộc",
+      "status": "PASS",
+      "evidence": "Không phát hiện thiếu sót pháp lý bắt buộc trong bộ hồ sơ được mô tả."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương PASSED.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: PASSED. Agent cho phép chuyển bước về mặt pháp lý nhưng thêm điều kiện đối chiếu thực tế; routing vẫn lệch kỳ vọng Pháp lý sang Tín dụng."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"hard_stop\": false}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Có thể chuyển sang bước thẩm định tiếp theo nếu thông tin người đại diện/người ký khớp và hồ sơ không thiếu mục bắt buộc khác."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Có thể chuyển sang bước thẩm định tiếp theo nếu thông tin người đại diện/người ký khớp và hồ sơ không thiếu mục bắt buộc khác."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 34,
+      "max": 35,
+      "reason": "Agent cho phép chuyển bước về mặt pháp lý nhưng thêm điều kiện đối chiếu thực tế; routing vẫn lệch kỳ vọng Pháp lý sang Tín dụng."
+    },
+    "groundedness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: dabae9d85ac3495e9262de1ee9b5838d_02_quy_trinh_tiep_nhan_va_mo_ho_so_vay_v2.pdf trang 4, domain Tín dụng."
+    },
+    "agent_routing": {
+      "score": 7,
+      "max": 10,
+      "reason": "Routing cần review vì testcase kỳ vọng Chuyên gia Pháp lý, nhưng actual là Chuyên gia Tín dụng / miền Tín dụng."
+    },
+    "completeness": {
+      "score": 18,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 14,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 92,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Tín dụng",
+    "source_file": "dabae9d85ac3495e9262de1ee9b5838d_02_quy_trinh_tiep_nhan_va_mo_ho_so_vay_v2.pdf",
+    "source_page": 4,
+    "trace_id": "trace_b8d7b63c41b64035986de14f1da8249c"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-03/evidence/result.txt"
+  ],
+  "recommendation": "Agent cho phép chuyển bước về mặt pháp lý nhưng thêm điều kiện đối chiếu thực tế; routing vẫn lệch kỳ vọng Pháp lý sang Tín dụng."
+}

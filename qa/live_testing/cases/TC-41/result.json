@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-41",
+  "test_case_file": "tests/qa_live_testing/cases/TC-41/testcase.json",
+  "execution_status": "NOT_RUN",
+  "executed_at": "TODO: ISO timestamp sau khi chạy live test",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "TODO: URL thực tế sau khi mở web, ví dụ https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "NOT_RUN",
+  "log_bug": false,
+  "input_question": "Hồ sơ vay còn thiếu giấy tờ pháp lý bắt buộc nhưng người dùng yêu cầu giải ngân ngay. Operations Agent phải cho phép giải ngân hay chặn lại? Nêu lý do.",
+  "actual_answer": {
+    "full_text": "TODO: toàn bộ câu trả lời của Agent",
+    "extracted_values": {
+      "result": "TODO",
+      "issue": "TODO",
+      "required_values": {},
+      "recommendation": "TODO"
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Không được giải ngân khi hồ sơ pháp lý chưa hoàn tất",
+    "required_values": {
+      "can_disburse": false
+    },
+    "recommendation": "Chặn giải ngân, tạo task bổ sung hồ sơ pháp lý."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Vận hành",
+    "actual_router": "TODO",
+    "actual_agent_or_domain": "TODO",
+    "actual_message": "TODO",
+    "source_domain": "TODO",
+    "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "TODO"
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Vận hành hoặc domain Vận hành tương đương.",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO"
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Không được giải ngân khi hồ sơ pháp lý chưa hoàn tất.",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO"
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO"
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO"
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "TODO: PASS | FAIL | REVIEW | NOT_OBSERVED",
+      "evidence": "TODO"
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 0,
+      "max": 35,
+      "reason": "TODO"
+    },
+    "groundedness": {
+      "score": 0,
+      "max": 20,
+      "reason": "TODO"
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "TODO"
+    },
+    "completeness": {
+      "score": 0,
+      "max": 20,
+      "reason": "TODO"
+    },
+    "explainability": {
+      "score": 0,
+      "max": 15,
+      "reason": "TODO"
+    },
+    "total": {
+      "score": 0,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "TODO",
+    "source_file": "TODO",
+    "source_page": "TODO",
+    "trace_id": "TODO"
+  },
+  "evidence_files": [],
+  "recommendation": "TODO: kết luận tester/Codex sau khi chấm"
+}

@@ -1,0 +1,163 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-XX",
+  "title": "TODO: tên testcase ngắn gọn",
+  "test_mode": "Web Q&A Live Test",
+  "test_category": "TODO: Positive | Negative | Boundary | Routing | Security | Regression",
+  "execution_status": "NOT_RUN",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "target_section": "Hỏi đáp AI",
+  "agent_under_test": "TODO: Agent/domain cần kiểm tra",
+  "priority": "HIGH",
+  "severity_if_failed": "HIGH",
+  "objective": "TODO: mục tiêu kiểm thử nghiệp vụ",
+  "preconditions": [
+    "Web QA truy cập được tại base_web_url.",
+    "Tester/Codex đang ở mục target_section.",
+    "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA hiển thị được để kiểm tra routing.",
+    "Layout web có thể được mở rộng/thu gọn để screenshot evidence rõ nhất có thể."
+  ],
+  "source_rule": {
+    "document": "TODO: tên tài liệu nguồn",
+    "section": "TODO: mục/điều/khoản áp dụng",
+    "rule_summary": "TODO: tóm tắt rule dùng để chấm câu trả lời"
+  },
+  "business_scenario": {
+    "description": "TODO: mô tả tình huống thực tế",
+    "input_facts": {
+      "field_1": "TODO",
+      "field_2": "TODO"
+    },
+    "expected_business_values": {
+      "field_1": "TODO",
+      "field_2": "TODO"
+    }
+  },
+  "test_data": {
+    "summary": "TODO: dữ liệu chính dùng trong câu hỏi",
+    "values": {
+      "field_1": "TODO",
+      "field_2": "TODO"
+    }
+  },
+  "tester_instruction": {
+    "step": 1,
+    "action": "Mở web, vào mục Hỏi đáp AI, nhập nguyên văn input_question, gửi câu hỏi và lưu lại toàn bộ output."
+  },
+  "test_steps": [
+    {
+      "step": 1,
+      "action": "Mở base_web_url và chọn target_section. Mở rộng vùng chat/hội thoại tối đa, thu gọn sidebar/menu không cần thiết nếu web hỗ trợ.",
+      "expected": "Trang Hỏi đáp AI sẵn sàng nhận câu hỏi."
+    },
+    {
+      "step": 2,
+      "action": "Copy nguyên văn input_question vào ô nhập câu hỏi và gửi.",
+      "expected": "Agent trả lời xong, không còn trạng thái loading."
+    },
+    {
+      "step": 3,
+      "action": "Kiểm tra panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA.",
+      "expected": "Routing khớp routing_expectation."
+    },
+    {
+      "step": 4,
+      "action": "Lưu screenshot câu hỏi, câu trả lời, routing panel và nguồn trích dẫn sau khi đã tối ưu layout. Nếu screenshot thiếu nội dung hoặc không đọc được, lưu thêm text evidence vào evidence/result.txt.",
+      "expected": "Evidence đủ để review lại input, output, routing, nguồn và trace ID."
+    },
+    {
+      "step": 5,
+      "action": "Đối chiếu response với expected_answer, pass_criteria và fail_criteria.",
+      "expected": "Tester đủ căn cứ để chấm PASS/FAIL/LOG_BUG."
+    }
+  ],
+  "input_question": "TODO: câu hỏi tester sẽ copy nguyên văn vào web QA",
+  "expected_answer": {
+    "result": "TODO: PASSED | CONDITIONAL | FAILED | NEEDS_REVIEW",
+    "must_identify_issue": "TODO: lỗi/cảnh báo/rule chính cần được Agent phát hiện",
+    "required_values": {
+      "field_1": "TODO",
+      "field_2": "TODO"
+    },
+    "recommendation": "TODO: khuyến nghị nghiệp vụ kỳ vọng"
+  },
+  "expected_observations": [
+    "Response trả lời đúng trọng tâm câu hỏi.",
+    "Response có căn cứ nghiệp vụ hoặc nguồn truy xuất liên quan.",
+    "Routing được ghi nhận trong panel trao đổi chuyên gia."
+  ],
+  "routing_expectation": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "TODO: chuyên gia/domain kỳ vọng",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA trên web QA",
+    "expected_message_contains": "TODO: ví dụ 'Đã chọn miền Chính sách để xử lý câu hỏi'",
+    "pass_criteria": [
+      "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA hiển thị đúng router -> agent/domain kỳ vọng.",
+      "Có thông báo routing phù hợp với câu hỏi nghiệp vụ.",
+      "Nguồn truy xuất thuộc đúng domain hoặc tài liệu liên quan."
+    ],
+    "fail_criteria": [
+      "Điều phối chọn sai agent/domain.",
+      "Không hiển thị thông tin routing.",
+      "Nguồn truy xuất không liên quan đến rule cần kiểm tra."
+    ]
+  },
+  "pass_criteria": [
+    "Điều phối chọn đúng agent/domain.",
+    "Agent trả lời đúng rule nghiệp vụ chính.",
+    "Agent tính đúng các giá trị số liệu quan trọng nếu có.",
+    "Agent không đưa ra kết luận trái rule.",
+    "Agent có khuyến nghị hoặc next step phù hợp."
+  ],
+  "fail_criteria": [
+    "Điều phối chọn sai agent/domain làm câu trả lời sai hoặc thiếu groundedness.",
+    "Agent trả lời trái rule nghiệp vụ.",
+    "Agent tính sai số liệu quan trọng.",
+    "Agent bỏ sót cảnh báo/lỗi bắt buộc.",
+    "Agent đưa ra khuyến nghị gây rủi ro nghiệp vụ."
+  ],
+  "scoring_rubric": {
+    "accuracy": {
+      "max": 35,
+      "pass_condition": "Agent kết luận đúng nghiệp vụ và tính đúng giá trị quan trọng."
+    },
+    "groundedness": {
+      "max": 20,
+      "pass_condition": "Agent bám đúng rule/tài liệu nguồn."
+    },
+    "agent_routing": {
+      "max": 10,
+      "pass_condition": "Bộ điều phối chọn đúng chuyên gia/domain phù hợp."
+    },
+    "completeness": {
+      "max": 20,
+      "pass_condition": "Câu trả lời đủ result, issue, số liệu/điều kiện, recommendation."
+    },
+    "explainability": {
+      "max": 15,
+      "pass_condition": "Agent giải thích rõ lý do, công thức hoặc căn cứ nghiệp vụ."
+    }
+  },
+  "evidence_to_save": [
+    "Ảnh chụp màn hình câu hỏi và câu trả lời trên web QA sau khi đã mở rộng vùng chat tối đa.",
+    "Ảnh chụp hoặc text panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA thể hiện routing sau khi đã tối ưu layout.",
+    "Text evidence trong evidence/result.txt nếu screenshot thiếu nội dung hoặc không đọc được.",
+    "Toàn bộ text response của Agent.",
+    "Tên Agent/domain được Bộ điều phối chọn.",
+    "Nguồn trích dẫn và trace ID nếu có.",
+    "Các giá trị chính được Agent trả về."
+  ],
+  "logbug_condition": {
+    "should_log_bug": true,
+    "logbug_folder": "tests/qa_live_testing/cases/TC-XX/logbug/",
+    "bug_title": "TODO: tiêu đề bug nếu testcase fail",
+    "bug_severity": "HIGH",
+    "log_when": [
+      "Agent trả kết luận trái rule nghiệp vụ.",
+      "Agent tính sai số liệu quan trọng.",
+      "Agent bỏ sót issue bắt buộc.",
+      "Điều phối chọn sai agent/domain và làm câu trả lời sai hoặc không có nguồn phù hợp."
+    ]
+  }
+}

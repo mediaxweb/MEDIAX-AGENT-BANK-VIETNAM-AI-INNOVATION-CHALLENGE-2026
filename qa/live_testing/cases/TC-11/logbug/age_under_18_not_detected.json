@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "source_test_case_id": "TC-11",
+  "source_result_file": "tests/qa_live_testing/cases/TC-11/result.json",
+  "should_log": true,
+  "bug": {
+    "title": "[Compliance Agent] Không xử lý đúng điều kiện tuổi - TC-11",
+    "severity": "HIGH",
+    "agent_or_component": "Orchestrator / Compliance Agent",
+    "reason": "hệ thống không xác nhận đúng điều kiện tuổi tối thiểu và routing sai domain cho câu hỏi chính sách.",
+    "expected": {
+      "routing": "Bộ điều phối chọn Chuyên gia Chính sách hoặc domain Chính sách.",
+      "answer": "Khách hàng chưa đủ tuổi pháp lý để vay",
+      "business_result": "FAILED"
+    },
+    "actual": {
+      "routing": "Bộ điều phối chọn Chuyên gia Tín dụng / domain Tín dụng.",
+      "answer": "Không đủ điều kiện theo điều kiện vay cơ bản. Tài liệu chỉ nêu hồ sơ vay của cá nhân phải có đủ thông tin tối thiểu, không có hard stop pháp lý, và Legal score phải ≥ 75 để được mở hồ sơ vay. Tuy nhiên, trong các đoạn trích tìm được không thấy quy định trực tiếp về độ tuổi 17 tuổi có được đứng tên vay hay không, nên chưa thể kết luận riêng từ tiêu chí tuổi. Nếu chỉ xét trên evidence hiện có, hồ sơ này chưa chứng minh đạt điều kiện cơ bản.",
+      "business_result": "REVIEW_NOT_ENOUGH_INFORMATION"
+    },
+    "violated_rule": {
+      "document": "02_chinh_sach_tin_dung_va_dieu_kien_vay_v2.pdf",
+      "section": "Điều kiện vay và chính sách tín dụng",
+      "rule_summary": "Khách hàng vay cá nhân phải đáp ứng điều kiện tuổi tối thiểu 18 tuổi."
+    },
+    "business_impact": "Điều kiện tuổi tối thiểu không được xử lý dứt khoát trong live Q&A, khiến tester/người dùng không xác định được hồ sơ đạt hay bị chặn theo chính sách.",
+    "steps_to_reproduce": [
+      "1. Mở https://mediax-agent-bank.ai5phut.com/.",
+      "2. Đăng nhập bằng tài khoản tester/admin và vào mục Hỏi đáp AI.",
+      "3. Tạo phiên mới và nhập câu hỏi trong testcase TC-11.",
+      "4. Quan sát câu trả lời, routing panel, source/trace."
+    ],
+    "evidence_files": [
+      "tests/qa_live_testing/cases/TC-11/evidence/result.txt"
+    ],
+    "source_and_trace": {
+      "domain": "Tín dụng",
+      "source_file": "02_quy_trinh_tiep_nhan_va_mo_ho_so_vay_v2.pdf",
+      "source_page": "2, 3",
+      "trace_id": "trace_123a144514094cd6999fc86566582038"
+    }
+  }
+}

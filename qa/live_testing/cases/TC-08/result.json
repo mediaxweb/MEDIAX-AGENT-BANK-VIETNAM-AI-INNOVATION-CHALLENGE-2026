@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-08",
+  "test_case_file": "tests/qa_live_testing/cases/TC-08/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T19:40:32+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PASS",
+  "log_bug": false,
+  "input_question": "Khách hàng xin vay 2 tỷ VND với mục đích đầu cơ chứng khoán ngắn hạn, không có phương án sản xuất kinh doanh. Theo chính sách tín dụng, Agent phải kết luận thế nào?",
+  "actual_answer": {
+    "full_text": "Kết luận: Không khuyến nghị cấp tín dụng / FAILED. Mục đích vay là đầu tư tài chính/chứng khoán, mà chính sách nêu rõ “Đầu tư tài chính/chứng khoán/crypto” là “Không cho phép trong demo” và “Đầu cơ chứng khoán ngắn hạn” không thuộc mục đích cho phép. Ngoài ra, khách hàng không có phương án sản xuất kinh doanh và không có phương án trả nợ rõ ràng, nên cũng bị FAILED theo quy định về nguồn trả nợ.",
+    "extracted_values": {
+      "result": "FAILED",
+      "issue": "Mục đích vay đầu tư tài chính/chứng khoán không phù hợp chính sách tín dụng.",
+      "required_values": {
+        "eligible_purpose": false
+      },
+      "recommendation": "Không khuyến nghị cấp tín dụng/từ chối mục đích vay chứng khoán, yêu cầu mục đích hợp lệ và phương án trả nợ rõ ràng."
+    },
+    "missing_expected_fields": []
+  },
+  "expected_answer": {
+    "result": "FAILED",
+    "must_identify_issue": "Mục đích vay không phù hợp chính sách tín dụng",
+    "required_values": {
+      "eligible_purpose": false
+    },
+    "recommendation": "Từ chối mục đích vay hoặc yêu cầu điều chỉnh sang mục đích hợp lệ có chứng từ."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "PASS",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Chính sách hoặc domain Chính sách tương đương.",
+      "status": "PASS",
+      "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing phù hợp với kỳ vọng của testcase."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Mục đích vay không phù hợp chính sách tín dụng",
+      "status": "PASS",
+      "evidence": "Mục đích vay đầu tư tài chính/chứng khoán không phù hợp chính sách tín dụng."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương FAILED.",
+      "status": "PASS",
+      "evidence": "Actual extracted result: FAILED. Agent kết luận đúng FAILED cho mục đích đầu cơ chứng khoán, bám chính sách và routing đúng Chính sách."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"eligible_purpose\": false}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không khuyến nghị cấp tín dụng/từ chối mục đích vay chứng khoán, yêu cầu mục đích hợp lệ và phương án trả nợ rõ ràng."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Không khuyến nghị cấp tín dụng/từ chối mục đích vay chứng khoán, yêu cầu mục đích hợp lệ và phương án trả nợ rõ ràng."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent kết luận đúng FAILED cho mục đích đầu cơ chứng khoán, bám chính sách và routing đúng Chính sách."
+    },
+    "groundedness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Nguồn trích dẫn: e044057fb4594ecf841adbfc80fdb379_05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf trang 1, domain Chính sách."
+    },
+    "agent_routing": {
+      "score": 10,
+      "max": 10,
+      "reason": "Routing phù hợp với kỳ vọng của testcase."
+    },
+    "completeness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Câu trả lời bao phủ issue, kết luận, giá trị chính và hướng xử lý; các thiếu sót nếu có được ghi tại missing_expected_fields."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Agent giải thích được căn cứ nghiệp vụ/công thức đủ để tester audit lại."
+    },
+    "total": {
+      "score": 100,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "e044057fb4594ecf841adbfc80fdb379_05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf",
+    "source_page": 1,
+    "trace_id": "trace_7f96a7399ae145b580a67dde70e89aa0"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-08/evidence/result.txt"
+  ],
+  "recommendation": "Agent kết luận đúng FAILED cho mục đích đầu cơ chứng khoán, bám chính sách và routing đúng Chính sách."
+}

@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.1",
+  "test_case_id": "TC-19",
+  "test_case_file": "tests/qa_live_testing/cases/TC-19/testcase.json",
+  "execution_status": "EXECUTED",
+  "executed_at": "2026-07-18T20:00:51+07:00",
+  "base_web_url": "https://mediax-agent-bank.ai5phut.com/",
+  "target_web_url": "https://mediax-agent-bank.ai5phut.com/qa#qa",
+  "verdict": "PARTIAL_PASS_NEEDS_REVIEW",
+  "log_bug": false,
+  "input_question": "Tài sản bảo đảm được định giá 1 tỷ VND, tỷ lệ LTV tối đa là 70%, khách hàng đề nghị vay 900 triệu VND. Agent hãy tính LTV, hạn mức tối đa theo tài sản và kết luận.",
+  "actual_answer": {
+    "full_text": "LTV = 900 triệu / 1 tỷ = 90%. Hạn mức tối đa theo tài sản = 1 tỷ × 70% = 700 triệu VND. Kết luận: Không phù hợp, vì khoản vay đề nghị 900 triệu vượt hạn mức tối đa theo tài sản (700 triệu) và LTV thực tế 90% cao hơn mức tối đa 70%.",
+    "extracted_values": {
+      "result": "CONDITIONAL_REVIEW",
+      "issue": "Số tiền vay vượt hạn mức theo tài sản bảo đảm.",
+      "required_values": {
+        "loan_to_value_ratio": "90%",
+        "max_amount_by_ltv": 700000000
+      },
+      "recommendation": "Giảm khoản vay xuống tối đa 700 triệu VND hoặc bổ sung/điều chỉnh tài sản bảo đảm."
+    },
+    "missing_expected_fields": [
+      "Không dùng rõ nhãn CONDITIONAL, nhưng kết luận tương đương cần điều chỉnh/review."
+    ]
+  },
+  "expected_answer": {
+    "result": "CONDITIONAL",
+    "must_identify_issue": "Số tiền vay vượt hạn mức theo tài sản bảo đảm",
+    "required_values": {
+      "loan_to_value_ratio": "90%",
+      "max_amount_by_ltv": 700000000
+    },
+    "recommendation": "Giảm khoản vay xuống tối đa 700 triệu VND hoặc bổ sung tài sản bảo đảm."
+  },
+  "routing_result": {
+    "expected_router": "Bộ điều phối",
+    "expected_agent_or_domain": "Chuyên gia Tài sản bảo đảm",
+    "actual_router": "Bộ điều phối",
+    "actual_agent_or_domain": "Chuyên gia Chính sách",
+    "actual_message": "Đã chọn miền Chính sách để xử lý câu hỏi.",
+    "source_domain": "Chính sách",
+    "status": "REVIEW",
+    "evidence_location": "Panel TRAO ĐỔI GIỮA CÁC CHUYÊN GIA",
+    "evidence": "Panel hiển thị Bộ điều phối -> Chuyên gia Chính sách; message: Đã chọn miền Chính sách để xử lý câu hỏi.; source domain: Chính sách. Routing lệch kỳ vọng nhưng câu trả lời nghiệp vụ cần được review riêng."
+  },
+  "criteria_results": [
+    {
+      "criterion": "Điều phối chọn đúng Chuyên gia Tài sản bảo đảm hoặc domain Tài sản bảo đảm tương đương.",
+      "status": "REVIEW",
+      "evidence": "Panel routing chọn Chuyên gia Chính sách/domain Chính sách thay vì Tài sản bảo đảm."
+    },
+    {
+      "criterion": "Agent phát hiện đúng issue: Số tiền vay vượt hạn mức theo tài sản bảo đảm.",
+      "status": "PASS",
+      "evidence": "Agent nêu khoản vay 900 triệu vượt hạn mức tối đa 700 triệu và LTV 90% cao hơn 70%."
+    },
+    {
+      "criterion": "Agent đưa ra kết luận tương đương CONDITIONAL.",
+      "status": "PASS",
+      "evidence": "Agent kết luận không phù hợp và cần điều chỉnh; tương đương CONDITIONAL/review."
+    },
+    {
+      "criterion": "Agent tính đúng các giá trị số liệu quan trọng trong expected_answer.required_values nếu có.",
+      "status": "PASS",
+      "evidence": "{\"loan_to_value_ratio\": \"90%\", \"max_amount_by_ltv\": 700000000}"
+    },
+    {
+      "criterion": "Agent không đưa ra khuyến nghị trái rule nghiệp vụ.",
+      "status": "PASS",
+      "evidence": "Không duyệt khoản vay vượt LTV."
+    },
+    {
+      "criterion": "Agent nêu recommendation phù hợp với expected_answer.recommendation.",
+      "status": "PASS",
+      "evidence": "Khuyến nghị giảm khoản vay về mức tối đa theo tài sản hoặc điều chỉnh bảo đảm."
+    }
+  ],
+  "score": {
+    "accuracy": {
+      "score": 35,
+      "max": 35,
+      "reason": "Agent tính đúng LTV 90%, max 700 triệu và phát hiện vượt hạn mức."
+    },
+    "groundedness": {
+      "score": 20,
+      "max": 20,
+      "reason": "Nguồn trích dẫn liên quan trực tiếp đến quy định tín dụng và tỷ lệ cho vay trên tài sản."
+    },
+    "agent_routing": {
+      "score": 0,
+      "max": 10,
+      "reason": "Routing không khớp kỳ vọng Chuyên gia Tài sản bảo đảm/domain Tài sản bảo đảm."
+    },
+    "completeness": {
+      "score": 19,
+      "max": 20,
+      "reason": "Đủ phép tính, issue và kết luận; thiếu nhãn CONDITIONAL rõ ràng."
+    },
+    "explainability": {
+      "score": 15,
+      "max": 15,
+      "reason": "Giải thích công thức và so sánh LTV rõ ràng."
+    },
+    "total": {
+      "score": 89,
+      "max": 100
+    }
+  },
+  "source_and_trace": {
+    "domain": "Chính sách",
+    "source_file": "05_quy_dinh_tin_dung_va_ty_le_cho_vay_tren_tai_san_v2.pdf",
+    "source_page": 2,
+    "trace_id": "trace_6f2f24f8a9f741d198ab66def460158b"
+  },
+  "evidence_files": [
+    "tests/qa_live_testing/cases/TC-19/evidence/result.txt"
+  ],
+  "recommendation": "PARTIAL_PASS_NEEDS_REVIEW: nghiệp vụ đúng, nhưng routing lệch kỳ vọng Tài sản bảo đảm."
+}
