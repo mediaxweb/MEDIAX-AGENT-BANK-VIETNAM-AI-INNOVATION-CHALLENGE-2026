@@ -38,13 +38,20 @@ def test_ui_offers_ten_demo_accounts_without_credentials_form():
     assert 'id="auth-form"' not in html
 
 
+def test_chat_storage_is_scoped_to_the_authenticated_user():
+    script = TestClient(app).get("/static/js/app.js").text
+
+    assert "`${CHAT_STORAGE_KEY}:${userId}`" in script
+    assert "localStorage.setItem(\n      activeChatStorageKey," in script
+
+
 def test_ui_renders_only_assistant_markdown_with_sanitization():
     client = TestClient(app)
 
     html = client.get("/qa").text
     script = client.get("/static/js/app.js").text
 
-    assert html.index("marked@18.0.6") < html.index("dompurify@3.4.12") < html.index("app.js?v=8")
+    assert html.index("marked@18.0.6") < html.index("dompurify@3.4.12") < html.index("app.js?v=9")
     assert "DOMPurify.sanitize" in script
     assert "formatAssistantAnswer(msg.text)" in script
     assert 'msg-bubble-user">${formatAnswerText(msg.text)}' in script
