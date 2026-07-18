@@ -142,6 +142,20 @@ function formatAnswerText(value) {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
 
+function localizeAgentActionText(value) {
+  return String(value ?? '')
+    .replace(/Giao diện QA/g, 'Giao diện hỏi đáp')
+    .replace(/Orchestrator Agent/g, 'Bộ điều phối')
+    .replace(/Orchestrator/g, 'Bộ điều phối')
+    .replace(/MCP\s*\/\s*RAG/g, 'Kho tri thức')
+    .replace(/Trace:/g, 'Mã theo dõi:')
+    .replace(/Đã gửi câu hỏi tới API \/api\/v1\/orchestrator\/chat\./g, 'Đã gửi câu hỏi tới dịch vụ hỏi đáp.')
+    .replace(/Tín dụng Agent/g, 'Chuyên gia Tín dụng')
+    .replace(/Chính sách Agent/g, 'Chuyên gia Chính sách')
+    .replace(/Tuân thủ Agent/g, 'Chuyên gia Chính sách')
+    .replace(/Vận hành Agent/g, 'Chuyên gia Vận hành');
+}
+
 function shortQuestionName(question) {
   const normalized = question.replace(/\s+/g, ' ').trim();
   if (!normalized) return 'Phiên hỏi đáp';
@@ -172,7 +186,7 @@ function getStatusEl(card) {
              : card.status === 'pending' ? ''
              : ICON.alert;
   const iconHtml = icon ? `${icon} ` : '';
-  return `<span class="agent-card-status ${cls}">${iconHtml}${card.statusText}</span>`;
+  return `<span class="agent-card-status ${cls}">${iconHtml}${localizeAgentActionText(card.statusText)}</span>`;
 }
 
 function traceCountLabel(step) {
@@ -278,7 +292,7 @@ function renderChat() {
       <div class="chat-empty">
         <div class="chat-empty-icon">${ICON.sparkles24}</div>
         <h3 class="chat-empty-title">Bắt đầu cuộc trò chuyện với Đội chuyên gia</h3>
-        <p class="chat-empty-desc">Nhập câu hỏi nghiệp vụ để Orchestrator điều phối đến chuyên gia phù hợp.</p>
+        <p class="chat-empty-desc">Nhập câu hỏi nghiệp vụ để Bộ điều phối chuyển đến chuyên gia phù hợp.</p>
       </div>
     `;
     return;
@@ -304,7 +318,7 @@ function renderChat() {
           <div class="msg-avatar ai">${ICON.alert}</div>
           <div class="msg-body">
             <div class="msg-author">Hệ thống</div>
-            <div class="msg-bubble-error">${formatAnswerText(msg.text)}</div>
+            <div class="msg-bubble-error">${formatAnswerText(localizeAgentActionText(msg.text))}</div>
           </div>
         </div>
       `;
@@ -396,19 +410,22 @@ function renderTrace() {
 
   listEl.innerHTML = '';
   events.forEach(card => {
+    const from = localizeAgentActionText(card.from);
+    const to = localizeAgentActionText(card.to);
+    const msg = localizeAgentActionText(card.msg);
     const div = document.createElement('div');
     div.className = 'agent-card';
     div.style.animationDelay = '0ms';
     div.innerHTML = `
       <div class="agent-card-route">
         <div class="agent-card-agents">
-          <span>${escapeHtml(card.from)}</span>
+          <span>${escapeHtml(from)}</span>
           <span class="arrow">→</span>
-          <span>${escapeHtml(card.to)}</span>
+          <span>${escapeHtml(to)}</span>
         </div>
         <span class="agent-card-time">${escapeHtml(card.time)}</span>
       </div>
-      <div class="agent-card-msg">${escapeHtml(card.msg)}</div>
+      <div class="agent-card-msg">${escapeHtml(msg)}</div>
       ${getStatusEl(card)}
     `;
     listEl.appendChild(div);
@@ -434,10 +451,10 @@ async function sendMessage(text) {
   session.messages.push({ kind: 'user', text });
   session.traceEvents = [
     {
-      from: 'Giao diện QA',
-      to: 'Orchestrator',
+      from: 'Giao diện hỏi đáp',
+      to: 'Bộ điều phối',
       time: nowLabel(),
-      msg: 'Đã gửi câu hỏi tới API /api/v1/orchestrator/chat.',
+      msg: 'Đã gửi câu hỏi tới dịch vụ hỏi đáp.',
       status: 'pending',
       statusText: 'Đang gửi',
     },
@@ -498,11 +515,11 @@ async function sendMessage(text) {
     };
     if (data.domain === 'general') {
       session.traceEvents.push({
-        from: 'Orchestrator',
-        to: 'Giao diện QA',
+        from: 'Bộ điều phối',
+        to: 'Giao diện hỏi đáp',
         time: nowLabel(),
         msg: data.trace_id
-          ? `Chưa xác định miền xử lý. Trace: ${data.trace_id}`
+          ? `Chưa xác định miền xử lý. Mã theo dõi: ${data.trace_id}`
           : 'Chưa xác định miền xử lý.',
         status: 'warning',
         statusText: 'Cần làm rõ',
@@ -510,16 +527,16 @@ async function sendMessage(text) {
     } else {
       session.traceEvents.push(
         {
-          from: 'Orchestrator',
-          to: `${domainLabel(data.domain)} Agent`,
+          from: 'Bộ điều phối',
+          to: `Chuyên gia ${domainLabel(data.domain)}`,
           time: nowLabel(),
           msg: `Đã chọn miền ${domainLabel(data.domain)} để xử lý câu hỏi.`,
           status: 'done',
           statusText: 'Đã điều phối',
         },
         {
-          from: `${domainLabel(data.domain)} Agent`,
-          to: 'MCP / RAG',
+          from: `Chuyên gia ${domainLabel(data.domain)}`,
+          to: 'Kho tri thức',
           time: nowLabel(),
           msg: data.insufficient_information
             ? 'Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.'
@@ -528,10 +545,10 @@ async function sendMessage(text) {
           statusText: data.insufficient_information ? 'Thiếu dữ liệu' : 'Có nguồn',
         },
         {
-          from: 'Orchestrator',
-          to: 'Giao diện QA',
+          from: 'Bộ điều phối',
+          to: 'Giao diện hỏi đáp',
           time: nowLabel(),
-          msg: data.trace_id ? `Đã trả lời. Trace: ${data.trace_id}` : 'Đã trả lời.',
+          msg: data.trace_id ? `Đã trả lời. Mã theo dõi: ${data.trace_id}` : 'Đã trả lời.',
           status: data.insufficient_information ? 'warning' : 'done',
           statusText: data.insufficient_information ? 'Cần kiểm tra' : 'Hoàn thành',
         }
@@ -549,15 +566,15 @@ async function sendMessage(text) {
   } catch (error) {
     const errorMessage = error && error.message
       ? error.message
-      : 'Không thể kết nối tới Orchestrator Agent.';
+      : 'Không thể kết nối tới Bộ điều phối.';
     session.traceEvents[0] = {
       ...session.traceEvents[0],
       status: 'error',
       statusText: 'Thất bại',
     };
     session.traceEvents.push({
-      from: 'Orchestrator',
-      to: 'Giao diện QA',
+      from: 'Bộ điều phối',
+      to: 'Giao diện hỏi đáp',
       time: nowLabel(),
       msg: errorMessage,
       status: 'error',
@@ -565,7 +582,7 @@ async function sendMessage(text) {
     });
     session.messages.push({
       kind: 'error',
-      text: `Không thể lấy câu trả lời từ Orchestrator Agent. ${errorMessage}`,
+      text: `Không thể lấy câu trả lời từ Bộ điều phối. ${errorMessage}`,
     });
   } finally {
     state.isProcessing = false;
@@ -646,8 +663,8 @@ function openSourceOverlay(sourceId) {
 
   const agentsList = document.getElementById('source-agents-list');
   agentsList.innerHTML = `
-    <div class="source-agent-item">${ICON.checkCircle}<span>${escapeHtml(domainLabel(data.domain))} Agent</span></div>
-    <div class="source-agent-item">${ICON.checkCircle}<span>MCP / RAG</span></div>
+    <div class="source-agent-item">${ICON.checkCircle}<span>Chuyên gia ${escapeHtml(domainLabel(data.domain))}</span></div>
+    <div class="source-agent-item">${ICON.checkCircle}<span>Kho tri thức</span></div>
   `;
 
   document.getElementById('overlay-backdrop').classList.add('open');
