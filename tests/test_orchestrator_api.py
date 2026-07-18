@@ -11,6 +11,13 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
     seen_history_sizes: list[int] = []
     seen_traces: list[tuple[str, str]] = []
 
+    class FakeChatHistoryService:
+        def __init__(self):
+            self.calls = []
+
+        async def record_chat_exchange(self, **kwargs):
+            self.calls.append(kwargs)
+
     class FakeTrace:
         def __init__(self, trace_id):
             self.trace_id = trace_id
@@ -48,7 +55,9 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
     monkeypatch.setattr(orchestrator, "answer_question", fake_answer)
     monkeypatch.setattr(orchestrator, "trace", fake_trace)
     monkeypatch.setattr(orchestrator, "SESSION_DB_PATH", tmp_path / "sessions.db")
+    fake_history = FakeChatHistoryService()
     app = FastAPI()
+    app.dependency_overrides[orchestrator.get_chat_history_service] = lambda: fake_history
     app.include_router(orchestrator.router, prefix="/api/v1/orchestrator")
     client = TestClient(app)
 
@@ -71,6 +80,16 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
         ("MediaX Agent Bank Chat", session_id),
         ("MediaX Agent Bank Chat", session_id),
     ]
+    assert [call["session_id"] for call in fake_history.calls] == [session_id, session_id]
+    assert [call["user_message"] for call in fake_history.calls] == [
+        "Tỷ lệ tối đa?",
+        "Còn ô tô thì sao?",
+    ]
+    assert fake_history.calls[0]["assistant_answer"] == "Tỷ lệ tối đa là 80%."
+    assert fake_history.calls[0]["domain"] == "compliance"
+    assert fake_history.calls[0]["trace_id"] == "trace-test-1"
+    assert fake_history.calls[0]["user_id"] is None
+    assert fake_history.calls[0]["sources"][0].file_name == "policy.pdf"
 
 
 def test_chat_returns_general_clarification_when_question_is_unrouted(monkeypatch, tmp_path):

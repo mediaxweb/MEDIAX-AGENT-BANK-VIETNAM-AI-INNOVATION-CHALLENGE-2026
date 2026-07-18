@@ -3,12 +3,14 @@ from urllib.parse import urlparse
 
 import motor.motor_asyncio
 from dotenv import load_dotenv
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING
 
 load_dotenv()
 
 
 USER_INDEXED_FILES_COLLECTION_NAME = "user_indexed_files"
+CHAT_SESSIONS_COLLECTION_NAME = "chat_sessions"
+CHAT_MESSAGES_COLLECTION_NAME = "chat_messages"
 LOAN_AGENT_COLLECTION_NAMES = (
     "loan_customers",
     "loan_profiles",
@@ -37,6 +39,10 @@ KB_DOCUMENT_INDEX_STATUSES = frozenset(
 
 USER_INDEXED_FILES_UNIQUE_INDEX_NAME = "user_indexed_files_user_file_unique"
 USER_INDEXED_FILES_USER_UPDATED_INDEX_NAME = "user_indexed_files_user_updated_at"
+CHAT_SESSIONS_SESSION_UNIQUE_INDEX_NAME = "chat_sessions_session_unique"
+CHAT_SESSIONS_USER_UPDATED_INDEX_NAME = "chat_sessions_user_updated_at"
+CHAT_MESSAGES_SESSION_CREATED_INDEX_NAME = "chat_messages_session_created_at"
+CHAT_MESSAGES_USER_CREATED_INDEX_NAME = "chat_messages_user_created_at"
 DEFAULT_DATABASE_NAME = "rag_brain"
 
 
@@ -86,6 +92,18 @@ class Database:
         return cls.get_database()[USER_INDEXED_FILES_COLLECTION_NAME]
 
     @classmethod
+    def get_chat_sessions_collection(cls):
+        """Get the collection storing chat session audit records."""
+
+        return cls.get_database()[CHAT_SESSIONS_COLLECTION_NAME]
+
+    @classmethod
+    def get_chat_messages_collection(cls):
+        """Get the collection storing chat message audit records."""
+
+        return cls.get_database()[CHAT_MESSAGES_COLLECTION_NAME]
+
+    @classmethod
     def get_loan_collection(cls, collection_name: str):
         """Get one collection used by the loan-agent domain."""
 
@@ -113,6 +131,31 @@ async def ensure_user_indexed_files_indexes():
     await collection.create_index(
         [("user_id", ASCENDING), ("updated_at", ASCENDING)],
         name=USER_INDEXED_FILES_USER_UPDATED_INDEX_NAME,
+    )
+
+
+async def ensure_chat_history_indexes():
+    """Create indexes required by persisted orchestrator chat history."""
+
+    sessions = Database.get_chat_sessions_collection()
+    await sessions.create_index(
+        [("session_id", ASCENDING)],
+        unique=True,
+        name=CHAT_SESSIONS_SESSION_UNIQUE_INDEX_NAME,
+    )
+    await sessions.create_index(
+        [("user_id", ASCENDING), ("updated_at", DESCENDING)],
+        name=CHAT_SESSIONS_USER_UPDATED_INDEX_NAME,
+    )
+
+    messages = Database.get_chat_messages_collection()
+    await messages.create_index(
+        [("session_id", ASCENDING), ("created_at", ASCENDING)],
+        name=CHAT_MESSAGES_SESSION_CREATED_INDEX_NAME,
+    )
+    await messages.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)],
+        name=CHAT_MESSAGES_USER_CREATED_INDEX_NAME,
     )
 
 
@@ -161,5 +204,6 @@ async def init_db():
         name="users_email_unique",
     )
     await ensure_user_indexed_files_indexes()
+    await ensure_chat_history_indexes()
     await ensure_loan_agent_indexes()
     print(">>> INIT DB DONE")
