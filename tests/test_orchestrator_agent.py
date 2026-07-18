@@ -221,6 +221,18 @@ def test_unrouted_question_returns_default_clarification_answer():
     assert result.sources == []
 
 
+def test_chat_agents_require_vietnamese_user_facing_answers():
+    specialist = orchestrator_agent.build_question_agent(
+        "credit",
+        SimpleNamespace(),
+        "test-model",
+    )
+    orchestrator = orchestrator_agent.build_chat_orchestrator([], "test-model")
+
+    assert "Always write the user-facing answer in Vietnamese" in specialist.instructions
+    assert "Every user-facing answer must be in Vietnamese" in orchestrator.instructions
+
+
 def test_collect_specialist_output_logs_raw_answer(monkeypatch):
     seen_events: list[tuple[str, dict]] = []
     draft = QuestionAnswerDraft(

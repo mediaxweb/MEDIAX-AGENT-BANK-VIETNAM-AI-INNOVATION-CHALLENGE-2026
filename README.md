@@ -8,7 +8,7 @@ knowledge base.
 The current MVP supports:
 
 - A bundled anonymous multi-turn chat UI with grounded answers and document
-  sources.
+  sources. User-facing agent answers are always in Vietnamese.
 - Credit, Compliance, and Operations specialist agents.
 - A fixed Credit → Compliance → Operations assessment workflow.
 - RAG chunk retrieval with full-page fallback when a chunk lacks context.
