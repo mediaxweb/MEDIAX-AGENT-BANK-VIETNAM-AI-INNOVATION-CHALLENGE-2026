@@ -14,7 +14,9 @@ from compliance_agent import (
 )
 from credit_agent import CreditAssessment, calculate_credit_facts
 from dossier_normalizer import (
+    DossierEvidence,
     DossierExtractionDraft,
+    DossierFileReference,
     DossierInputBoundaryResult,
     DossierNormalizationResult,
 )
@@ -24,6 +26,8 @@ from orchestrator_agent import (
     QuestionExecution,
     answer_question,
     assemble_question_answer,
+    build_final_report,
+    DossierWorkflowResult,
     execute_question,
     load_application,
     run_credit_slice,
@@ -318,10 +322,39 @@ def test_dossier_assessment_stops_when_compliance_fails():
     assert result.overall_result == "BLOCKED"
     assert result.stopped_after == "compliance"
     assert result.operations is None
+    assert result.report is not None
+    assert result.report.operations is None
+    assert "Hồ sơ đang bị chặn" in result.report.answer
 
 
 def test_dossier_assessment_runs_three_agents_and_caps_operations_limit():
+    dossier_source = DossierEvidence(
+        field="loan.requested_amount",
+        file_id="FILE-001",
+        page=2,
+        excerpt="Số tiền đề nghị vay: 8.000.000.000 đồng",
+        confidence=0.99,
+    )
     normalized = normalized_credit_dossier()
+    normalized = normalized.model_copy(
+        update={
+            "files": [
+                DossierFileReference(
+                    file_id="FILE-001",
+                    file_ref="/tmp/ho_so.pdf",
+                    original_filename="02_giay_de_nghi_cap_tin_dung.pdf",
+                    source_path="02_giay_de_nghi_cap_tin_dung.pdf",
+                )
+            ],
+            "facts": normalized.facts.model_copy(update={"evidence": [dossier_source]}),
+        }
+    )
+    policy_source = KnowledgeEvidence(
+        source_id="policy-001",
+        file_name="quy_dinh_tin_dung.pdf",
+        page="3",
+        excerpt="Hạn mức phải nằm trong giới hạn chính sách.",
+    )
     calls: list[str] = []
 
     async def prepare(*_, **__):
@@ -339,7 +372,7 @@ def test_dossier_assessment_runs_three_agents_and_caps_operations_limit():
         return compliance_assessment(
             application,
             recommended_limit=Decimal("7000000000"),
-        )
+        ).model_copy(update={"evidence": [policy_source]})
 
     async def run_operations(application, **_):
         calls.append("operations")
@@ -365,6 +398,34 @@ def test_dossier_assessment_runs_three_agents_and_caps_operations_limit():
     assert result.overall_result == "READY"
     assert result.operations is not None
     assert result.operations.facts.recommended_limit == Decimal("7000000000.00")
+    assert result.report is not None
+    assert result.report.credit is not None
+    assert result.report.compliance is not None
+    assert result.report.operations is not None
+    assert "Hồ sơ đủ điều kiện trình phê duyệt" in result.report.answer
+    assert "đã phê duyệt" not in result.report.answer
+    assert result.report.dossier_sources[0].file_name == "02_giay_de_nghi_cap_tin_dung.pdf"
+    assert result.report.policy_sources == [policy_source]
+
+
+def test_final_report_maps_incomplete_and_review_results_without_fake_specialists():
+    for overall_result, expected in (
+        ("UNDETERMINED", "Chưa đủ thông tin để kết luận hồ sơ"),
+        ("REVIEW_REQUIRED", "Hồ sơ cần rà soát hoặc bổ sung điều kiện"),
+    ):
+        report = build_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                overall_result=overall_result,
+            ),
+            None,
+        )
+
+        assert expected in report.answer
+        assert report.credit is None
+        assert report.compliance is None
+        assert report.operations is None
+        assert report.disclaimer in report.answer
 
 
 def test_orchestrator_runs_specialists_in_order_with_authoritative_upstream_results():

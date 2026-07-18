@@ -111,6 +111,36 @@ class CreditSliceResult(StrictModel):
     issues: list[DossierInputIssue] = Field(default_factory=list)
 
 
+class DossierReportSource(StrictModel):
+    file_id: str
+    file_name: str
+    page: int = Field(ge=1)
+    field: str
+    excerpt: str
+
+
+class SpecialistConclusion(StrictModel):
+    result: str
+    summary: str
+    policy_source_ids: list[str] = Field(default_factory=list)
+
+
+class DossierFinalReport(StrictModel):
+    answer: str
+    customer_summary: str
+    loan_summary: str
+    credit: SpecialistConclusion | None = None
+    compliance: SpecialistConclusion | None = None
+    operations: SpecialistConclusion | None = None
+    missing_information: list[str] = Field(default_factory=list)
+    hard_stops: list[str] = Field(default_factory=list)
+    conditions: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    dossier_sources: list[DossierReportSource] = Field(default_factory=list)
+    policy_sources: list[KnowledgeEvidence] = Field(default_factory=list)
+    disclaimer: str
+
+
 class DossierWorkflowResult(StrictModel):
     status: Literal["completed", "input_not_ready"]
     dossier_id: str | None = None
@@ -123,6 +153,7 @@ class DossierWorkflowResult(StrictModel):
     operations: OperationsAssessment | None = None
     dossier_evidence: list[DossierEvidence] = Field(default_factory=list)
     issues: list[DossierInputIssue] = Field(default_factory=list)
+    report: DossierFinalReport | None = None
 
 
 class QuestionAnswerDraft(StrictModel):
@@ -477,6 +508,220 @@ def _compliance_stop_result(compliance: ComplianceAssessment) -> OverallResult:
     return "REVIEW_REQUIRED"
 
 
+_RESULT_LABELS = {
+    "PASSED": "đạt",
+    "CONDITIONAL": "đạt có điều kiện",
+    "FAILED": "không đạt",
+    "UNDETERMINED": "chưa đủ căn cứ",
+    "READY": "đủ điều kiện trình phê duyệt",
+    "BLOCKED": "bị chặn",
+    "WAITING": "đang chờ bổ sung",
+}
+_CUSTOMER_TYPE_LABELS = {
+    "individual": "cá nhân",
+    "household_business": "hộ kinh doanh",
+    "enterprise": "doanh nghiệp",
+}
+_DISCLAIMER = (
+    "Đây là đề xuất hỗ trợ thẩm định, không phải quyết định phê duyệt cuối cùng "
+    "của ngân hàng."
+)
+
+
+def _unique(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(item for item in items if item))
+
+
+def _money(value: Decimal | None) -> str:
+    return "chưa xác định" if value is None else f"{value:,.0f}".replace(",", ".") + " VND"
+
+
+def _specialist_conclusions(
+    result: DossierWorkflowResult,
+) -> tuple[
+    SpecialistConclusion | None,
+    SpecialistConclusion | None,
+    SpecialistConclusion | None,
+]:
+    credit = result.credit
+    compliance = result.compliance
+    operations = result.operations
+    return (
+        SpecialistConclusion(
+            result=credit.facts.result,
+            summary=(
+                f"Credit Agent kết luận {_RESULT_LABELS[credit.facts.result]}, "
+                f"điểm pháp lý {credit.facts.legal_score}/100."
+            ),
+            policy_source_ids=_unique([item.source_id for item in credit.evidence]),
+        )
+        if credit
+        else None,
+        SpecialistConclusion(
+            result=compliance.facts.result,
+            summary=(
+                f"Compliance Agent kết luận {_RESULT_LABELS[compliance.facts.result]}, "
+                f"điểm tuân thủ {compliance.facts.total_score}/100, "
+                f"hạn mức đề xuất {_money(compliance.facts.recommended_limit)}."
+            ),
+            policy_source_ids=_unique([item.source_id for item in compliance.evidence]),
+        )
+        if compliance
+        else None,
+        SpecialistConclusion(
+            result=operations.facts.result,
+            summary=(
+                f"Operations Agent kết luận {_RESULT_LABELS[operations.facts.result]}, "
+                f"điểm checklist {operations.facts.checklist_score}/100, "
+                f"hạn mức đề xuất {_money(operations.facts.recommended_limit)}."
+            ),
+            policy_source_ids=_unique([item.source_id for item in operations.evidence]),
+        )
+        if operations
+        else None,
+    )
+
+
+def build_final_report(
+    result: DossierWorkflowResult,
+    normalized: DossierNormalizationResult | None,
+) -> DossierFinalReport:
+    facts = normalized.facts if normalized else None
+    customer_summary = (
+        "Khách hàng: "
+        f"{facts.customer.full_name or 'chưa xác định'}; "
+        "loại khách hàng "
+        f"{_CUSTOMER_TYPE_LABELS.get(facts.customer.customer_type, 'chưa xác định')}."
+        if facts
+        else "Khách hàng: chưa đủ dữ liệu để xác định."
+    )
+    loan_summary = (
+        "Nhu cầu vay: "
+        f"{_money(facts.loan.requested_amount)}; "
+        f"thời hạn {facts.loan.term_months or 'chưa xác định'} tháng; "
+        f"mục đích {facts.loan.purpose or 'chưa xác định'}."
+        if facts
+        else "Nhu cầu vay: chưa đủ dữ liệu để xác định."
+    )
+    credit, compliance, operations = _specialist_conclusions(result)
+
+    assessments = [item for item in (result.credit, result.compliance, result.operations) if item]
+    missing_information = _unique(
+        [
+            *(
+                [f"{item.field}: {item.reason}" for item in facts.missing_information]
+                if facts
+                else []
+            ),
+            *(item.message for item in result.issues),
+            *(item for assessment in assessments for item in assessment.missing_data),
+            *(result.credit.facts.missing_documents if result.credit else []),
+        ]
+    )
+    hard_stops = _unique(
+        [
+            *(result.credit.facts.hard_stop_reasons if result.credit else []),
+            *(result.compliance.facts.hard_stop_reasons if result.compliance else []),
+            *(result.operations.facts.hard_stop_reasons if result.operations else []),
+        ]
+    )
+    conditions = _unique(
+        [
+            *(result.compliance.conditions if result.compliance else []),
+            *(result.operations.conditions if result.operations else []),
+        ]
+    )
+    next_actions = _unique(
+        [
+            *(result.credit.required_actions if result.credit else []),
+            *(
+                [item.action for item in result.operations.next_actions]
+                if result.operations
+                else []
+            ),
+            *(result.operations.facts.next_action_codes if result.operations else []),
+        ]
+    )
+
+    file_names = {
+        item.file_id: item.original_filename for item in normalized.files
+    } if normalized else {}
+    dossier_sources = [
+        DossierReportSource(
+            file_id=item.file_id,
+            file_name=file_names.get(item.file_id, item.file_id),
+            page=item.page,
+            field=item.field,
+            excerpt=item.excerpt,
+        )
+        for item in result.dossier_evidence
+    ]
+    policy_by_id = {
+        item.source_id: item
+        for assessment in assessments
+        for item in assessment.evidence
+    }
+    policy_sources = list(policy_by_id.values())
+
+    overall_summary = {
+        "READY": "Hồ sơ đủ điều kiện trình phê duyệt.",
+        "REVIEW_REQUIRED": "Hồ sơ cần rà soát hoặc bổ sung điều kiện trước khi trình phê duyệt.",
+        "BLOCKED": "Hồ sơ đang bị chặn và chưa đủ điều kiện trình phê duyệt.",
+        "UNDETERMINED": "Chưa đủ thông tin để kết luận hồ sơ.",
+    }[result.overall_result]
+    lines = [overall_summary, customer_summary, loan_summary]
+    lines.extend(item.summary for item in (credit, compliance, operations) if item)
+    for label, values in (
+        ("Thông tin còn thiếu", missing_information),
+        ("Điểm chặn", hard_stops),
+        ("Điều kiện", conditions),
+        ("Hành động tiếp theo", next_actions),
+    ):
+        if values:
+            lines.append(f"{label}: {'; '.join(values)}.")
+    if dossier_sources:
+        lines.append(
+            "Nguồn hồ sơ: "
+            + "; ".join(
+                f"{item.file_name}, trang {item.page}" for item in dossier_sources
+            )
+            + "."
+        )
+    if policy_sources:
+        lines.append(
+            "Nguồn chính sách: "
+            + "; ".join(
+                f"{item.file_name}, trang {item.page or 'không xác định'}"
+                for item in policy_sources
+            )
+            + "."
+        )
+    lines.append(_DISCLAIMER)
+    return DossierFinalReport(
+        answer="\n".join(lines),
+        customer_summary=customer_summary,
+        loan_summary=loan_summary,
+        credit=credit,
+        compliance=compliance,
+        operations=operations,
+        missing_information=missing_information,
+        hard_stops=hard_stops,
+        conditions=conditions,
+        next_actions=next_actions,
+        dossier_sources=dossier_sources,
+        policy_sources=policy_sources,
+        disclaimer=_DISCLAIMER,
+    )
+
+
+def _with_final_report(
+    result: DossierWorkflowResult,
+    normalized: DossierNormalizationResult | None,
+) -> DossierWorkflowResult:
+    result.report = build_final_report(result, normalized)
+    return result
+
+
 async def run_dossier_assessment(
     payload: Any,
     *,
@@ -504,28 +749,34 @@ async def run_dossier_assessment(
         credit_runner=credit_runner,
     )
     if credit_slice.credit is None or boundary.normalized is None:
-        return DossierWorkflowResult(
-            status="input_not_ready",
-            dossier_id=boundary.dossier_id,
-            routing_batch_id=boundary.routing_batch_id,
-            overall_result="UNDETERMINED",
-            stopped_after="input",
-            stop_reason=credit_slice.stop_reason,
-            dossier_evidence=credit_slice.dossier_evidence,
-            issues=credit_slice.issues,
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result="UNDETERMINED",
+                stopped_after="input",
+                stop_reason=credit_slice.stop_reason,
+                dossier_evidence=credit_slice.dossier_evidence,
+                issues=credit_slice.issues,
+            ),
+            boundary.normalized,
         )
 
     credit = credit_slice.credit
     if not credit_slice.can_continue_to_compliance:
-        return DossierWorkflowResult(
-            status="completed",
-            dossier_id=boundary.dossier_id,
-            routing_batch_id=boundary.routing_batch_id,
-            overall_result=_credit_overall_result(credit),
-            stopped_after="credit",
-            stop_reason="credit_not_ready_for_compliance",
-            credit=credit,
-            dossier_evidence=credit_slice.dossier_evidence,
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="completed",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result=_credit_overall_result(credit),
+                stopped_after="credit",
+                stop_reason="credit_not_ready_for_compliance",
+                credit=credit,
+                dossier_evidence=credit_slice.dossier_evidence,
+            ),
+            boundary.normalized,
         )
 
     compliance_application, missing = build_compliance_application(
@@ -534,22 +785,25 @@ async def run_dossier_assessment(
         assessment_date=assessment_date,
     )
     if compliance_application is None:
-        return DossierWorkflowResult(
-            status="input_not_ready",
-            dossier_id=boundary.dossier_id,
-            routing_batch_id=boundary.routing_batch_id,
-            overall_result="UNDETERMINED",
-            stopped_after="credit",
-            stop_reason="compliance_input_incomplete",
-            credit=credit,
-            dossier_evidence=credit_slice.dossier_evidence,
-            issues=[
-                DossierInputIssue(
-                    code="compliance_input_incomplete",
-                    message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Compliance Agent.",
-                    fields=missing,
-                )
-            ],
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result="UNDETERMINED",
+                stopped_after="credit",
+                stop_reason="compliance_input_incomplete",
+                credit=credit,
+                dossier_evidence=credit_slice.dossier_evidence,
+                issues=[
+                    DossierInputIssue(
+                        code="compliance_input_incomplete",
+                        message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Compliance Agent.",
+                        fields=missing,
+                    )
+                ],
+            ),
+            boundary.normalized,
         )
 
     compliance = await compliance_runner(
@@ -558,16 +812,19 @@ async def run_dossier_assessment(
         model=model,
     )
     if not _compliance_can_continue(compliance):
-        return DossierWorkflowResult(
-            status="completed",
-            dossier_id=boundary.dossier_id,
-            routing_batch_id=boundary.routing_batch_id,
-            overall_result=_compliance_stop_result(compliance),
-            stopped_after="compliance",
-            stop_reason="compliance_not_ready_for_operations",
-            credit=credit,
-            compliance=compliance,
-            dossier_evidence=credit_slice.dossier_evidence,
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="completed",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result=_compliance_stop_result(compliance),
+                stopped_after="compliance",
+                stop_reason="compliance_not_ready_for_operations",
+                credit=credit,
+                compliance=compliance,
+                dossier_evidence=credit_slice.dossier_evidence,
+            ),
+            boundary.normalized,
         )
 
     operations_application, missing = build_operations_application(
@@ -577,23 +834,26 @@ async def run_dossier_assessment(
         assessment_at=assessment_at,
     )
     if operations_application is None:
-        return DossierWorkflowResult(
-            status="input_not_ready",
-            dossier_id=boundary.dossier_id,
-            routing_batch_id=boundary.routing_batch_id,
-            overall_result="UNDETERMINED",
-            stopped_after="compliance",
-            stop_reason="operations_input_incomplete",
-            credit=credit,
-            compliance=compliance,
-            dossier_evidence=credit_slice.dossier_evidence,
-            issues=[
-                DossierInputIssue(
-                    code="operations_input_incomplete",
-                    message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Operations Agent.",
-                    fields=missing,
-                )
-            ],
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result="UNDETERMINED",
+                stopped_after="compliance",
+                stop_reason="operations_input_incomplete",
+                credit=credit,
+                compliance=compliance,
+                dossier_evidence=credit_slice.dossier_evidence,
+                issues=[
+                    DossierInputIssue(
+                        code="operations_input_incomplete",
+                        message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Operations Agent.",
+                        fields=missing,
+                    )
+                ],
+            ),
+            boundary.normalized,
         )
 
     operations = await operations_runner(
@@ -608,15 +868,18 @@ async def run_dossier_assessment(
         "CONDITIONAL": "REVIEW_REQUIRED",
         "WAITING": "REVIEW_REQUIRED",
     }[operations.facts.result]
-    return DossierWorkflowResult(
-        status="completed",
-        dossier_id=boundary.dossier_id,
-        routing_batch_id=boundary.routing_batch_id,
-        overall_result=overall_result,
-        credit=credit,
-        compliance=compliance,
-        operations=operations,
-        dossier_evidence=credit_slice.dossier_evidence,
+    return _with_final_report(
+        DossierWorkflowResult(
+            status="completed",
+            dossier_id=boundary.dossier_id,
+            routing_batch_id=boundary.routing_batch_id,
+            overall_result=overall_result,
+            credit=credit,
+            compliance=compliance,
+            operations=operations,
+            dossier_evidence=credit_slice.dossier_evidence,
+        ),
+        boundary.normalized,
     )
 
 
