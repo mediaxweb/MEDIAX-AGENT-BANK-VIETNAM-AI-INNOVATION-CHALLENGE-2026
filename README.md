@@ -155,6 +155,12 @@ for the Credit, Compliance, and Operations policy collections:
 These accounts isolate the three policy collections. They are not users of the
 anonymous demo chat.
 
+By default, uploads and file listing use the user ID from the Bearer token. For
+internal data preparation, set `ALLOW_KB_TARGET_USER_UPLOAD=true` to allow
+`POST /api/v1/knowledge-base/process-document` to accept a form `user_id` and
+`GET /api/v1/knowledge-base/files` to accept a `user_id` query parameter. When
+the flag is disabled, requests that target another user ID return `403`.
+
 ### 6. Start FastMCP
 
 Open a second terminal and set the three recorded IDs:

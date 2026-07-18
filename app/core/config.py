@@ -19,6 +19,7 @@ class Configs(BaseSettings):
     bm25_persist_dir: Optional[str] = None
     docstore_persist_dir: Optional[str] = None
     rag_brain_openclaw_api_key: Optional[str] = None
+    allow_kb_target_user_upload: bool = False
     openai_qna_model: str = "gpt-5.4-mini"
     temp_kb_dir: str = "tmp/knowledge_base"
     loan_upload_dir: Optional[str] = None
