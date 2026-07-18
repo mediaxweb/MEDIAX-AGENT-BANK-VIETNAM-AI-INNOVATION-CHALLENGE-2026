@@ -15,6 +15,8 @@ class _FakeLoanAgentService:
     def __init__(self):
         self.created_customer_user_id = None
         self.uploaded_legal_doc = None
+        self.routed_dossier_bundle = None
+        self.dispatched_dossier_bundle = None
 
     async def create_customer(self, *, user_id, payload):
         self.created_customer_user_id = user_id
@@ -52,6 +54,104 @@ class _FakeLoanAgentService:
             status="uploaded",
             created_at=NOW,
         )
+
+    async def route_dossier_bundle(self, *, user_id, files):
+        self.routed_dossier_bundle = {
+            "user_id": user_id,
+            "file_names": [file.filename for file in files],
+        }
+        return {
+            "dossier_id": "DOSSIER-20260718-DEMO0001",
+            "routing_status": "ready_to_dispatch",
+            "received_files_count": len(files),
+            "accepted_files_count": len(files),
+            "ignored_files_count": 0,
+            "needs_review_count": 0,
+            "document_registry": [],
+            "agent_packages": [
+                {
+                    "agent_name": "credit",
+                    "file_count": 0,
+                    "package_reason": "Files routed to Credit Agent.",
+                    "files": [],
+                },
+                {
+                    "agent_name": "compliance",
+                    "file_count": 0,
+                    "package_reason": "Files routed to Compliance Agent.",
+                    "files": [],
+                },
+                {
+                    "agent_name": "operations",
+                    "file_count": 0,
+                    "package_reason": "Files routed to Operations Agent.",
+                    "files": [],
+                },
+            ],
+            "needs_review_files": [],
+            "ignored_files": [],
+            "routing_trace": [],
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+
+    async def get_dossier_routing(self, *, user_id, dossier_id):
+        return {
+            "dossier_id": dossier_id,
+            "routing_status": "ready_to_dispatch",
+            "received_files_count": 0,
+            "accepted_files_count": 0,
+            "ignored_files_count": 0,
+            "needs_review_count": 0,
+            "document_registry": [],
+            "agent_packages": [],
+            "needs_review_files": [],
+            "ignored_files": [],
+            "routing_trace": [],
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+
+    async def dispatch_dossier_bundle(self, *, user_id, dossier_id, idempotency_key):
+        self.dispatched_dossier_bundle = {
+            "user_id": user_id,
+            "dossier_id": dossier_id,
+            "idempotency_key": idempotency_key,
+        }
+        return {
+            "dossier_id": dossier_id,
+            "routing_status": "dispatched",
+            "routing_batch_id": "ROUTING-BATCH-20260718-DEMO0001",
+            "message": "Planner dispatched file references.",
+            "agent_dispatches": [
+                {
+                    "agent_name": "credit",
+                    "status": "sent",
+                    "file_count": 1,
+                    "routing_batch_id": "ROUTING-BATCH-20260718-DEMO0001",
+                    "dispatched_at": NOW,
+                    "message": "File references were dispatched.",
+                    "payload": {
+                        "dossier_id": dossier_id,
+                        "routing_batch_id": "ROUTING-BATCH-20260718-DEMO0001",
+                        "agent_name": "credit",
+                        "file_count": 1,
+                        "package_reason": "Files routed to Credit Agent.",
+                        "files": [],
+                        "scope_note": ["File references only."],
+                        "created_at": NOW,
+                    },
+                }
+            ],
+            "agent_packages": [],
+            "needs_review_count": 0,
+            "needs_review_files": [],
+            "ignored_files_count": 0,
+            "ignored_files": [],
+            "routing_trace": [],
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
 
 
 def _build_client(fake_service):
@@ -97,6 +197,9 @@ def test_loan_agent_openapi_exposes_mvp_endpoints():
         ("post", "/api/v1/loan/loan-profiles/{loan_profile_id}/tasks"),
         ("post", "/api/v1/loan/loan-profiles/{loan_profile_id}/reports"),
         ("get", "/api/v1/loan/loan-profiles/{loan_profile_id}/reports"),
+        ("post", "/api/v1/loan/dossiers/route-bundle"),
+        ("get", "/api/v1/loan/dossiers/{dossier_id}/routing"),
+        ("post", "/api/v1/loan/dossiers/{dossier_id}/dispatch"),
     }
     discovered_routes = {
         (method, path)
@@ -106,7 +209,7 @@ def test_loan_agent_openapi_exposes_mvp_endpoints():
     }
 
     assert expected_routes <= discovered_routes
-    assert len(expected_routes) == 19
+    assert len(expected_routes) == 22
     assert "multipart/form-data" in paths[
         "/api/v1/loan/loan-profiles/{loan_profile_id}/legal-docs"
     ]["post"]["requestBody"]["content"]
@@ -115,6 +218,9 @@ def test_loan_agent_openapi_exposes_mvp_endpoints():
     ]["post"]["requestBody"]["content"]
     assert "multipart/form-data" in paths[
         "/api/v1/loan/loan-profiles/{loan_profile_id}/collaterals"
+    ]["post"]["requestBody"]["content"]
+    assert "multipart/form-data" in paths[
+        "/api/v1/loan/dossiers/route-bundle"
     ]["post"]["requestBody"]["content"]
 
 
@@ -163,4 +269,57 @@ def test_upload_legal_doc_accepts_multipart_file():
         "file_name": "identity.pdf",
         "doc_type": "identity",
         "description": "Citizen identity card",
+    }
+
+
+def test_route_dossier_bundle_accepts_multipart_files():
+    fake_service = _FakeLoanAgentService()
+    client = _build_client(fake_service)
+
+    response = client.post(
+        "/api/v1/loan/dossiers/route-bundle",
+        files=[
+            (
+                "files",
+                (
+                    "bctc.pdf",
+                    b"%PDF-1.4\nfinancial",
+                    "application/pdf",
+                ),
+            ),
+            (
+                "files",
+                (
+                    "cccd.pdf",
+                    b"%PDF-1.4\nidentity",
+                    "application/pdf",
+                ),
+            ),
+        ],
+    )
+
+    assert response.status_code == 201
+    assert response.json()["dossier_id"] == "DOSSIER-20260718-DEMO0001"
+    assert fake_service.routed_dossier_bundle == {
+        "user_id": "user-123",
+        "file_names": ["bctc.pdf", "cccd.pdf"],
+    }
+
+
+def test_dispatch_dossier_bundle_accepts_idempotency_key():
+    fake_service = _FakeLoanAgentService()
+    client = _build_client(fake_service)
+
+    response = client.post(
+        "/api/v1/loan/dossiers/DOSSIER-20260718-DEMO0001/dispatch",
+        json={"idempotency_key": "dispatch-demo-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["routing_status"] == "dispatched"
+    assert response.json()["routing_batch_id"] == "ROUTING-BATCH-20260718-DEMO0001"
+    assert fake_service.dispatched_dossier_bundle == {
+        "user_id": "user-123",
+        "dossier_id": "DOSSIER-20260718-DEMO0001",
+        "idempotency_key": "dispatch-demo-1",
     }

@@ -9,6 +9,23 @@ from pydantic import BaseModel, EmailStr, Field
 CheckStatus = Literal["passed", "warning", "failed"]
 ComplianceDecision = Literal["approved", "conditional", "rejected", "needs_review"]
 TaskPriority = Literal["low", "medium", "high", "urgent", "P1", "P2", "P3"]
+DossierAgentName = Literal["credit", "compliance", "operations"]
+DossierRoutingStatus = Literal[
+    "ready_to_dispatch",
+    "needs_review",
+    "dispatching",
+    "dispatched",
+    "partial_dispatch_failed",
+    "dispatch_failed",
+    "blocked_needs_review",
+    "failed",
+]
+DossierAgentDispatchStatus = Literal[
+    "sent",
+    "skipped_no_files",
+    "blocked_needs_review",
+    "failed",
+]
 
 
 class CustomerCreateRequest(BaseModel):
@@ -264,3 +281,131 @@ class ReportResponse(BaseModel):
 class ReportsListResponse(BaseModel):
     total_count: int = Field(..., ge=0)
     reports: list[ReportResponse] = Field(default_factory=list)
+
+
+class DossierIgnoredFile(BaseModel):
+    source_path: str
+    original_filename: str | None = None
+    file_type: str | None = None
+    reason: str
+
+
+class DossierDocumentRecord(BaseModel):
+    file_id: str
+    original_filename: str
+    normalized_filename: str
+    source_path: str
+    file_type: str
+    file_ref: str
+    content_type: str | None = None
+    size_bytes: int = Field(..., ge=0)
+    checksum_sha256: str
+    status: str
+    detected_document_type: str | None = None
+    business_group: str | None = None
+    target_agents: list[DossierAgentName] = Field(default_factory=list)
+    confidence: float = Field(default=0, ge=0, le=1)
+    classification_source: str | None = None
+    needs_review: bool = False
+    needs_agent_confirm: bool = False
+    reason: str | None = None
+
+
+class DossierAgentFile(BaseModel):
+    file_id: str
+    file_ref: str
+    original_filename: str
+    source_path: str
+    detected_document_type: str | None = None
+    business_group: str | None = None
+    confidence: float = Field(default=0, ge=0, le=1)
+    needs_agent_confirm: bool = False
+    reason: str | None = None
+
+
+class DossierAgentPackage(BaseModel):
+    agent_name: DossierAgentName
+    file_count: int = Field(..., ge=0)
+    package_reason: str
+    files: list[DossierAgentFile] = Field(default_factory=list)
+
+
+class DossierRoutingTraceEntry(BaseModel):
+    file_id: str | None = None
+    source_path: str
+    stage: str
+    decision: str
+    reason: str
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class DossierDispatchRequest(BaseModel):
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128)
+
+
+class DossierAgentDispatchPayload(BaseModel):
+    dossier_id: str
+    routing_batch_id: str
+    agent_name: DossierAgentName
+    file_count: int = Field(..., ge=0)
+    package_reason: str
+    files: list[DossierAgentFile] = Field(default_factory=list)
+    scope_note: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class DossierAgentDispatchResult(BaseModel):
+    agent_name: DossierAgentName
+    status: DossierAgentDispatchStatus
+    file_count: int = Field(..., ge=0)
+    routing_batch_id: str
+    dispatched_at: datetime | None = None
+    message: str
+    payload: DossierAgentDispatchPayload | None = None
+
+
+class DossierDispatchSnapshot(BaseModel):
+    routing_batch_id: str
+    idempotency_key: str | None = None
+    routing_status: DossierRoutingStatus
+    message: str
+    agent_dispatches: list[DossierAgentDispatchResult] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class DossierDispatchResponse(BaseModel):
+    id: str | None = None
+    dossier_id: str
+    routing_status: DossierRoutingStatus
+    routing_batch_id: str
+    message: str
+    agent_dispatches: list[DossierAgentDispatchResult] = Field(default_factory=list)
+    agent_packages: list[DossierAgentPackage] = Field(default_factory=list)
+    needs_review_count: int = Field(..., ge=0)
+    needs_review_files: list[DossierDocumentRecord] = Field(default_factory=list)
+    ignored_files_count: int = Field(..., ge=0)
+    ignored_files: list[DossierIgnoredFile] = Field(default_factory=list)
+    routing_trace: list[DossierRoutingTraceEntry] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class DossierRoutingResponse(BaseModel):
+    id: str | None = None
+    dossier_id: str
+    routing_status: DossierRoutingStatus
+    routing_batch_id: str | None = None
+    dispatch_message: str | None = None
+    received_files_count: int = Field(..., ge=0)
+    accepted_files_count: int = Field(..., ge=0)
+    ignored_files_count: int = Field(..., ge=0)
+    needs_review_count: int = Field(..., ge=0)
+    document_registry: list[DossierDocumentRecord] = Field(default_factory=list)
+    agent_packages: list[DossierAgentPackage] = Field(default_factory=list)
+    needs_review_files: list[DossierDocumentRecord] = Field(default_factory=list)
+    ignored_files: list[DossierIgnoredFile] = Field(default_factory=list)
+    routing_trace: list[DossierRoutingTraceEntry] = Field(default_factory=list)
+    latest_dispatch: DossierDispatchSnapshot | None = None
+    created_at: datetime
+    updated_at: datetime
