@@ -28,6 +28,28 @@ class ChatHistoryService:
         normalized_session_id = self._normalize_text(session_id)
         normalized_user_id = self._normalize_optional_text(user_id)
         serialized_sources = [self._serialize_source(source) for source in sources]
+        session_insert_fields = {
+            "session_id": normalized_session_id,
+            "title": self._build_title(user_message),
+            "created_at": now,
+            "message_count": 0,
+        }
+        session_update_fields = {
+            "updated_at": now,
+        }
+        if normalized_user_id is not None:
+            session_update_fields["user_id"] = normalized_user_id
+        else:
+            session_insert_fields["user_id"] = None
+
+        await self.database.get_chat_sessions_collection().update_one(
+            {"session_id": normalized_session_id},
+            {
+                "$setOnInsert": session_insert_fields,
+                "$set": session_update_fields,
+            },
+            upsert=True,
+        )
 
         await self.database.get_chat_messages_collection().insert_many(
             [
@@ -55,14 +77,7 @@ class ChatHistoryService:
         await self.database.get_chat_sessions_collection().update_one(
             {"session_id": normalized_session_id},
             {
-                "$setOnInsert": {
-                    "session_id": normalized_session_id,
-                    "title": self._build_title(user_message),
-                    "created_at": now,
-                    "message_count": 0,
-                },
                 "$set": {
-                    "user_id": normalized_user_id,
                     "updated_at": now,
                     "last_domain": self._normalize_text(domain),
                     "last_trace_id": self._normalize_text(trace_id),
@@ -73,7 +88,7 @@ class ChatHistoryService:
                 },
                 "$inc": {"message_count": 2},
             },
-            upsert=True,
+            upsert=False,
         )
 
     @staticmethod

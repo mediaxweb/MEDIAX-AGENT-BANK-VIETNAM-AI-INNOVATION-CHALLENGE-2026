@@ -112,6 +112,12 @@ async def chat(
                 session_id=str(session_id),
                 workflow="chat",
             )
+            log_agent_event(
+                "agent.request.raw_input",
+                session_id=str(session_id),
+                workflow="chat",
+                raw_question=request.message,
+            )
             try:
                 result: OrchestratorQuestionAnswer = await answer_question(
                     request.message,
@@ -128,6 +134,14 @@ async def chat(
                     duration_ms=int((perf_counter() - started_at) * 1000),
                 )
                 raise
+            log_agent_event(
+                "agent.response.raw_output",
+                session_id=str(session_id),
+                domain=result.domain,
+                raw_answer=result.answer,
+                insufficient_information=result.insufficient_information,
+                raw_sources=[source.model_dump(mode="json") for source in result.sources],
+            )
             log_agent_event(
                 "agent.request.completed",
                 session_id=str(session_id),

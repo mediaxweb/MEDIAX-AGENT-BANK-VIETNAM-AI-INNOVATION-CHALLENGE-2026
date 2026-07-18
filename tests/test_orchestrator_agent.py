@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import orchestrator_agent
 from compliance_agent import (
@@ -219,7 +221,45 @@ def test_unrouted_question_returns_default_clarification_answer():
     assert result.sources == []
 
 
+def test_collect_specialist_output_logs_raw_answer(monkeypatch):
+    seen_events: list[tuple[str, dict]] = []
+    draft = QuestionAnswerDraft(
+        domain="credit",
+        answer="Cần bổ sung hồ sơ pháp lý.",
+        evidence_ids=[],
+        insufficient_information=True,
+    )
+    executions: list[QuestionExecution] = []
+
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **fields: seen_events.append((event, fields)),
+    )
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "extract_trusted_evidence",
+        lambda *_args, **_kwargs: [],
+    )
+
+    raw_result = asyncio.run(
+        orchestrator_agent._collect_specialist_output(
+            SimpleNamespace(final_output=draft, new_items=[]),
+            domain="credit",
+            executions=executions,
+        )
+    )
+
+    assert json.loads(raw_result)["answer"] == "Cần bổ sung hồ sơ pháp lý."
+    assert executions[0].draft == draft
+    assert seen_events[0][0] == "agent.raw_answer"
+    assert seen_events[0][1]["agent"] == "Credit Knowledge Agent"
+    assert seen_events[0][1]["raw_output"]["answer"] == "Cần bổ sung hồ sơ pháp lý."
+
+
 def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monkeypatch):
+    seen_events: list[tuple[str, dict]] = []
+
     class FakeTool:
         def __init__(self, name):
             self.name = name
@@ -251,6 +291,11 @@ def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monke
         lambda _mcp_url: FakeServer(),
     )
     monkeypatch.setattr(orchestrator_agent.Runner, "run", fake_run)
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **fields: seen_events.append((event, fields)),
+    )
 
     execution = asyncio.run(
         execute_question("alo", "http://mcp.test/mcp", "test-model")
@@ -260,3 +305,8 @@ def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monke
     assert execution.draft.answer == DEFAULT_UNROUTED_CHAT_ANSWER
     assert execution.draft.insufficient_information is True
     assert execution.trusted_evidence == []
+    assert [
+        fields["raw_output"]["answer"]
+        for event, fields in seen_events
+        if event == "agent.raw_answer" and fields["agent"] == "Orchestrator"
+    ] == ["Tôi có thể hỗ trợ nghiệp vụ tín dụng."]
