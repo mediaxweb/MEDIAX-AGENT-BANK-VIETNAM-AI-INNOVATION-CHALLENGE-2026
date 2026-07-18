@@ -47,6 +47,7 @@ const ACCESS_TOKEN_STORAGE_KEYS = [
 const AUTH_DEMO_LOGIN_ENDPOINT = '/api/v1/auth/demo-login';
 const AUTH_ME_ENDPOINT = '/api/v1/auth/me';
 const ORCHESTRATOR_CHAT_ENDPOINT = '/api/v1/orchestrator/chat';
+const DOSSIER_ROUTE_BUNDLE_ENDPOINT = '/api/v1/loan/dossiers/route-bundle';
 const DOMAIN_LABELS = {
   general: 'Agent Planner',
   credit: 'Agent Credit',
@@ -56,6 +57,10 @@ const DOMAIN_LABELS = {
 
 let activeChatStorageKey = '';
 let state = createInitialChatState();
+let qaDossierState = {
+  files: [],
+  error: null,
+};
 
 function makeLocalId() {
   if (window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -265,6 +270,247 @@ function shortQuestionName(question) {
   const normalized = question.replace(/\s+/g, ' ').trim();
   if (!normalized) return 'Phiên hỏi đáp';
   return normalized.length > 34 ? `${normalized.slice(0, 31)}...` : normalized;
+}
+
+function dossierDispatchEndpoint(dossierId) {
+  return `/api/v1/loan/dossiers/${encodeURIComponent(dossierId)}/dispatch`;
+}
+
+function fileExtension(fileName) {
+  const parts = String(fileName || '').split('.');
+  return parts.length > 1 ? parts.pop().toLowerCase() : '';
+}
+
+function validateDossierSelection(fileList) {
+  const files = Array.from(fileList || []).filter(Boolean);
+  if (files.length === 0) {
+    return { ok: false, files: [], error: 'Chưa chọn bộ hồ sơ để nạp.' };
+  }
+
+  const invalid = files.find(file => !['pdf', 'zip'].includes(fileExtension(file.name)));
+  if (invalid) {
+    return {
+      ok: false,
+      files: [],
+      error: `Chỉ hỗ trợ file ZIP chứa PDF hoặc các file PDF. File "${invalid.name}" không được xử lý.`,
+    };
+  }
+
+  const zipFiles = files.filter(file => fileExtension(file.name) === 'zip');
+  if (zipFiles.length > 0 && files.length > 1) {
+    return {
+      ok: false,
+      files: [],
+      error: 'Chỉ chọn một file ZIP hoặc chọn nhiều file PDF. Không trộn ZIP với PDF trong cùng một lần gửi.',
+    };
+  }
+
+  return { ok: true, files, error: null };
+}
+
+function localizeDossierUploadError(message) {
+  const text = String(message || '').trim();
+  const rules = [
+    [/At least one dossier file is required/i, 'Chưa chọn bộ hồ sơ để nạp.'],
+    [/A dossier bundle can include at most/i, 'Bộ hồ sơ có quá nhiều file. Vui lòng chia nhỏ trước khi gửi.'],
+    [/Upload either one ZIP file or multiple PDF files, not both/i, 'Chỉ chọn một file ZIP hoặc chọn nhiều file PDF. Không trộn ZIP với PDF trong cùng một lần gửi.'],
+    [/Only one ZIP file is allowed/i, 'Mỗi lần chỉ được gửi một file ZIP.'],
+    [/Total dossier upload size exceeds/i, 'Tổng dung lượng bộ hồ sơ vượt giới hạn cho phép.'],
+    [/No supported dossier files were found/i, 'Không tìm thấy file PDF hợp lệ trong bộ hồ sơ.'],
+    [/The dossier bundle file must be a ZIP archive/i, 'File bộ hồ sơ phải là ZIP hoặc PDF.'],
+    [/Uploaded ZIP content type is not supported/i, 'File ZIP không đúng định dạng được hỗ trợ.'],
+    [/Uploaded ZIP file is invalid/i, 'File ZIP không hợp lệ hoặc không thể giải nén.'],
+    [/ZIP file contains an unsafe path/i, 'File ZIP có đường dẫn không an toàn nên bị từ chối.'],
+    [/Unsupported file type inside ZIP/i, 'File ZIP chỉ được chứa PDF. Vui lòng bỏ các file không phải PDF rồi gửi lại.'],
+    [/Unsupported direct upload type/i, 'Chỉ hỗ trợ file PDF khi gửi nhiều file trực tiếp.'],
+    [/Uploaded PDF content type is not supported/i, 'File PDF không đúng định dạng được hỗ trợ.'],
+  ];
+  const matched = rules.find(([pattern]) => pattern.test(text));
+  return matched ? matched[1] : text || 'Không thể nạp bộ hồ sơ.';
+}
+
+function dossierSelectionLabel(files) {
+  if (!files || files.length === 0) return 'Chưa chọn tệp';
+  if (files.length === 1) return files[0].name;
+  return `${files.length} file PDF`;
+}
+
+function dossierSelectionDetail(files) {
+  const names = (files || []).map(file => file.name);
+  if (names.length === 1) {
+    const file = files[0];
+    return `${fileExtension(file.name).toUpperCase()} · ${formatFileSize(file.size)}`;
+  }
+  if (names.length <= 3) return names.join(', ');
+  return `${names.slice(0, 3).join(', ')} và ${names.length - 3} file khác`;
+}
+
+function clearDossierSelection() {
+  qaDossierState.files = [];
+  qaDossierState.error = null;
+  const fileInput = document.getElementById('dossier-file-input');
+  if (fileInput) fileInput.value = '';
+  renderDossierComposerPreview();
+  updateComposerState();
+}
+
+function setDossierSelection(fileList) {
+  const validation = validateDossierSelection(fileList);
+  qaDossierState.files = validation.ok ? validation.files : [];
+  qaDossierState.error = validation.error;
+  if (!validation.ok) {
+    const fileInput = document.getElementById('dossier-file-input');
+    if (fileInput) fileInput.value = '';
+  }
+  renderDossierComposerPreview();
+  updateComposerState();
+}
+
+function renderDossierComposerPreview() {
+  const preview = document.getElementById('dossier-composer-preview');
+  if (!preview) return;
+
+  const hasFiles = qaDossierState.files.length > 0;
+  const hasError = Boolean(qaDossierState.error);
+  if (!hasFiles && !hasError) {
+    preview.className = 'dossier-composer-preview';
+    preview.innerHTML = '';
+    return;
+  }
+
+  preview.className = `dossier-composer-preview${hasError ? ' error' : ' ready'}`;
+  const icon = hasError ? ICON.alert : ICON.fileUp;
+  const title = hasError ? qaDossierState.error : `Đã chọn ${dossierSelectionLabel(qaDossierState.files)}`;
+  const desc = hasError
+    ? 'Bộ hồ sơ chưa được gửi.'
+    : dossierSelectionDetail(qaDossierState.files);
+  preview.innerHTML = `
+    <div class="dossier-composer-main">
+      <span class="dossier-composer-icon">${icon}</span>
+      <div class="dossier-composer-copy">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(desc)}</span>
+      </div>
+    </div>
+    <button class="btn-clear-dossier" id="btn-clear-dossier" title="Bỏ chọn bộ hồ sơ" aria-label="Bỏ chọn bộ hồ sơ">${ICON.x}</button>
+  `;
+  const clearBtn = document.getElementById('btn-clear-dossier');
+  if (clearBtn) clearBtn.addEventListener('click', clearDossierSelection);
+}
+
+function dossierDispatchStatusLabel(status) {
+  const labels = {
+    sent: 'Đã gửi',
+    skipped_no_files: 'Không có file',
+    blocked_needs_review: 'Chờ kiểm tra',
+    failed: 'Lỗi gửi',
+  };
+  return labels[status] || 'Đã xử lý';
+}
+
+function dossierTraceStatus(status) {
+  if (status === 'sent') return 'done';
+  if (status === 'skipped_no_files' || status === 'blocked_needs_review') return 'warning';
+  return status === 'failed' ? 'error' : 'done';
+}
+
+function filesFromDossierDispatch(dispatch) {
+  const payload = dispatch && dispatch.payload;
+  return Array.isArray(payload && payload.files) ? payload.files : [];
+}
+
+function formatDossierAgentFileLines(files) {
+  if (!files.length) return '  - Không có file được gửi.';
+  return files
+    .map(file => {
+      const docType = file.detected_document_type ? ` · ${file.detected_document_type}` : '';
+      return `  - ${file.original_filename || file.source_path || file.file_id}${docType}`;
+    })
+    .join('\n');
+}
+
+function formatDossierPlannerAnswer(routingData, dispatchData) {
+  const dispatches = Array.isArray(dispatchData && dispatchData.agent_dispatches)
+    ? dispatchData.agent_dispatches
+    : [];
+  const needsReviewFiles = Array.isArray(routingData && routingData.needs_review_files)
+    ? routingData.needs_review_files
+    : [];
+  const ignoredCount = Number(routingData && routingData.ignored_files_count || 0);
+  const ignoredText = ignoredCount > 0
+    ? `${ignoredCount} file hệ thống hoặc file bị bỏ qua`
+    : '0 file bị bỏ qua';
+
+  const lines = [
+    '### Kết quả Planner xử lý bộ hồ sơ',
+    `- Mã hồ sơ: \`${routingData.dossier_id}\``,
+    `- File PDF đã nhận: ${routingData.accepted_files_count || 0}`,
+    `- ${ignoredText}`,
+    `- File cần kiểm tra thủ công: ${routingData.needs_review_count || 0}`,
+    '',
+    '### Planner gửi file cho Agent chuyên gia',
+  ];
+
+  dispatches.forEach(dispatch => {
+    const files = filesFromDossierDispatch(dispatch);
+    lines.push(
+      `- ${domainLabel(dispatch.agent_name)}: ${dispatch.file_count || 0} file · ${dossierDispatchStatusLabel(dispatch.status)}`,
+      formatDossierAgentFileLines(files)
+    );
+  });
+
+  if (needsReviewFiles.length) {
+    lines.push('', '### File đang bị giữ lại để kiểm tra');
+    needsReviewFiles.forEach(file => {
+      lines.push(`- ${file.original_filename || file.source_path || file.file_id}`);
+    });
+  }
+
+  lines.push(
+    '',
+    dispatchData.message || routingData.dispatch_message || 'Planner đã hoàn tất bước điều phối file tham chiếu.'
+  );
+  return lines.join('\n');
+}
+
+function appendDossierDispatchTrace(session, routingData, dispatchData) {
+  session.traceEvents[0] = {
+    ...session.traceEvents[0],
+    status: 'done',
+    statusText: 'Đã gửi',
+  };
+  session.traceEvents.push({
+    from: 'Agent Planner',
+    to: 'Kho hồ sơ',
+    time: nowLabel(),
+    msg: `Đã phân loại ${routingData.accepted_files_count || 0} file PDF, bỏ qua ${routingData.ignored_files_count || 0} file, ${routingData.needs_review_count || 0} file cần kiểm tra.`,
+    status: routingData.needs_review_count ? 'warning' : 'done',
+    statusText: routingData.needs_review_count ? 'Cần rà soát' : 'Sẵn sàng',
+  });
+
+  const dispatches = Array.isArray(dispatchData && dispatchData.agent_dispatches)
+    ? dispatchData.agent_dispatches
+    : [];
+  dispatches.forEach(dispatch => {
+    const files = filesFromDossierDispatch(dispatch);
+    session.traceEvents.push({
+      from: 'Agent Planner',
+      to: domainLabel(dispatch.agent_name),
+      time: nowLabel(),
+      msg: `Gửi ${dispatch.file_count || 0} file tham chiếu: ${files.map(file => file.original_filename || file.source_path).join(', ') || 'không có file'}.`,
+      status: dossierTraceStatus(dispatch.status),
+      statusText: dossierDispatchStatusLabel(dispatch.status),
+    });
+  });
+
+  session.traceEvents.push({
+    from: 'Agent Planner',
+    to: 'Giao diện hỏi đáp',
+    time: nowLabel(),
+    msg: dispatchData.message || 'Đã hoàn tất điều phối bộ hồ sơ.',
+    status: dispatchData.routing_status === 'dispatched' ? 'done' : 'warning',
+    statusText: dispatchData.routing_status === 'dispatched' ? 'Hoàn thành' : 'Cần kiểm tra',
+  });
 }
 
 // ============================================================
@@ -541,6 +787,142 @@ function renderTrace() {
 // ============================================================
 // Send Message — State Machine
 // ============================================================
+async function submitComposer() {
+  const text = document.getElementById('composer-input').value.trim();
+  if (qaDossierState.error) {
+    renderDossierComposerPreview();
+    updateComposerState();
+    return;
+  }
+  if (qaDossierState.files.length > 0) {
+    await sendDossierBundle(text);
+    return;
+  }
+  await sendMessage(text);
+}
+
+async function sendDossierBundle(note = '') {
+  if (state.isProcessing) return;
+
+  const validation = validateDossierSelection(qaDossierState.files);
+  if (!validation.ok) {
+    qaDossierState.error = validation.error;
+    renderDossierComposerPreview();
+    updateComposerState();
+    return;
+  }
+
+  const selectedFiles = validation.files;
+  const input = document.getElementById('composer-input');
+  if (input) {
+    input.value = '';
+    autoResizeTextarea(input);
+  }
+
+  const session = getActiveSession();
+  const bundleLabel = dossierSelectionLabel(selectedFiles);
+  if (session.messages.filter(message => message.kind === 'user').length === 0) {
+    session.name = shortQuestionName(`Nạp bộ hồ sơ ${bundleLabel}`);
+  }
+
+  const userText = note
+    ? `Nạp bộ hồ sơ: ${bundleLabel}\n${note}`
+    : `Nạp bộ hồ sơ: ${bundleLabel}`;
+  session.messages.push({ kind: 'user', text: userText });
+  session.traceEvents = [
+    {
+      from: 'Giao diện hỏi đáp',
+      to: 'Agent Planner',
+      time: nowLabel(),
+      msg: `Đã gửi bộ hồ sơ gồm ${selectedFiles.length} tệp tới Agent Planner.`,
+      status: 'pending',
+      statusText: 'Đang gửi',
+    },
+  ];
+
+  qaDossierState.files = [];
+  qaDossierState.error = null;
+  state.isProcessing = true;
+  persistChatState();
+
+  renderDossierComposerPreview();
+  renderSessions();
+  renderChat();
+  renderChatHeader();
+  renderTrace();
+  updateComposerState();
+
+  try {
+    const formData = new FormData();
+    selectedFiles.forEach(file => formData.append('files', file, file.name));
+
+    const routeResponse = await fetch(DOSSIER_ROUTE_BUNDLE_ENDPOINT, {
+      method: 'POST',
+      headers: buildKnowledgeBaseHeaders({ Accept: 'application/json' }),
+      credentials: 'include',
+      body: formData,
+    });
+    const routingData = await readApiJson(routeResponse);
+    if (!routeResponse.ok) {
+      throw new Error(localizeDossierUploadError(apiErrorMessage(routingData, routeResponse.status)));
+    }
+
+    const idempotencyKey = `qa-dossier-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const dispatchResponse = await fetch(dossierDispatchEndpoint(routingData.dossier_id), {
+      method: 'POST',
+      headers: buildKnowledgeBaseHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      }),
+      credentials: 'include',
+      body: JSON.stringify({ idempotency_key: idempotencyKey }),
+    });
+    const dispatchData = await readApiJson(dispatchResponse);
+    if (!dispatchResponse.ok) {
+      throw new Error(localizeDossierUploadError(apiErrorMessage(dispatchData, dispatchResponse.status)));
+    }
+
+    appendDossierDispatchTrace(session, routingData, dispatchData);
+    session.messages.push({
+      kind: 'answer',
+      text: formatDossierPlannerAnswer(routingData, dispatchData),
+      domain: 'general',
+      traceId: dispatchData.routing_batch_id,
+      insufficientInformation: dispatchData.routing_status !== 'dispatched',
+      sources: [],
+    });
+  } catch (error) {
+    const errorMessage = error && error.message
+      ? error.message
+      : 'Không thể nạp và điều phối bộ hồ sơ.';
+    session.traceEvents[0] = {
+      ...session.traceEvents[0],
+      status: 'error',
+      statusText: 'Thất bại',
+    };
+    session.traceEvents.push({
+      from: 'Agent Planner',
+      to: 'Giao diện hỏi đáp',
+      time: nowLabel(),
+      msg: errorMessage,
+      status: 'error',
+      statusText: 'Lỗi',
+    });
+    session.messages.push({
+      kind: 'error',
+      text: `Không thể nạp bộ hồ sơ. ${errorMessage}`,
+    });
+  } finally {
+    state.isProcessing = false;
+    persistChatState();
+    renderTrace();
+    renderChat();
+    renderChatHeader();
+    renderSessions();
+    updateComposerState();
+  }
+}
+
 async function sendMessage(text) {
   text = (text || document.getElementById('composer-input').value).trim();
   if (!text || state.isProcessing) return;
@@ -703,9 +1085,12 @@ async function sendMessage(text) {
 function updateComposerState() {
   const input = document.getElementById('composer-input');
   const btn   = document.getElementById('btn-send');
-  if (!input || !btn) return;
-  input.disabled = state.isProcessing;
-  btn.disabled   = state.isProcessing;
+  const attachBtn = document.getElementById('btn-dossier-upload');
+  const dossierInput = document.getElementById('dossier-file-input');
+  if (input) input.disabled = state.isProcessing;
+  if (btn) btn.disabled = state.isProcessing;
+  if (attachBtn) attachBtn.disabled = state.isProcessing;
+  if (dossierInput) dossierInput.disabled = state.isProcessing;
 }
 
 function setSidebarCollapsed(collapsed) {
@@ -971,13 +1356,25 @@ document.addEventListener('DOMContentLoaded', () => {
   composerInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      submitComposer();
     }
   });
-  composerInput.addEventListener('input', () => autoResizeTextarea(composerInput));
+  composerInput.addEventListener('input', () => {
+    autoResizeTextarea(composerInput);
+    updateComposerState();
+  });
 
   // Send button
-  document.getElementById('btn-send').addEventListener('click', () => sendMessage());
+  document.getElementById('btn-send').addEventListener('click', () => submitComposer());
+
+  const dossierUploadBtn = document.getElementById('btn-dossier-upload');
+  const dossierFileInput = document.getElementById('dossier-file-input');
+  if (dossierUploadBtn && dossierFileInput) {
+    dossierUploadBtn.addEventListener('click', () => dossierFileInput.click());
+    dossierFileInput.addEventListener('change', () => {
+      setDossierSelection(dossierFileInput.files);
+    });
+  }
 
   // Source overlay: backdrop & close button
   document.getElementById('overlay-backdrop').addEventListener('click', closeSourceOverlay);

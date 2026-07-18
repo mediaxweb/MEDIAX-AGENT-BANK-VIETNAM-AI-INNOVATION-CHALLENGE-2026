@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.schemas.auth import UserResponse
 from app.api.schemas.loan_agent import (
@@ -17,6 +17,9 @@ from app.api.schemas.loan_agent import (
     CustomerCreateRequest,
     CustomerResponse,
     CustomerUpdateRequest,
+    DossierDispatchRequest,
+    DossierDispatchResponse,
+    DossierRoutingResponse,
     FinancialReportResponse,
     LoanLimitCalculationRequest,
     LoanLimitCalculationResponse,
@@ -469,6 +472,68 @@ async def list_reports(
         return await service.list_reports(
             user_id=current_user.id,
             loan_profile_id=loan_profile_id,
+        )
+    except Exception as exc:
+        _raise_loan_agent_http_error(exc)
+
+
+@router.post(
+    "/dossiers/route-bundle",
+    response_model=DossierRoutingResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Planner Agent"],
+)
+async def route_dossier_bundle(
+    files: list[UploadFile] = File(...),
+    service: LoanAgentService = Depends(get_loan_agent_service),
+    current_user: UserResponse = Depends(get_current_user),
+) -> DossierRoutingResponse:
+    try:
+        return await service.route_dossier_bundle(
+            user_id=current_user.id,
+            files=files,
+        )
+    except Exception as exc:
+        for file in files or []:
+            await file.close()
+        _raise_loan_agent_http_error(exc)
+
+
+@router.get(
+    "/dossiers/{dossier_id}/routing",
+    response_model=DossierRoutingResponse,
+    tags=["Planner Agent"],
+)
+async def get_dossier_routing(
+    dossier_id: str,
+    service: LoanAgentService = Depends(get_loan_agent_service),
+    current_user: UserResponse = Depends(get_current_user),
+) -> DossierRoutingResponse:
+    try:
+        return await service.get_dossier_routing(
+            user_id=current_user.id,
+            dossier_id=dossier_id,
+        )
+    except Exception as exc:
+        _raise_loan_agent_http_error(exc)
+
+
+@router.post(
+    "/dossiers/{dossier_id}/dispatch",
+    response_model=DossierDispatchResponse,
+    tags=["Planner Agent"],
+)
+async def dispatch_dossier_bundle(
+    dossier_id: str,
+    payload: DossierDispatchRequest | None = Body(default=None),
+    service: LoanAgentService = Depends(get_loan_agent_service),
+    current_user: UserResponse = Depends(get_current_user),
+) -> DossierDispatchResponse:
+    try:
+        return await service.dispatch_dossier_bundle(
+            user_id=current_user.id,
+            dossier_id=dossier_id,
+            idempotency_key=payload.idempotency_key if payload else None,
         )
     except Exception as exc:
         _raise_loan_agent_http_error(exc)
