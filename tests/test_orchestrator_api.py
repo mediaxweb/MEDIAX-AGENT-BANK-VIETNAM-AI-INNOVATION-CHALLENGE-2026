@@ -10,6 +10,7 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
     seen_session_ids: list[str] = []
     seen_history_sizes: list[int] = []
     seen_traces: list[tuple[str, str]] = []
+    seen_log_events: list[tuple[str, dict]] = []
 
     class FakeChatHistoryService:
         def __init__(self):
@@ -54,6 +55,11 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
 
     monkeypatch.setattr(orchestrator, "answer_question", fake_answer)
     monkeypatch.setattr(orchestrator, "trace", fake_trace)
+    monkeypatch.setattr(
+        orchestrator,
+        "log_agent_event",
+        lambda event, **fields: seen_log_events.append((event, fields)),
+    )
     monkeypatch.setattr(orchestrator, "SESSION_DB_PATH", tmp_path / "sessions.db")
     fake_history = FakeChatHistoryService()
     app = FastAPI()
@@ -90,6 +96,16 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
     assert fake_history.calls[0]["trace_id"] == "trace-test-1"
     assert fake_history.calls[0]["user_id"] is None
     assert fake_history.calls[0]["sources"][0].file_name == "policy.pdf"
+    assert [
+        fields["raw_question"]
+        for event, fields in seen_log_events
+        if event == "agent.request.raw_input"
+    ] == ["Tỷ lệ tối đa?", "Còn ô tô thì sao?"]
+    assert [
+        fields["raw_answer"]
+        for event, fields in seen_log_events
+        if event == "agent.response.raw_output"
+    ] == ["Tỷ lệ tối đa là 80%.", "Tỷ lệ tối đa là 80%."]
 
 
 def test_chat_returns_general_clarification_when_question_is_unrouted(monkeypatch, tmp_path):

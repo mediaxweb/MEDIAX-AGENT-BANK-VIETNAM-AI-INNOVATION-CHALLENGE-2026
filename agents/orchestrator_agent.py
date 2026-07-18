@@ -118,6 +118,10 @@ QuestionAnswerer = Callable[
 ]
 
 
+def _raw_question_answer_output(output: QuestionAnswerDraft) -> dict[str, Any]:
+    return output.model_dump(mode="json")
+
+
 def _compliance_input(
     application: OrchestratorApplication,
     credit: CreditAssessment,
@@ -314,6 +318,12 @@ async def _collect_specialist_output(
         )
     )
     log_agent_event(
+        "agent.raw_answer",
+        agent=f"{domain.title()} Knowledge Agent",
+        domain=domain,
+        raw_output=_raw_question_answer_output(result.final_output),
+    )
+    log_agent_event(
         "agent.output.validated",
         agent=f"{domain.title()} Knowledge Agent",
         domain=domain,
@@ -372,6 +382,11 @@ async def execute_question(
         )
     if not isinstance(result.final_output, QuestionAnswerDraft):
         raise TypeError("Orchestrator returned an invalid answer")
+    log_agent_event(
+        "agent.raw_answer",
+        agent="Orchestrator",
+        raw_output=_raw_question_answer_output(result.final_output),
+    )
     if len(executions) == 0:
         log_agent_event(
             "agent.routing.unresolved",
@@ -384,6 +399,14 @@ async def execute_question(
     if len(executions) != 1:
         raise ValueError("Orchestrator must call exactly one specialist")
     if result.final_output != executions[0].draft:
+        log_agent_event(
+            "agent.routing.output_changed",
+            stage="orchestrator_chat",
+            specialist_domain=executions[0].draft.domain,
+            orchestrator_domain=result.final_output.domain,
+            specialist_raw_output=_raw_question_answer_output(executions[0].draft),
+            orchestrator_raw_output=_raw_question_answer_output(result.final_output),
+        )
         raise ValueError("Orchestrator changed the specialist answer")
     return executions[0]
 
