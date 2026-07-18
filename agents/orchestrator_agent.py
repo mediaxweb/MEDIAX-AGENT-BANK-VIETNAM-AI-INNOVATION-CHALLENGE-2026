@@ -270,6 +270,8 @@ def build_question_agent(
             "enough context, call get_document_page with the same domain and only a source_id "
             "returned by that search. Always write the user-facing answer in Vietnamese, "
             "regardless of the user's or source document's language, and use only MCP evidence. "
+            "Return the answer as plain text only. Do not use Markdown syntax such as headings, "
+            "bold or italic markers, code fences, or Markdown lists. "
             "Put every cited source_id in evidence_ids. If evidence supports only part of the "
             "answer, cite the sources used and set insufficient_information=true. Use "
             "evidence_ids=[] only when no returned evidence supports a useful answer. Never "
@@ -291,7 +293,8 @@ def build_chat_orchestrator(specialist_tools: list[Any], model: str) -> Agent:
             "legal/compliance risk, and policy ratios; operations for workflow, checklist, "
             "S01-S11 status, SLA, priority, limits, and next actions. Return the specialist's "
             "structured result without changing its answer, domain, or evidence_ids. Every "
-            "user-facing answer must be in Vietnamese."
+            "user-facing answer must be in Vietnamese and plain text only. Do not use Markdown "
+            "syntax such as headings, bold or italic markers, code fences, or Markdown lists."
         ),
         model=model,
         tools=specialist_tools,

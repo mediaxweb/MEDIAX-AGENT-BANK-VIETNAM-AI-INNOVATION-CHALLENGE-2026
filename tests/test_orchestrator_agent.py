@@ -229,7 +229,7 @@ def test_general_question_preserves_orchestrator_answer():
     assert result.sources == []
 
 
-def test_chat_agents_require_vietnamese_user_facing_answers():
+def test_chat_agents_require_vietnamese_plain_text_answers():
     specialist = orchestrator_agent.build_question_agent(
         "credit",
         SimpleNamespace(),
@@ -239,6 +239,9 @@ def test_chat_agents_require_vietnamese_user_facing_answers():
 
     assert "Always write the user-facing answer in Vietnamese" in specialist.instructions
     assert "Every user-facing answer must be in Vietnamese" in orchestrator.instructions
+    for agent in (specialist, orchestrator):
+        assert "plain text only" in agent.instructions
+        assert "Do not use Markdown syntax" in agent.instructions
 
 
 def test_collect_specialist_output_logs_raw_answer(monkeypatch):
