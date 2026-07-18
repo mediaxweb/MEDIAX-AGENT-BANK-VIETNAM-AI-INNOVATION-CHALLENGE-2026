@@ -158,6 +158,15 @@ function formatAnswerText(value) {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
 
+function formatAssistantAnswer(value) {
+  const text = String(value ?? '');
+  if (!window.marked || !window.DOMPurify) return formatAnswerText(text);
+  return window.DOMPurify.sanitize(
+    window.marked.parse(text, { breaks: true, gfm: true }),
+    { FORBID_TAGS: ['img'] }
+  );
+}
+
 async function readApiJson(response) {
   try {
     return await response.json();
@@ -421,7 +430,7 @@ function renderChat() {
           <div class="msg-avatar ai">${ICON.sparkles}</div>
           <div class="msg-body">
             <div class="msg-author">MediaX AI Agent Bank</div>
-            <div class="msg-bubble-ai">${formatAnswerText(msg.text)}</div>
+            <div class="msg-bubble-ai">${formatAssistantAnswer(msg.text)}</div>
             <div class="msg-meta">
               <span class="msg-meta-reliability">${ICON.shield}&nbsp;${statusText}</span>
               <span class="msg-meta-agents">${ICON.users}&nbsp;${domain}</span>
