@@ -8,10 +8,14 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from agents import SQLiteSession, trace
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.core.config import configs
+from app.core.security import TokenError
+from app.services.auth_service import AuthService, InactiveUserError, UserNotFoundError
+from app.services.chat_history_service import ChatHistoryService
+from logs.logging_config import logger
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -35,6 +39,37 @@ SESSION_DB_PATH = ROOT / configs.resolved_orchestrator_session_db_path
 Message = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 
+def get_chat_history_service() -> ChatHistoryService:
+    """FastAPI dependency that instantiates the chat history service."""
+
+    return ChatHistoryService()
+
+
+def _extract_bearer_token(authorization: str | None) -> str | None:
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    normalized_token = token.strip()
+    return normalized_token or None
+
+
+async def _resolve_optional_chat_user_id(authorization: str | None) -> str | None:
+    token = _extract_bearer_token(authorization)
+    if not token:
+        return None
+    try:
+        current_user = await AuthService().get_current_user_from_token(token)
+    except (TokenError, UserNotFoundError, InactiveUserError) as exc:
+        logger.warning("Ignoring invalid chat Authorization header for history logging: %s", exc)
+        return None
+    except Exception as exc:
+        logger.warning("Unable to resolve chat user for history logging: %s", exc)
+        return None
+    return current_user.id
+
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -54,7 +89,11 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    authorization: str | None = Header(default=None),
+    chat_history_service: ChatHistoryService = Depends(get_chat_history_service),
+) -> ChatResponse:
     if not os.getenv("OPENAI_API_KEY"):
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required")
 
@@ -100,7 +139,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             trace_id = agent_trace.trace_id
     finally:
         session.close()
-    return ChatResponse(
+    response = ChatResponse(
         session_id=session_id,
         trace_id=trace_id,
         answer=result.answer,
@@ -108,3 +147,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
         insufficient_information=result.insufficient_information,
         sources=result.sources,
     )
+    try:
+        await chat_history_service.record_chat_exchange(
+            session_id=str(response.session_id),
+            user_id=await _resolve_optional_chat_user_id(authorization),
+            user_message=request.message,
+            assistant_answer=response.answer,
+            domain=response.domain,
+            trace_id=response.trace_id,
+            insufficient_information=response.insufficient_information,
+            sources=response.sources,
+        )
+    except Exception:
+        logger.warning("Failed to persist orchestrator chat history.", exc_info=True)
+    return response

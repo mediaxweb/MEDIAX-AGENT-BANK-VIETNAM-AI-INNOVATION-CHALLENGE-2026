@@ -543,10 +543,10 @@ async function sendMessage(text) {
 
     const response = await fetch(ORCHESTRATOR_CHAT_ENDPOINT, {
       method: 'POST',
-      headers: {
+      headers: buildKnowledgeBaseHeaders({
         Accept: 'application/json',
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify(payload),
     });
 
