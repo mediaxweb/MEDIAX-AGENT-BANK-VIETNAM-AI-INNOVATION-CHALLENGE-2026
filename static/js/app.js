@@ -34,11 +34,12 @@ const ICON = {
 // State
 // ============================================================
 const CHAT_STORAGE_KEY = 'mediax-agent-bank-chat-state-v1';
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'mediax-agent-bank-sidebar-collapsed-v1';
 const ORCHESTRATOR_CHAT_ENDPOINT = '/api/v1/orchestrator/chat';
 const DOMAIN_LABELS = {
-  general: 'Chung',
+  general: 'Hội thoại chung',
   credit: 'Tín dụng',
-  compliance: 'Tuân thủ',
+  compliance: 'Chính sách',
   operations: 'Vận hành',
 };
 
@@ -157,7 +158,7 @@ function getBadgeCount(label) {
 
 function getStatusIcon(status) {
   if (status === 'done')    return ICON.check;
-  if (status === 'pending') return `<span class="spinning">${ICON.loader}</span>`;
+  if (status === 'pending') return '';
   if (status === 'warning') return ICON.alert;
   if (status === 'error')   return ICON.alert;
   return '';
@@ -168,9 +169,10 @@ function getStatusEl(card) {
             : card.status === 'error' ? 'status-error'
             : 'status-warning';
   const icon = card.status === 'done'    ? ICON.check
-             : card.status === 'pending' ? `<span class="spinning">${ICON.loader}</span>`
+             : card.status === 'pending' ? ''
              : ICON.alert;
-  return `<span class="agent-card-status ${cls}">${icon} ${card.statusText}</span>`;
+  const iconHtml = icon ? `${icon} ` : '';
+  return `<span class="agent-card-status ${cls}">${iconHtml}${card.statusText}</span>`;
 }
 
 function traceCountLabel(step) {
@@ -313,7 +315,7 @@ function renderChat() {
       const sourceLinks = sources.map(source => {
         const page = source.page ? ` · trang ${escapeHtml(source.page)}` : '';
         const label = `${escapeHtml(source.file_name || source.source_id)}${page}`;
-        return `<button class="qa-source-link" data-source-id="${escapeHtml(source.source_id)}">${ICON.file}&nbsp;${label}</button>`;
+        return `<button class="qa-source-link" data-source-id="${escapeHtml(source.source_id)}">${ICON.file}<span class="qa-source-label">${label}</span></button>`;
       }).join('');
       const sourceCount = sources.length;
       const domain = domainLabel(msg.domain);
@@ -355,7 +357,6 @@ function renderChat() {
       <div class="msg-avatar ai"><span class="spinning">${ICON.loader}</span></div>
       <div class="loading-body">
         <div class="loading-title">
-          <span class="spinning" style="color:var(--purple)">${ICON.loader}</span>
           Đội chuyên gia AI đang phân tích dữ liệu...
         </div>
         <div class="skeleton-line" style="width:100%;"></div>
@@ -585,6 +586,41 @@ function updateComposerState() {
   btn.disabled   = state.isProcessing;
 }
 
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+
+  const toggle = document.getElementById('sidebar-toggle');
+  if (!toggle) return;
+
+  toggle.innerHTML = collapsed ? '&#x203A;' : '&#x2039;';
+  toggle.title = collapsed ? 'Mở rộng' : 'Thu gọn';
+  toggle.setAttribute('aria-label', collapsed ? 'Mở rộng menu' : 'Thu gọn menu');
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0');
+  } catch (_error) {
+    // Sidebar collapse still works when browser storage is unavailable.
+  }
+}
+
+function initSidebarToggle() {
+  const toggle = document.getElementById('sidebar-toggle');
+  if (!toggle) return;
+
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
+  } catch (_error) {
+    collapsed = false;
+  }
+
+  setSidebarCollapsed(collapsed);
+  toggle.addEventListener('click', () => {
+    setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
+  });
+}
+
 // ============================================================
 // Auto-resize textarea
 // ============================================================
@@ -662,6 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderChat();
   renderTrace();
   updateComposerState();
+  initSidebarToggle();
 
   // Initial page from hash
   const hash = window.location.hash;
