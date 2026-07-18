@@ -30,3 +30,5 @@ docstore/
 loan_uploads/
 hf_cache/
 .local_storage/
+
+agents/docs/
