@@ -14,6 +14,7 @@ from orchestrator_agent import (
     QuestionAnswerDraft,
     QuestionExecution,
     answer_question,
+    assemble_question_answer,
     load_application,
     run_orchestrator,
 )
@@ -179,4 +180,27 @@ def test_question_answer_routes_and_returns_only_cited_trusted_evidence():
 
     assert result.domain == "compliance"
     assert result.answer == "Tỷ lệ tối đa là 80%."
+    assert result.sources == [source]
+
+
+def test_partial_answer_can_cite_trusted_evidence():
+    source = KnowledgeEvidence(
+        source_id="source-1",
+        file_name="policy.pdf",
+        page="2",
+        excerpt="Hồ sơ phải có giấy chứng nhận quyền sở hữu.",
+    )
+    execution = QuestionExecution(
+        draft=QuestionAnswerDraft(
+            domain="credit",
+            answer="Tài liệu xác nhận một giấy tờ bắt buộc nhưng chưa đủ danh sách đầy đủ.",
+            evidence_ids=[source.source_id],
+            insufficient_information=True,
+        ),
+        trusted_evidence=[source],
+    )
+
+    result = assemble_question_answer("Cần giấy tờ gì?", execution)
+
+    assert result.insufficient_information is True
     assert result.sources == [source]

@@ -234,13 +234,16 @@ Response:
 The backend generates a UUID when `session_id` is absent. A future UI should
 store this value in browser `localStorage` and send it with later messages.
 
-Conversation context is persisted by OpenAI Agents SDK `SQLiteSession` in:
+Conversation context is persisted by OpenAI Agents SDK `SQLiteSession`. In a
+deployment it uses `STORAGE_ROOT` (or `RAILWAY_VOLUME_MOUNT_PATH`), for example:
 
 ```text
-.local_storage/orchestrator_sessions.db
+/app/data/orchestrator_sessions.db
 ```
 
-The database is local, gitignored storage intended for the single-instance MVP.
+Without a storage root it falls back to the local, gitignored
+`.local_storage/orchestrator_sessions.db`. SQLite remains intended for the
+single-instance MVP.
 There is currently no endpoint for listing sessions or loading a UI transcript.
 
 ### Agent tracing

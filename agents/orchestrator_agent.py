@@ -263,9 +263,10 @@ def build_question_agent(
             "the output. If a returned chunk lacks "
             "enough context, call get_document_page with the same domain and only a source_id "
             "returned by that search. Answer in the user's language using only MCP evidence. "
-            "Put every cited source_id in evidence_ids. If evidence is insufficient, set "
-            "insufficient_information=true, evidence_ids=[], and say that the documents do "
-            "not contain enough information. Never provide policy facts from memory."
+            "Put every cited source_id in evidence_ids. If evidence supports only part of the "
+            "answer, cite the sources used and set insufficient_information=true. Use "
+            "evidence_ids=[] only when no returned evidence supports a useful answer. Never "
+            "provide policy facts from memory."
         ),
         model=model,
         mcp_servers=[server],
@@ -372,8 +373,6 @@ def assemble_question_answer(
     unknown_ids = sorted(set(execution.draft.evidence_ids) - trusted.keys())
     if unknown_ids:
         raise ValueError(f"Unknown answer evidence ids: {', '.join(unknown_ids)}")
-    if execution.draft.insufficient_information and execution.draft.evidence_ids:
-        raise ValueError("An insufficient answer cannot cite evidence")
     if not execution.draft.insufficient_information and not execution.draft.evidence_ids:
         raise ValueError("A grounded answer must cite evidence")
     return OrchestratorQuestionAnswer(

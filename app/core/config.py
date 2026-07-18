@@ -1,4 +1,4 @@
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 from pydantic_settings import BaseSettings
@@ -65,6 +65,13 @@ class Configs(BaseSettings):
     @property
     def resolved_docstore_persist_dir(self) -> str:
         return self._resolve_persist_dir(self.docstore_persist_dir, "docstore")
+
+    @property
+    def resolved_orchestrator_session_db_path(self) -> str:
+        storage_root = self.resolved_storage_root
+        if storage_root:
+            return str(Path(storage_root) / "orchestrator_sessions.db")
+        return ".local_storage/orchestrator_sessions.db"
 
     @property
     def resolved_rag_brain_openclaw_api_key(self) -> Optional[str]:

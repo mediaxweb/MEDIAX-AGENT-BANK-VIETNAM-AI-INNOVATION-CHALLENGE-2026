@@ -11,6 +11,8 @@ from agents import SQLiteSession, trace
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+from app.core.config import configs
+
 
 ROOT = Path(__file__).resolve().parents[3]
 AGENT_SCRIPTS_DIR = ROOT / "agents"
@@ -28,7 +30,7 @@ from rag_agent_support import KnowledgeEvidence, RAGDomain, log_agent_event  # n
 
 
 router = APIRouter()
-SESSION_DB_PATH = ROOT / ".local_storage" / "orchestrator_sessions.db"
+SESSION_DB_PATH = ROOT / configs.resolved_orchestrator_session_db_path
 Message = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 
