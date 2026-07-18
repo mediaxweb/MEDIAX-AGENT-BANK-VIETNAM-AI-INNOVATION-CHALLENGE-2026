@@ -39,6 +39,8 @@ from rag_agent_support import (
 
 DEFAULT_RAG_MCP_URL = "http://127.0.0.1:8766/mcp"
 DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_UNROUTED_CHAT_ANSWER = "Dạ anh/chị cần hỗ trợ gì ko ạ"
+ChatDomain = Literal["credit", "compliance", "operations", "general"]
 OverallResult = Literal["READY", "REVIEW_REQUIRED", "BLOCKED", "UNDETERMINED"]
 Stage = Literal["credit", "compliance"]
 
@@ -91,7 +93,7 @@ class OrchestratorAssessment(StrictModel):
 
 
 class QuestionAnswerDraft(StrictModel):
-    domain: RAGDomain
+    domain: ChatDomain
     answer: str
     evidence_ids: list[str]
     insufficient_information: bool = False
@@ -104,7 +106,7 @@ class QuestionExecution(StrictModel):
 
 class OrchestratorQuestionAnswer(StrictModel):
     question: str
-    domain: RAGDomain
+    domain: ChatDomain
     answer: str
     insufficient_information: bool
     sources: list[KnowledgeEvidence]
@@ -322,6 +324,18 @@ async def _collect_specialist_output(
     return result.final_output.model_dump_json()
 
 
+def build_unrouted_question_execution() -> QuestionExecution:
+    return QuestionExecution(
+        draft=QuestionAnswerDraft(
+            domain="general",
+            answer=DEFAULT_UNROUTED_CHAT_ANSWER,
+            evidence_ids=[],
+            insufficient_information=True,
+        ),
+        trusted_evidence=[],
+    )
+
+
 async def execute_question(
     question: str,
     mcp_url: str,
@@ -358,6 +372,15 @@ async def execute_question(
         )
     if not isinstance(result.final_output, QuestionAnswerDraft):
         raise TypeError("Orchestrator returned an invalid answer")
+    if len(executions) == 0:
+        log_agent_event(
+            "agent.routing.unresolved",
+            stage="orchestrator_chat",
+            reason="no_specialist_called",
+            orchestrator_domain=result.final_output.domain,
+            insufficient_information=result.final_output.insufficient_information,
+        )
+        return build_unrouted_question_execution()
     if len(executions) != 1:
         raise ValueError("Orchestrator must call exactly one specialist")
     if result.final_output != executions[0].draft:
@@ -369,6 +392,14 @@ def assemble_question_answer(
     question: str,
     execution: QuestionExecution,
 ) -> OrchestratorQuestionAnswer:
+    if execution.draft.domain == "general":
+        return OrchestratorQuestionAnswer(
+            question=question,
+            domain=execution.draft.domain,
+            answer=execution.draft.answer,
+            insufficient_information=True,
+            sources=[],
+        )
     trusted = evidence_by_id(execution.trusted_evidence)
     unknown_ids = sorted(set(execution.draft.evidence_ids) - trusted.keys())
     if unknown_ids:

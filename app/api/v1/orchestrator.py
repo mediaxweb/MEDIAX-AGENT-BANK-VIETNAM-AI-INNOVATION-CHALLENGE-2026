@@ -21,12 +21,13 @@ if str(AGENT_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_SCRIPTS_DIR))
 
 from orchestrator_agent import (  # noqa: E402
+    ChatDomain,
     DEFAULT_MODEL,
     DEFAULT_RAG_MCP_URL,
     OrchestratorQuestionAnswer,
     answer_question,
 )
-from rag_agent_support import KnowledgeEvidence, RAGDomain, log_agent_event  # noqa: E402
+from rag_agent_support import KnowledgeEvidence, log_agent_event  # noqa: E402
 
 
 router = APIRouter()
@@ -47,7 +48,7 @@ class ChatResponse(BaseModel):
     session_id: UUID
     trace_id: str
     answer: str
-    domain: RAGDomain
+    domain: ChatDomain
     insufficient_information: bool
     sources: list[KnowledgeEvidence]
 
