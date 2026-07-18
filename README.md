@@ -235,6 +235,8 @@ MediaX Agent Bank currently provides three specialist agents:
   compliance risk.
 - `agents/operations_agent.py` calculates the completion checklist and final
   limit, selects S01-S11 status, SLA, priority, and ordered actions.
+- `agents/orchestrator_agent.py` runs the fixed Credit → Compliance → Operations
+  workflow and passes only validated upstream results to the next agent.
 
 All three accept normalized JSON, return structured results, and fail closed when
 data or trusted policy evidence is missing. `execution_mode="assess"` is the
@@ -312,6 +314,27 @@ Run Operations Agent examples:
 & '.\.venv\Scripts\python.exe' agents/operations_agent.py --input examples/operations_personal.json
 & '.\.venv\Scripts\python.exe' agents/operations_agent.py --input examples/operations_sme.json
 ```
+
+Run the full SME workflow through the Orchestrator:
+
+```powershell
+& '.\.venv\Scripts\python.exe' agents/orchestrator_agent.py `
+  --credit-input examples/credit_sme.json `
+  --compliance-input examples/compliance_sme.json `
+  --operations-input examples/operations_sme.json
+```
+
+Ask a natural-language question through the Orchestrator and the routed
+specialist knowledge agent:
+
+```powershell
+& '.\.venv\Scripts\python.exe' agents/orchestrator_agent.py `
+  --ask "Tỷ lệ cho vay tối đa đối với tài sản bảo đảm là nhà đất là bao nhiêu?"
+```
+
+Question mode is read-only. It routes one question to Credit, Compliance, or
+Operations, retrieves policy evidence through MCP, and prints the grounded
+answer with cited sources.
 
 ## Getting started
 
