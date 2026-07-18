@@ -279,7 +279,7 @@ API returns a clarification response instead of failing the request:
 {
   "session_id": "13ba1bdb-1447-4204-902f-178ff457b767",
   "trace_id": "trace_<openai-trace-id>",
-  "answer": "Dạ anh/chị cần hỗ trợ gì ko ạ",
+  "answer": "Câu hỏi hiện chưa thuộc phạm vi hỗ trợ của MediaX Agent Bank. Vui lòng nhập câu hỏi liên quan đến hồ sơ vay, tín dụng, pháp lý, chính sách hoặc quy trình ngân hàng.",
   "domain": "general",
   "insufficient_information": true,
   "sources": []
