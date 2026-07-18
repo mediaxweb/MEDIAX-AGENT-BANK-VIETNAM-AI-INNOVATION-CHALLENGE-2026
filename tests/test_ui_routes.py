@@ -31,6 +31,20 @@ def test_ui_routes_are_hidden_from_openapi():
     assert "/documents" not in paths
 
 
+def test_ui_offers_ten_demo_accounts_without_credentials_form():
+    html = TestClient(app).get("/qa").text
+
+    assert html.count("data-demo-account=") == 10
+    assert 'id="auth-form"' not in html
+
+
+def test_chat_storage_is_scoped_to_the_authenticated_user():
+    script = TestClient(app).get("/static/js/app.js").text
+
+    assert "`${CHAT_STORAGE_KEY}:${userId}`" in script
+    assert "localStorage.setItem(\n      activeChatStorageKey," in script
+
+
 def test_ui_renders_only_assistant_markdown_with_sanitization():
     client = TestClient(app)
 
