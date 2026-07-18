@@ -39,7 +39,7 @@ from rag_agent_support import (
 
 DEFAULT_RAG_MCP_URL = "http://127.0.0.1:8766/mcp"
 DEFAULT_MODEL = "gpt-5.4-mini"
-DEFAULT_UNROUTED_CHAT_ANSWER = "Dạ anh/chị cần hỗ trợ gì ko ạ"
+DEFAULT_LLM_ERROR_CHAT_ANSWER = "Dạ anh/chị cần hỗ trợ gì ko ạ"
 ChatDomain = Literal["credit", "compliance", "operations", "general"]
 OverallResult = Literal["READY", "REVIEW_REQUIRED", "BLOCKED", "UNDETERMINED"]
 Stage = Literal["credit", "compliance"]
@@ -334,18 +334,6 @@ async def _collect_specialist_output(
     return result.final_output.model_dump_json()
 
 
-def build_unrouted_question_execution() -> QuestionExecution:
-    return QuestionExecution(
-        draft=QuestionAnswerDraft(
-            domain="general",
-            answer=DEFAULT_UNROUTED_CHAT_ANSWER,
-            evidence_ids=[],
-            insufficient_information=True,
-        ),
-        trusted_evidence=[],
-    )
-
-
 async def execute_question(
     question: str,
     mcp_url: str,
@@ -395,7 +383,7 @@ async def execute_question(
             orchestrator_domain=result.final_output.domain,
             insufficient_information=result.final_output.insufficient_information,
         )
-        return build_unrouted_question_execution()
+        return QuestionExecution(draft=result.final_output, trusted_evidence=[])
     if len(executions) != 1:
         raise ValueError("Orchestrator must call exactly one specialist")
     if result.final_output != executions[0].draft:

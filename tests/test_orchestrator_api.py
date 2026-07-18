@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from openai import OpenAIError
 
 from app.api.v1 import orchestrator
-from orchestrator_agent import DEFAULT_UNROUTED_CHAT_ANSWER, OrchestratorQuestionAnswer
+from orchestrator_agent import DEFAULT_LLM_ERROR_CHAT_ANSWER, OrchestratorQuestionAnswer
 from rag_agent_support import KnowledgeEvidence
 
 
@@ -108,7 +109,7 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
     ] == ["Tỷ lệ tối đa là 80%.", "Tỷ lệ tối đa là 80%."]
 
 
-def test_chat_returns_general_clarification_when_question_is_unrouted(monkeypatch, tmp_path):
+def test_chat_preserves_general_answer_when_question_is_unrouted(monkeypatch, tmp_path):
     class FakeTrace:
         trace_id = "trace-unrouted"
 
@@ -122,7 +123,7 @@ def test_chat_returns_general_clarification_when_question_is_unrouted(monkeypatc
         return OrchestratorQuestionAnswer(
             question=question,
             domain="general",
-            answer=DEFAULT_UNROUTED_CHAT_ANSWER,
+            answer="Chào anh/chị, em có thể hỗ trợ gì ạ?",
             insufficient_information=True,
             sources=[],
         )
@@ -138,6 +139,55 @@ def test_chat_returns_general_clarification_when_question_is_unrouted(monkeypatc
 
     assert response.status_code == 200
     assert response.json()["domain"] == "general"
-    assert response.json()["answer"] == DEFAULT_UNROUTED_CHAT_ANSWER
+    assert response.json()["answer"] == "Chào anh/chị, em có thể hỗ trợ gì ạ?"
     assert response.json()["insufficient_information"] is True
     assert response.json()["sources"] == []
+
+
+def test_chat_returns_fixed_answer_when_llm_call_fails(monkeypatch, tmp_path):
+    seen_log_events: list[tuple[str, dict]] = []
+
+    class FakeChatHistoryService:
+        async def record_chat_exchange(self, **_kwargs):
+            return None
+
+    class FakeTrace:
+        trace_id = "trace-llm-error"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    async def fake_answer(_question, **_kwargs):
+        raise OpenAIError("quota exceeded")
+
+    monkeypatch.setattr(orchestrator, "answer_question", fake_answer)
+    monkeypatch.setattr(orchestrator, "trace", lambda *_args, **_kwargs: FakeTrace())
+    monkeypatch.setattr(
+        orchestrator,
+        "log_agent_event",
+        lambda event, **fields: seen_log_events.append((event, fields)),
+    )
+    monkeypatch.setattr(orchestrator, "SESSION_DB_PATH", tmp_path / "sessions.db")
+    app = FastAPI()
+    app.dependency_overrides[orchestrator.get_chat_history_service] = (
+        lambda: FakeChatHistoryService()
+    )
+    app.include_router(orchestrator.router, prefix="/api/v1/orchestrator")
+    client = TestClient(app)
+
+    response = client.post("/api/v1/orchestrator/chat", json={"message": "hi"})
+
+    assert response.status_code == 200
+    assert response.json()["trace_id"] == "trace-llm-error"
+    assert response.json()["domain"] == "general"
+    assert response.json()["answer"] == DEFAULT_LLM_ERROR_CHAT_ANSWER
+    assert response.json()["insufficient_information"] is True
+    assert response.json()["sources"] == []
+    assert [
+        fields["error_type"]
+        for event, fields in seen_log_events
+        if event == "agent.request.llm_fallback"
+    ] == ["OpenAIError"]
