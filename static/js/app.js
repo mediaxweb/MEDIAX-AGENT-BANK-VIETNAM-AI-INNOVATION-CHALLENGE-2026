@@ -36,6 +36,7 @@ const ICON = {
 const CHAT_STORAGE_KEY = 'mediax-agent-bank-chat-state-v1';
 const ORCHESTRATOR_CHAT_ENDPOINT = '/api/v1/orchestrator/chat';
 const DOMAIN_LABELS = {
+  general: 'Chung',
   credit: 'Tín dụng',
   compliance: 'Tuân thủ',
   operations: 'Vận hành',
@@ -494,34 +495,47 @@ async function sendMessage(text) {
       status: 'done',
       statusText: 'Đã gửi',
     };
-    session.traceEvents.push(
-      {
-        from: 'Orchestrator',
-        to: `${domainLabel(data.domain)} Agent`,
-        time: nowLabel(),
-        msg: `Đã chọn miền ${domainLabel(data.domain)} để xử lý câu hỏi.`,
-        status: 'done',
-        statusText: 'Đã điều phối',
-      },
-      {
-        from: `${domainLabel(data.domain)} Agent`,
-        to: 'MCP / RAG',
-        time: nowLabel(),
-        msg: data.insufficient_information
-          ? 'Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.'
-          : `Đã truy xuất ${sourceIds.length} nguồn từ kho tri thức.`,
-        status: data.insufficient_information ? 'warning' : 'done',
-        statusText: data.insufficient_information ? 'Thiếu dữ liệu' : 'Có nguồn',
-      },
-      {
+    if (data.domain === 'general') {
+      session.traceEvents.push({
         from: 'Orchestrator',
         to: 'Giao diện QA',
         time: nowLabel(),
-        msg: data.trace_id ? `Đã trả lời. Trace: ${data.trace_id}` : 'Đã trả lời.',
-        status: data.insufficient_information ? 'warning' : 'done',
-        statusText: data.insufficient_information ? 'Cần kiểm tra' : 'Hoàn thành',
-      }
-    );
+        msg: data.trace_id
+          ? `Chưa xác định miền xử lý. Trace: ${data.trace_id}`
+          : 'Chưa xác định miền xử lý.',
+        status: 'warning',
+        statusText: 'Cần làm rõ',
+      });
+    } else {
+      session.traceEvents.push(
+        {
+          from: 'Orchestrator',
+          to: `${domainLabel(data.domain)} Agent`,
+          time: nowLabel(),
+          msg: `Đã chọn miền ${domainLabel(data.domain)} để xử lý câu hỏi.`,
+          status: 'done',
+          statusText: 'Đã điều phối',
+        },
+        {
+          from: `${domainLabel(data.domain)} Agent`,
+          to: 'MCP / RAG',
+          time: nowLabel(),
+          msg: data.insufficient_information
+            ? 'Tài liệu hiện có chưa đủ thông tin để trả lời chắc chắn.'
+            : `Đã truy xuất ${sourceIds.length} nguồn từ kho tri thức.`,
+          status: data.insufficient_information ? 'warning' : 'done',
+          statusText: data.insufficient_information ? 'Thiếu dữ liệu' : 'Có nguồn',
+        },
+        {
+          from: 'Orchestrator',
+          to: 'Giao diện QA',
+          time: nowLabel(),
+          msg: data.trace_id ? `Đã trả lời. Trace: ${data.trace_id}` : 'Đã trả lời.',
+          status: data.insufficient_information ? 'warning' : 'done',
+          statusText: data.insufficient_information ? 'Cần kiểm tra' : 'Hoàn thành',
+        }
+      );
+    }
 
     session.messages.push({
       kind: 'answer',

@@ -243,6 +243,20 @@ Response:
 }
 ```
 
+If the Orchestrator cannot confidently route a user turn to one specialist, the
+API returns a clarification response instead of failing the request:
+
+```json
+{
+  "session_id": "13ba1bdb-1447-4204-902f-178ff457b767",
+  "trace_id": "trace_<openai-trace-id>",
+  "answer": "Dạ anh/chị cần hỗ trợ gì ko ạ",
+  "domain": "general",
+  "insufficient_information": true,
+  "sources": []
+}
+```
+
 The backend generates a UUID when `session_id` is absent. A future UI should
 store this value in browser `localStorage` and send it with later messages.
 

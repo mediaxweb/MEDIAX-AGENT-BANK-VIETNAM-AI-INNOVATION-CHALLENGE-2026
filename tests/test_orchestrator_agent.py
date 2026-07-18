@@ -4,6 +4,7 @@ import asyncio
 from decimal import Decimal
 from pathlib import Path
 
+import orchestrator_agent
 from compliance_agent import (
     ComplianceAssessment,
     calculate_compliance_facts,
@@ -11,10 +12,13 @@ from compliance_agent import (
 from credit_agent import CreditAssessment, calculate_credit_facts
 from operations_agent import OperationsAssessment, calculate_operations_facts
 from orchestrator_agent import (
+    DEFAULT_UNROUTED_CHAT_ANSWER,
     QuestionAnswerDraft,
     QuestionExecution,
     answer_question,
     assemble_question_answer,
+    build_unrouted_question_execution,
+    execute_question,
     load_application,
     run_orchestrator,
 )
@@ -204,3 +208,55 @@ def test_partial_answer_can_cite_trusted_evidence():
 
     assert result.insufficient_information is True
     assert result.sources == [source]
+
+
+def test_unrouted_question_returns_default_clarification_answer():
+    result = assemble_question_answer("alo", build_unrouted_question_execution())
+
+    assert result.domain == "general"
+    assert result.answer == DEFAULT_UNROUTED_CHAT_ANSWER
+    assert result.insufficient_information is True
+    assert result.sources == []
+
+
+def test_execute_question_falls_back_when_orchestrator_calls_no_specialist(monkeypatch):
+    class FakeTool:
+        def __init__(self, name):
+            self.name = name
+
+    class FakeServer:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def list_tools(self):
+            return [FakeTool("search_knowledge"), FakeTool("get_document_page")]
+
+    class FakeRunResult:
+        final_output = QuestionAnswerDraft(
+            domain="credit",
+            answer="Tôi có thể hỗ trợ nghiệp vụ tín dụng.",
+            evidence_ids=[],
+            insufficient_information=True,
+        )
+
+    async def fake_run(*_args, **_kwargs):
+        return FakeRunResult()
+
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "build_question_mcp_server",
+        lambda _mcp_url: FakeServer(),
+    )
+    monkeypatch.setattr(orchestrator_agent.Runner, "run", fake_run)
+
+    execution = asyncio.run(
+        execute_question("alo", "http://mcp.test/mcp", "test-model")
+    )
+
+    assert execution.draft.domain == "general"
+    assert execution.draft.answer == DEFAULT_UNROUTED_CHAT_ANSWER
+    assert execution.draft.insufficient_information is True
+    assert execution.trusted_evidence == []

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1 import orchestrator
-from orchestrator_agent import OrchestratorQuestionAnswer
+from orchestrator_agent import DEFAULT_UNROUTED_CHAT_ANSWER, OrchestratorQuestionAnswer
 from rag_agent_support import KnowledgeEvidence
 
 
@@ -71,3 +71,38 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
         ("MediaX Agent Bank Chat", session_id),
         ("MediaX Agent Bank Chat", session_id),
     ]
+
+
+def test_chat_returns_general_clarification_when_question_is_unrouted(monkeypatch, tmp_path):
+    class FakeTrace:
+        trace_id = "trace-unrouted"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    async def fake_answer(question, **kwargs):
+        return OrchestratorQuestionAnswer(
+            question=question,
+            domain="general",
+            answer=DEFAULT_UNROUTED_CHAT_ANSWER,
+            insufficient_information=True,
+            sources=[],
+        )
+
+    monkeypatch.setattr(orchestrator, "answer_question", fake_answer)
+    monkeypatch.setattr(orchestrator, "trace", lambda *_args, **_kwargs: FakeTrace())
+    monkeypatch.setattr(orchestrator, "SESSION_DB_PATH", tmp_path / "sessions.db")
+    app = FastAPI()
+    app.include_router(orchestrator.router, prefix="/api/v1/orchestrator")
+    client = TestClient(app)
+
+    response = client.post("/api/v1/orchestrator/chat", json={"message": "alo"})
+
+    assert response.status_code == 200
+    assert response.json()["domain"] == "general"
+    assert response.json()["answer"] == DEFAULT_UNROUTED_CHAT_ANSWER
+    assert response.json()["insufficient_information"] is True
+    assert response.json()["sources"] == []
