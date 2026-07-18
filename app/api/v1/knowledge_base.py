@@ -4,7 +4,16 @@ import unicodedata
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from starlette.concurrency import run_in_threadpool
 
 from app.api.schemas.auth import UserResponse
@@ -31,6 +40,7 @@ router = APIRouter()
 
 PDF_SIGNATURE = b"%PDF"
 UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
+TARGET_USER_SCOPE_DISABLED_DETAIL = "Target user knowledge-base access is disabled."
 
 
 def get_knowledge_base_service() -> KnowledgeBaseService:
@@ -91,26 +101,49 @@ async def _save_uploaded_pdf(file: UploadFile, *, file_name: str) -> Path:
     return temp_path
 
 
+def _resolve_knowledge_base_owner_user_id(
+    current_user: UserResponse,
+    requested_user_id: str | None,
+) -> str:
+    current_user_id = str(current_user.id).strip()
+    target_user_id = str(requested_user_id or "").strip()
+    if not target_user_id or target_user_id == current_user_id:
+        return current_user_id
+
+    if not configs.allow_kb_target_user_upload:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=TARGET_USER_SCOPE_DISABLED_DETAIL,
+        )
+
+    return target_user_id
+
+
 @router.post("/process-document", response_model=KnowledgeBaseProcessResponse)
 async def process_document(
     file: UploadFile = File(..., description="Text-based PDF file to ingest."),
+    user_id: str | None = Form(
+        default=None,
+        description="Optional target user id for the knowledge base owner when enabled.",
+    ),
     service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     current_user: UserResponse = Depends(get_current_user),
 ) -> KnowledgeBaseProcessResponse:
-    """Ingest one uploaded PDF into the current user's knowledge base."""
+    """Ingest one uploaded PDF into a user-scoped knowledge base."""
 
+    owner_user_id = _resolve_knowledge_base_owner_user_id(current_user, user_id)
     document_path = ""
     temp_path: Path | None = None
     try:
         document_path = _uploaded_file_name(file)
         await service.record_user_file_indexing(
-            user_id=current_user.id,
+            user_id=owner_user_id,
             document_path=document_path,
         )
 
         temp_path = await _save_uploaded_pdf(file, file_name=document_path)
         payload = KnowledgeBaseProcessDocumentRequest(document_path=str(temp_path))
-        collection_name = KnowledgeBaseService._collection_name_for_user(current_user.id)
+        collection_name = KnowledgeBaseService._collection_name_for_user(owner_user_id)
         result = await run_in_threadpool(
             partial(
                 service.process_document_for_collection,
@@ -124,7 +157,7 @@ async def process_document(
         )
 
         await service.record_user_indexed_file(
-            user_id=current_user.id,
+            user_id=owner_user_id,
             document_path=document_path,
             result=result,
         )
@@ -137,7 +170,7 @@ async def process_document(
     except ValueError as exc:
         if document_path:
             await service.record_user_indexed_file_failed(
-                user_id=current_user.id,
+                user_id=owner_user_id,
                 document_path=document_path,
                 error=str(exc),
             )
@@ -146,7 +179,7 @@ async def process_document(
     except Exception as exc:  # pragma: no cover - unexpected failure path
         if document_path:
             await service.record_user_indexed_file_failed(
-                user_id=current_user.id,
+                user_id=owner_user_id,
                 document_path=document_path,
                 error=str(exc),
             )
@@ -223,11 +256,13 @@ async def get_chunk_detail(
 async def _list_knowledge_base_files(
     service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     current_user: UserResponse = Depends(get_current_user),
+    user_id: str | None = None,
 ) -> KnowledgeBaseIndexedFilesResponse:
-    """Return files tracked in the current user's knowledge base registry."""
+    """Return files tracked in a user-scoped knowledge base registry."""
 
+    owner_user_id = _resolve_knowledge_base_owner_user_id(current_user, user_id)
     try:
-        indexed_files = await service.list_indexed_files(user_id=current_user.id)
+        indexed_files = await service.list_indexed_files(user_id=owner_user_id)
         files = [
             KnowledgeBaseIndexedFile(
                 file_name=item.file_name,
@@ -254,12 +289,20 @@ async def _list_knowledge_base_files(
 
 @router.get("/files", response_model=KnowledgeBaseIndexedFilesResponse)
 async def list_knowledge_base_files(
+    user_id: str | None = Query(
+        default=None,
+        description="Optional target user id for the knowledge base owner when enabled.",
+    ),
     service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     current_user: UserResponse = Depends(get_current_user),
 ) -> KnowledgeBaseIndexedFilesResponse:
-    """Return files tracked in the current user's knowledge base registry."""
+    """Return files tracked in a user-scoped knowledge base registry."""
 
-    return await _list_knowledge_base_files(service=service, current_user=current_user)
+    return await _list_knowledge_base_files(
+        service=service,
+        current_user=current_user,
+        user_id=user_id,
+    )
 
 
 @router.delete("/files", response_model=KnowledgeBaseDeleteFileResponse)
@@ -296,9 +339,17 @@ async def delete_knowledge_base_file(
     include_in_schema=False,
 )
 async def list_indexed_files(
+    user_id: str | None = Query(
+        default=None,
+        description="Optional target user id for the knowledge base owner when enabled.",
+    ),
     service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     current_user: UserResponse = Depends(get_current_user),
 ) -> KnowledgeBaseIndexedFilesResponse:
     """Backward-compatible alias for the original indexed files endpoint."""
 
-    return await _list_knowledge_base_files(service=service, current_user=current_user)
+    return await _list_knowledge_base_files(
+        service=service,
+        current_user=current_user,
+        user_id=user_id,
+    )
