@@ -40,6 +40,10 @@ from rag_agent_support import (
 DEFAULT_RAG_MCP_URL = "http://127.0.0.1:8766/mcp"
 DEFAULT_MODEL = "gpt-5.4-mini"
 DEFAULT_LLM_ERROR_CHAT_ANSWER = "Dạ anh/chị cần hỗ trợ gì ko ạ"
+DEFAULT_UNROUTED_CHAT_ANSWER = (
+    "Câu hỏi hiện chưa thuộc phạm vi hỗ trợ của MediaX Agent Bank. Vui lòng nhập "
+    "câu hỏi liên quan đến hồ sơ vay, tín dụng, pháp lý, chính sách hoặc quy trình ngân hàng."
+)
 ChatDomain = Literal["credit", "compliance", "operations", "general"]
 OverallResult = Literal["READY", "REVIEW_REQUIRED", "BLOCKED", "UNDETERMINED"]
 Stage = Literal["credit", "compliance"]
@@ -292,8 +296,11 @@ def build_chat_orchestrator(specialist_tools: list[Any], model: str) -> Agent:
             "and opening a loan case; compliance for financial capacity, repayment, collateral, "
             "legal/compliance risk, and policy ratios; operations for workflow, checklist, "
             "S01-S11 status, SLA, priority, limits, and next actions. Return the specialist's "
-            "structured result without changing its answer, domain, or evidence_ids. Every "
-            "user-facing answer must be in Vietnamese and plain text only. Do not use Markdown "
+            "structured result without changing its answer, domain, or evidence_ids. "
+            "If no specialist applies, do not answer the out-of-scope request. Return "
+            f"domain='general', answer='{DEFAULT_UNROUTED_CHAT_ANSWER}', evidence_ids=[], "
+            "and insufficient_information=true without calling a tool. "
+            "Every user-facing answer must be in Vietnamese and plain text only. Do not use Markdown "
             "syntax such as headings, bold or italic markers, code fences, or Markdown lists."
         ),
         model=model,
@@ -411,7 +418,7 @@ def assemble_question_answer(
         return OrchestratorQuestionAnswer(
             question=question,
             domain=execution.draft.domain,
-            answer=execution.draft.answer,
+            answer=DEFAULT_UNROUTED_CHAT_ANSWER,
             insufficient_information=True,
             sources=[],
         )

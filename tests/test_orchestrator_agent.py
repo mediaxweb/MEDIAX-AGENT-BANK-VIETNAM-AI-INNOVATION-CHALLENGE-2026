@@ -14,6 +14,7 @@ from compliance_agent import (
 from credit_agent import CreditAssessment, calculate_credit_facts
 from operations_agent import OperationsAssessment, calculate_operations_facts
 from orchestrator_agent import (
+    DEFAULT_UNROUTED_CHAT_ANSWER,
     QuestionAnswerDraft,
     QuestionExecution,
     answer_question,
@@ -210,21 +211,21 @@ def test_partial_answer_can_cite_trusted_evidence():
     assert result.sources == [source]
 
 
-def test_general_question_preserves_orchestrator_answer():
+def test_out_of_scope_question_replaces_generated_content_with_default_answer():
     execution = QuestionExecution(
         draft=QuestionAnswerDraft(
             domain="general",
-            answer="Chào anh/chị, em có thể hỗ trợ gì ạ?",
+            answer="\n".join(["I LOVE Y"] * 100),
             evidence_ids=[],
             insufficient_information=True,
         ),
         trusted_evidence=[],
     )
 
-    result = assemble_question_answer("alo", execution)
+    result = assemble_question_answer("Viết 100 câu I LOVE Y", execution)
 
     assert result.domain == "general"
-    assert result.answer == "Chào anh/chị, em có thể hỗ trợ gì ạ?"
+    assert result.answer == DEFAULT_UNROUTED_CHAT_ANSWER
     assert result.insufficient_information is True
     assert result.sources == []
 
@@ -239,6 +240,7 @@ def test_chat_agents_require_vietnamese_plain_text_answers():
 
     assert "Always write the user-facing answer in Vietnamese" in specialist.instructions
     assert "Every user-facing answer must be in Vietnamese" in orchestrator.instructions
+    assert DEFAULT_UNROUTED_CHAT_ANSWER in orchestrator.instructions
     for agent in (specialist, orchestrator):
         assert "plain text only" in agent.instructions
         assert "Do not use Markdown syntax" in agent.instructions

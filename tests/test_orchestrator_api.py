@@ -3,7 +3,11 @@ from fastapi.testclient import TestClient
 from openai import OpenAIError
 
 from app.api.v1 import orchestrator
-from orchestrator_agent import DEFAULT_LLM_ERROR_CHAT_ANSWER, OrchestratorQuestionAnswer
+from orchestrator_agent import (
+    DEFAULT_LLM_ERROR_CHAT_ANSWER,
+    DEFAULT_UNROUTED_CHAT_ANSWER,
+    OrchestratorQuestionAnswer,
+)
 from rag_agent_support import KnowledgeEvidence
 
 
@@ -109,7 +113,7 @@ def test_anonymous_chat_creates_and_reuses_session_id(monkeypatch, tmp_path):
     ] == ["Tỷ lệ tối đa là 80%.", "Tỷ lệ tối đa là 80%."]
 
 
-def test_chat_preserves_general_answer_when_question_is_unrouted(monkeypatch, tmp_path):
+def test_chat_returns_default_answer_when_question_is_unrouted(monkeypatch, tmp_path):
     class FakeTrace:
         trace_id = "trace-unrouted"
 
@@ -123,7 +127,7 @@ def test_chat_preserves_general_answer_when_question_is_unrouted(monkeypatch, tm
         return OrchestratorQuestionAnswer(
             question=question,
             domain="general",
-            answer="Chào anh/chị, em có thể hỗ trợ gì ạ?",
+            answer=DEFAULT_UNROUTED_CHAT_ANSWER,
             insufficient_information=True,
             sources=[],
         )
@@ -139,7 +143,7 @@ def test_chat_preserves_general_answer_when_question_is_unrouted(monkeypatch, tm
 
     assert response.status_code == 200
     assert response.json()["domain"] == "general"
-    assert response.json()["answer"] == "Chào anh/chị, em có thể hỗ trợ gì ạ?"
+    assert response.json()["answer"] == DEFAULT_UNROUTED_CHAT_ANSWER
     assert response.json()["insufficient_information"] is True
     assert response.json()["sources"] == []
 
