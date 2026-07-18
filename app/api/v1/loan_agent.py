@@ -397,7 +397,7 @@ async def create_checklist(
 )
 async def calculate_loan_limit(
     loan_profile_id: str,
-    payload: LoanLimitCalculationRequest | None = None,
+    payload: LoanLimitCalculationRequest,
     service: LoanAgentService = Depends(get_loan_agent_service),
     current_user: UserResponse = Depends(get_current_user),
 ) -> LoanLimitCalculationResponse:
@@ -405,7 +405,7 @@ async def calculate_loan_limit(
         return await service.calculate_loan_limit(
             user_id=current_user.id,
             loan_profile_id=loan_profile_id,
-            payload=payload or LoanLimitCalculationRequest(),
+            payload=payload,
         )
     except Exception as exc:
         _raise_loan_agent_http_error(exc)

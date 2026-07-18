@@ -11,7 +11,9 @@ from openai.types.responses import ResponseFunctionToolCall
 from rag_agent_support import (
     AGENT_MCP_TOOL_NAMES,
     DomainRAGRunHooks,
+    allowed_agent_tools,
     build_agent_mcp_server,
+    extract_called_tool_names,
     extract_trusted_evidence,
     validate_document_page_call,
     validate_search_knowledge_call,
@@ -77,6 +79,60 @@ def test_shared_mcp_client_has_five_read_only_tools():
 
     assert server.name == "agent-bank-tools"
     assert server.tool_filter == {"allowed_tool_names": list(AGENT_MCP_TOOL_NAMES)}
+
+
+def test_assess_mode_only_adds_read_only_domain_tools():
+    assert allowed_agent_tools("credit", "assess") == (
+        *AGENT_MCP_TOOL_NAMES,
+        "search_customer",
+    )
+    assert allowed_agent_tools("compliance", "assess") == AGENT_MCP_TOOL_NAMES
+    assert allowed_agent_tools("operations", "assess") == AGENT_MCP_TOOL_NAMES
+
+
+def test_execute_mode_adds_only_the_selected_domain_tools():
+    credit_tools = allowed_agent_tools("credit", "execute")
+    operations_tools = allowed_agent_tools("operations", "execute")
+
+    assert "create_customer" in credit_tools
+    assert "create_task" not in credit_tools
+    assert "create_task" in operations_tools
+    assert "create_customer" not in operations_tools
+
+
+def test_mutating_tool_is_rejected_in_assess_mode_before_execution():
+    context = ToolContext(
+        None,
+        tool_name="create_customer",
+        tool_call_id="call-create",
+        tool_arguments=json.dumps({"full_name": "Demo"}),
+    )
+
+    with pytest.raises(ValueError, match="execution_mode=execute"):
+        asyncio.run(
+            DomainRAGRunHooks("credit", execution_mode="assess").on_tool_start(
+                context,
+                Agent(name="test"),
+                object(),
+            )
+        )
+
+
+def test_called_tool_names_preserve_mutation_order():
+    items = tool_items(
+        "create_task",
+        {"loan_profile_id": "profile-1", "title": "Review", "priority": "P2"},
+        {"id": "task-1", "loan_profile_id": "profile-1"},
+        "call-task",
+    )
+    items += tool_items(
+        "update_case_status",
+        {"loan_profile_id": "profile-1", "status": "S08"},
+        {"loan_profile_id": "profile-1", "status": "S08"},
+        "call-status",
+    )
+
+    assert extract_called_tool_names(items) == ["create_task", "update_case_status"]
 
 
 def test_loan_data_tool_requires_profile_id_in_agent_input():

@@ -328,7 +328,7 @@ def test_document_page_rejects_a_different_page_from_rag():
         )
 
 
-def test_fastmcp_exposes_five_credit_read_tools():
+def test_fastmcp_exposes_all_agent_tools():
     tools = asyncio.run(rag_mcp_server.mcp.list_tools())
 
     assert [tool.name for tool in tools] == [
@@ -337,12 +337,27 @@ def test_fastmcp_exposes_five_credit_read_tools():
         "get_loan_profile",
         "get_customer",
         "list_reports",
+        "search_customer",
+        "create_customer",
+        "update_customer",
+        "create_loan_profile",
+        "check_legal_docs",
+        "check_financials",
+        "check_collateral",
+        "check_credit_rule",
+        "save_compliance_result",
+        "update_case_status",
+        "create_checklist",
+        "calculate_loan_limit",
+        "create_task",
+        "create_report",
     ]
 
 
 def test_fastmcp_tool_reads_user_scope_from_environment(monkeypatch):
     service = FakeKnowledgeBaseService([chunk(1)])
     monkeypatch.setattr(rag_mcp_server, "knowledge_base_service", service)
+    monkeypatch.delenv("RAG_MCP_CREDIT_USER_ID", raising=False)
     monkeypatch.setenv("RAG_MCP_USER_ID", "credit-policy-user")
 
     result = asyncio.run(rag_mcp_server.search_knowledge("credit", "DTI", 5))
@@ -371,6 +386,7 @@ def test_fastmcp_page_tool_reads_user_scope_from_environment(monkeypatch):
         )
     )
     monkeypatch.setattr(rag_mcp_server, "knowledge_base_service", service)
+    monkeypatch.delenv("RAG_MCP_CREDIT_USER_ID", raising=False)
     monkeypatch.setenv("RAG_MCP_USER_ID", "credit-policy-user")
 
     result = asyncio.run(

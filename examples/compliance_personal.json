@@ -1,19 +1,43 @@
 {
-  "case_id": "COMPLIANCE-PERSONAL-DEMO-001",
-  "loan_type": "personal",
+  "case_id": "COMPLIANCE-PERSONAL-001",
+  "loan_profile_id": "507f1f77bcf86cd799439011",
   "customer_type": "individual",
   "as_of_date": "2026-07-18",
-  "documents": [
-    {
-      "document_type": "identity",
-      "status": "provided",
-      "expiry_date": "2030-12-31"
-    },
-    {
-      "document_type": "income",
-      "status": "provided"
-    }
-  ],
-  "pep_status": "clear",
-  "sanctions_status": "clear"
+  "requested_amount": 800000000,
+  "term_months": 60,
+  "purpose": "Mua nhà",
+  "credit_result": {"legal_score": 100, "result": "PASSED"},
+  "current_financials": {
+    "period": "2025",
+    "revenue": 1200000000,
+    "net_profit": 120000000,
+    "total_debt": 300000000,
+    "equity": 600000000
+  },
+  "previous_financials": {
+    "period": "2024",
+    "revenue": 1000000000,
+    "net_profit": 90000000,
+    "total_debt": 250000000,
+    "equity": 550000000
+  },
+  "funding_plan": {
+    "total_capital_need": 1000000000,
+    "own_capital": 200000000,
+    "supporting_document_value": 800000000,
+    "purpose_fit": "fit"
+  },
+  "repayment_plan": {
+    "available_cash_flow": 180000000,
+    "annual_debt_service": 120000000,
+    "source_status": "documented"
+  },
+  "collateral": {
+    "collateral_type": "land_house",
+    "value": 1000000000,
+    "ownership_status": "valid",
+    "valuation_date": "2026-04-18",
+    "dispute_status": "clear",
+    "liquidity": "high"
+  }
 }

@@ -1,10 +1,31 @@
 {
-  "case_id": "PERSONAL-DEMO-001",
-  "loan_type": "personal",
-  "requested_amount": "800000000",
-  "term_months": 60,
-  "purpose": "Mua nhà để ở",
-  "monthly_income": "50000000",
-  "monthly_debt_payment": "15000000",
-  "collateral_value": "1000000000"
+  "case_id": "CREDIT-PERSONAL-001",
+  "customer": {
+    "customer_type": "individual",
+    "full_name": "Nguyễn Văn A",
+    "phone": "0901234567",
+    "national_id": "001234567890",
+    "address": "Hà Nội",
+    "occupation": "Kỹ sư"
+  },
+  "signer": {
+    "name": "Nguyễn Văn A",
+    "signed": true,
+    "is_customer_or_legal_representative": true
+  },
+  "loan": {
+    "requested_amount": 800000000,
+    "term_months": 60,
+    "purpose": "Mua nhà",
+    "repayment_method": "Trả góp hàng tháng",
+    "total_capital_need": 1000000000,
+    "own_capital": 200000000,
+    "supporting_document_value": 800000000,
+    "repayment_source": "Thu nhập từ lương"
+  },
+  "documents": [
+    {"document_type": "identity", "status": "provided"},
+    {"document_type": "income_evidence", "status": "provided"},
+    {"document_type": "collateral_documents", "status": "provided"}
+  ]
 }

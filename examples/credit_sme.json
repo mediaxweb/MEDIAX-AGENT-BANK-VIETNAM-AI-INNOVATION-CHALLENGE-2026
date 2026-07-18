@@ -1,14 +1,37 @@
 {
-  "case_id": "SME-DEMO-001",
-  "loan_type": "sme",
-  "requested_amount": "4000000000",
-  "term_months": 48,
-  "purpose": "Bổ sung vốn lưu động",
-  "annual_net_operating_income": "2400000000",
-  "annual_debt_service": "1200000000",
-  "total_debt": "3000000000",
-  "equity": "2000000000",
-  "current_assets": "1500000000",
-  "current_liabilities": "1000000000",
-  "collateral_value": "5000000000"
+  "case_id": "SME-001",
+  "customer": {
+    "customer_type": "enterprise",
+    "full_name": "Công ty TNHH Minh An",
+    "phone": "0901234567",
+    "tax_code": "0101234567",
+    "address": "Hà Nội",
+    "industry": "Phân phối hàng hóa",
+    "years_operating": 5,
+    "legal_representative_name": "Nguyễn Văn An",
+    "legal_representative_id": "001234567890"
+  },
+  "signer": {
+    "name": "Nguyễn Văn An",
+    "signed": true,
+    "is_customer_or_legal_representative": true
+  },
+  "loan": {
+    "requested_amount": 8000000000,
+    "term_months": 12,
+    "purpose": "Bổ sung vốn nhập hàng",
+    "repayment_method": "Trả gốc cuối kỳ",
+    "total_capital_need": 10000000000,
+    "own_capital": 2000000000,
+    "supporting_document_value": 8000000000,
+    "repayment_source": "Doanh thu bán hàng"
+  },
+  "documents": [
+    {"document_type": "business_registration", "status": "provided"},
+    {"document_type": "company_charter", "status": "missing"},
+    {"document_type": "appointment_decision", "status": "provided"},
+    {"document_type": "shareholders_information", "status": "provided"},
+    {"document_type": "signature_sample", "status": "provided"},
+    {"document_type": "legal_representative_id", "status": "provided"}
+  ]
 }

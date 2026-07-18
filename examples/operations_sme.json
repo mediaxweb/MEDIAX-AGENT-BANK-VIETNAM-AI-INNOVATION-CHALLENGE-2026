@@ -1,28 +1,51 @@
 {
-  "case_id": "OPERATIONS-SME-DEMO-001",
-  "loan_type": "sme",
-  "current_stage": "operations_review",
+  "case_id": "SME-001",
+  "loan_profile_id": "507f1f77bcf86cd799439011",
+  "customer_type": "enterprise",
+  "current_status": "S07",
+  "as_of_at": "2026-07-18T09:00:00+07:00",
+  "stage_started_at": "2026-07-18T08:00:00+07:00",
+  "requested_amount": 8000000000,
+  "total_capital_need": 10000000000,
+  "own_capital": 2000000000,
+  "term_months": 12,
+  "purpose": "Bổ sung vốn lưu động",
+  "repayment_method": "Trả gốc cuối kỳ",
   "documents": [
-    {
-      "document_type": "business_registration",
-      "status": "provided"
-    },
-    {
-      "document_type": "financial_statements",
-      "status": "pending_verification"
-    }
+    {"document_type": "business_registration", "status": "provided"},
+    {"document_type": "legal_representative_id", "status": "provided"},
+    {"document_type": "company_charter", "status": "missing"},
+    {"document_type": "appointment_decision", "status": "provided"},
+    {"document_type": "authorization_letter", "status": "provided"},
+    {"document_type": "signature_sample", "status": "provided"},
+    {"document_type": "credit_request", "status": "provided"},
+    {"document_type": "loan_signature", "status": "provided"},
+    {"document_type": "latest_financial_statement", "status": "provided"},
+    {"document_type": "previous_financial_statement", "status": "provided"},
+    {"document_type": "balance_sheet", "status": "provided"},
+    {"document_type": "income_statement", "status": "provided"},
+    {"document_type": "cash_flow_statement", "status": "provided"},
+    {"document_type": "use_of_funds_plan", "status": "provided"},
+    {"document_type": "repayment_plan", "status": "provided"},
+    {"document_type": "cash_flow_evidence", "status": "provided"},
+    {"document_type": "collateral_ownership", "status": "provided"},
+    {"document_type": "collateral_valuation", "status": "provided"},
+    {"document_type": "collateral_inspection", "status": "provided"},
+    {"document_type": "collateral_clear", "status": "provided"},
+    {"document_type": "third_party_collateral_documents", "status": "provided"},
+    {"document_type": "loan_summary", "status": "provided"},
+    {"document_type": "missing_document_checklist", "status": "missing"},
+    {"document_type": "proposed_limit", "status": "provided"},
+    {"document_type": "processing_ticket", "status": "provided"}
   ],
-  "upstream_gates": [
-    {
-      "agent": "credit",
-      "outcome": "ready"
-    },
-    {
-      "agent": "compliance",
-      "outcome": "needs_information",
-      "blocking_items": [
-        "financial_statements"
-      ]
-    }
-  ]
+  "credit_result": {"legal_score": 92, "result": "CONDITIONAL"},
+  "compliance_result": {
+    "total_score": 94,
+    "risk_rating": "Low Risk",
+    "result": "PASSED",
+    "dscr": 1.35,
+    "collateral_type": "land_house",
+    "collateral_value": 10000000000,
+    "ltv_ratio": 0.8
+  }
 }
