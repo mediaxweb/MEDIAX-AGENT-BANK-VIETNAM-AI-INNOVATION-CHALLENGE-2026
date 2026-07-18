@@ -397,7 +397,6 @@ async def execute_question(
             specialist_raw_output=_raw_question_answer_output(executions[0].draft),
             orchestrator_raw_output=_raw_question_answer_output(result.final_output),
         )
-        raise ValueError("Orchestrator changed the specialist answer")
     return executions[0]
 
 
