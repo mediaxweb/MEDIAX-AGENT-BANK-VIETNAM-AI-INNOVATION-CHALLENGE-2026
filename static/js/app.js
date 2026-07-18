@@ -49,10 +49,10 @@ const AUTH_REGISTER_ENDPOINT = '/api/v1/auth/register';
 const AUTH_ME_ENDPOINT = '/api/v1/auth/me';
 const ORCHESTRATOR_CHAT_ENDPOINT = '/api/v1/orchestrator/chat';
 const DOMAIN_LABELS = {
-  general: 'Hội thoại chung',
-  credit: 'Tín dụng',
-  compliance: 'Chính sách',
-  operations: 'Vận hành',
+  general: 'Agent Planner',
+  credit: 'Agent Credit',
+  compliance: 'Agent Compliance',
+  operations: 'Agent Operations',
 };
 
 let state = loadChatState();
@@ -130,7 +130,7 @@ function getActiveSession() {
 }
 
 function domainLabel(domain) {
-  return DOMAIN_LABELS[domain] || 'Chuyên gia';
+  return DOMAIN_LABELS[domain] || 'Agent';
 }
 
 function nowLabel() {
@@ -217,16 +217,23 @@ function buildKnowledgeBaseHeaders(headers = {}) {
 
 function localizeAgentActionText(value) {
   return String(value ?? '')
+    .replace(/Đội chuyên gia AI/g, 'MediaX AI Agent Bank')
+    .replace(/Chưa xác định miền xử lý/g, 'Chưa xác định Agent phù hợp')
+    .replace(/(?:[Mm]iền|Chuyên gia)\s+Tín dụng/g, 'Agent Credit')
+    .replace(/(?:[Mm]iền|Chuyên gia)\s+(?:Chính sách|Tuân thủ)/g, 'Agent Compliance')
+    .replace(/(?:[Mm]iền|Chuyên gia)\s+Vận hành/g, 'Agent Operations')
+    .replace(/Bộ điều phối/g, 'Agent Planner')
+    .replace(/\b[Cc]huyên gia\b/g, 'Agent')
     .replace(/Giao diện QA/g, 'Giao diện hỏi đáp')
-    .replace(/Orchestrator Agent/g, 'Bộ điều phối')
-    .replace(/Orchestrator/g, 'Bộ điều phối')
+    .replace(/Orchestrator Agent/g, 'Agent Planner')
+    .replace(/Orchestrator/g, 'Agent Planner')
     .replace(/MCP\s*\/\s*RAG/g, 'Kho tri thức')
     .replace(/Trace:/g, 'Mã theo dõi:')
     .replace(/Đã gửi câu hỏi tới API \/api\/v1\/orchestrator\/chat\./g, 'Đã gửi câu hỏi tới dịch vụ hỏi đáp.')
-    .replace(/Tín dụng Agent/g, 'Chuyên gia Tín dụng')
-    .replace(/Chính sách Agent/g, 'Chuyên gia Chính sách')
-    .replace(/Tuân thủ Agent/g, 'Chuyên gia Chính sách')
-    .replace(/Vận hành Agent/g, 'Chuyên gia Vận hành');
+    .replace(/Tín dụng Agent/g, 'Agent Credit')
+    .replace(/Chính sách Agent/g, 'Agent Compliance')
+    .replace(/Tuân thủ Agent/g, 'Agent Compliance')
+    .replace(/Vận hành Agent/g, 'Agent Operations');
 }
 
 function shortQuestionName(question) {
@@ -364,8 +371,8 @@ function renderChat() {
     container.innerHTML = `
       <div class="chat-empty">
         <div class="chat-empty-icon">${ICON.sparkles24}</div>
-        <h3 class="chat-empty-title">Bắt đầu cuộc trò chuyện với Đội chuyên gia</h3>
-        <p class="chat-empty-desc">Nhập câu hỏi nghiệp vụ để Bộ điều phối chuyển đến chuyên gia phù hợp.</p>
+        <h3 class="chat-empty-title">Bắt đầu cuộc trò chuyện với MediaX AI Agent Bank</h3>
+        <p class="chat-empty-desc">Nhập câu hỏi nghiệp vụ để Agent Planner chuyển đến Agent phù hợp.</p>
       </div>
     `;
     return;
@@ -413,11 +420,11 @@ function renderChat() {
         <div class="msg-row">
           <div class="msg-avatar ai">${ICON.sparkles}</div>
           <div class="msg-body">
-            <div class="msg-author">Đội chuyên gia AI</div>
+            <div class="msg-author">MediaX AI Agent Bank</div>
             <div class="msg-bubble-ai">${formatAnswerText(msg.text)}</div>
             <div class="msg-meta">
               <span class="msg-meta-reliability">${ICON.shield}&nbsp;${statusText}</span>
-              <span class="msg-meta-agents">${ICON.users}&nbsp;Miền ${domain}</span>
+              <span class="msg-meta-agents">${ICON.users}&nbsp;${domain}</span>
             </div>
             <div class="msg-sources" ${sourceCount ? '' : 'style="display:none;"'}>
               <div class="msg-sources-label">Nguồn trích dẫn</div>
@@ -444,7 +451,7 @@ function renderChat() {
       <div class="msg-avatar ai"><span class="spinning">${ICON.loader}</span></div>
       <div class="loading-body">
         <div class="loading-title">
-          Đội chuyên gia AI đang phân tích dữ liệu...
+          MediaX AI Agent Bank đang phân tích dữ liệu...
         </div>
         <div class="skeleton-line" style="width:100%;"></div>
         <div class="skeleton-line"></div>
@@ -525,7 +532,7 @@ async function sendMessage(text) {
   session.traceEvents = [
     {
       from: 'Giao diện hỏi đáp',
-      to: 'Bộ điều phối',
+      to: 'Agent Planner',
       time: nowLabel(),
       msg: 'Đã gửi câu hỏi tới dịch vụ hỏi đáp.',
       status: 'pending',
@@ -588,27 +595,27 @@ async function sendMessage(text) {
     };
     if (data.domain === 'general') {
       session.traceEvents.push({
-        from: 'Bộ điều phối',
+        from: 'Agent Planner',
         to: 'Giao diện hỏi đáp',
         time: nowLabel(),
         msg: data.trace_id
-          ? `Chưa xác định miền xử lý. Mã theo dõi: ${data.trace_id}`
-          : 'Chưa xác định miền xử lý.',
+          ? `Chưa xác định Agent phù hợp. Mã theo dõi: ${data.trace_id}`
+          : 'Chưa xác định Agent phù hợp.',
         status: 'warning',
         statusText: 'Cần làm rõ',
       });
     } else {
       session.traceEvents.push(
         {
-          from: 'Bộ điều phối',
-          to: `Chuyên gia ${domainLabel(data.domain)}`,
+          from: 'Agent Planner',
+          to: domainLabel(data.domain),
           time: nowLabel(),
-          msg: `Đã chọn miền ${domainLabel(data.domain)} để xử lý câu hỏi.`,
+          msg: `Đã chọn ${domainLabel(data.domain)} để xử lý câu hỏi.`,
           status: 'done',
           statusText: 'Đã điều phối',
         },
         {
-          from: `Chuyên gia ${domainLabel(data.domain)}`,
+          from: domainLabel(data.domain),
           to: 'Kho tri thức',
           time: nowLabel(),
           msg: data.insufficient_information
@@ -618,7 +625,7 @@ async function sendMessage(text) {
           statusText: data.insufficient_information ? 'Thiếu dữ liệu' : 'Có nguồn',
         },
         {
-          from: 'Bộ điều phối',
+          from: 'Agent Planner',
           to: 'Giao diện hỏi đáp',
           time: nowLabel(),
           msg: data.trace_id ? `Đã trả lời. Mã theo dõi: ${data.trace_id}` : 'Đã trả lời.',
@@ -639,14 +646,14 @@ async function sendMessage(text) {
   } catch (error) {
     const errorMessage = error && error.message
       ? error.message
-      : 'Không thể kết nối tới Bộ điều phối.';
+      : 'Không thể kết nối tới Agent Planner.';
     session.traceEvents[0] = {
       ...session.traceEvents[0],
       status: 'error',
       statusText: 'Thất bại',
     };
     session.traceEvents.push({
-      from: 'Bộ điều phối',
+      from: 'Agent Planner',
       to: 'Giao diện hỏi đáp',
       time: nowLabel(),
       msg: errorMessage,
@@ -655,7 +662,7 @@ async function sendMessage(text) {
     });
     session.messages.push({
       kind: 'error',
-      text: `Không thể lấy câu trả lời từ Bộ điều phối. ${errorMessage}`,
+      text: `Không thể lấy câu trả lời từ Agent Planner. ${errorMessage}`,
     });
   } finally {
     state.isProcessing = false;
@@ -909,7 +916,7 @@ function openSourceOverlay(sourceId) {
 
   const agentsList = document.getElementById('source-agents-list');
   agentsList.innerHTML = `
-    <div class="source-agent-item">${ICON.checkCircle}<span>Chuyên gia ${escapeHtml(domainLabel(data.domain))}</span></div>
+    <div class="source-agent-item">${ICON.checkCircle}<span>${escapeHtml(domainLabel(data.domain))}</span></div>
     <div class="source-agent-item">${ICON.checkCircle}<span>Kho tri thức</span></div>
   `;
 
@@ -940,7 +947,7 @@ function switchPage(page) {
     navQa.classList.add('active'); navDocs.classList.remove('active');
     qaView.classList.add('active'); docsView.classList.remove('active');
     pageTitle.textContent    = 'Hỏi đáp AI';
-    pageSubtitle.textContent = 'Truy vấn dữ liệu và phân tích nghiệp vụ với sự trợ giúp từ Đội chuyên gia AI';
+    pageSubtitle.textContent = 'Truy vấn dữ liệu và phân tích nghiệp vụ với sự trợ giúp từ MediaX AI Agent Bank';
     history.pushState(null, '', '#qa');
   } else {
     navDocs.classList.add('active'); navQa.classList.remove('active');
@@ -1007,17 +1014,17 @@ const KNOWLEDGE_BASE_PROCESS_ENDPOINT = '/api/v1/knowledge-base/process-document
 const DOCUMENT_AGENT_SCOPES = {
   credit: {
     id: 'credit',
-    name: 'Chuyên gia Tín dụng',
+    name: DOMAIN_LABELS.credit,
     userId: '6a5b187063aaa5e0510f2da1',
   },
   compliance: {
     id: 'compliance',
-    name: 'Chuyên gia Chính sách',
+    name: DOMAIN_LABELS.compliance,
     userId: '6a5b187063aaa5e0510f2da2',
   },
   operations: {
     id: 'operations',
-    name: 'Chuyên gia Vận hành',
+    name: DOMAIN_LABELS.operations,
     userId: '6a5b187163aaa5e0510f2da3',
   },
 };
@@ -1068,7 +1075,7 @@ function updateDocumentsScopeLabel() {
   if (!label) return;
   const agent = getDocumentAgent();
   if (!agent) {
-    label.textContent = 'Chọn chuyên gia để xem kho tri thức';
+    label.textContent = 'Chọn Agent để xem kho tri thức';
     return;
   }
   if (docState.isLoading) {
@@ -1188,8 +1195,8 @@ function renderDocTable() {
 
   if (!docState.selectedAgentId) {
     renderEmptyRow({
-      title: 'Chưa chọn chuyên gia',
-      desc: 'Bấm Danh sách trên một chuyên gia để xem kho tài liệu.',
+      title: 'Chưa chọn Agent',
+      desc: 'Bấm Danh sách trên một Agent để xem kho tài liệu.',
     });
     return;
   }
@@ -1219,7 +1226,7 @@ function renderDocTable() {
   if (!docState.hasLoaded) {
     renderEmptyRow({
       title: 'Danh sách chưa được tải',
-      desc: 'Bấm Danh sách để đọc tài liệu của chuyên gia đã chọn.',
+      desc: 'Bấm Danh sách để đọc tài liệu của Agent đã chọn.',
     });
     return;
   }
@@ -1227,7 +1234,7 @@ function renderDocTable() {
   if (filtered.length === 0) {
     renderEmptyRow({
       title: q ? 'Không tìm thấy tài liệu phù hợp' : 'Chưa có tài liệu',
-      desc: q ? 'Thử thay đổi từ khóa tìm kiếm.' : 'Upload tài liệu để lập chỉ mục cho chuyên gia này.',
+      desc: q ? 'Thử thay đổi từ khóa tìm kiếm.' : 'Upload tài liệu để lập chỉ mục cho Agent này.',
       button: q ? {
         id: 'btn-clear-search',
         label: 'Xóa tìm kiếm',
@@ -1330,7 +1337,7 @@ function openUploadModal(agentId) {
   const subtitle = document.getElementById('modal-subtitle');
   const footerNote = document.getElementById('modal-footer-note');
   if (title) title.textContent = `Tải tài liệu cho ${agent.name}`;
-  if (subtitle) subtitle.textContent = 'Thêm PDF vào kho tri thức của chuyên gia đã chọn.';
+  if (subtitle) subtitle.textContent = 'Thêm PDF vào kho tri thức của Agent đã chọn.';
   if (footerNote) footerNote.textContent = `Tài liệu sẽ được lập chỉ mục vào kho của ${agent.name}.`;
   renderUploadQueue();
   document.getElementById('upload-modal').classList.add('open');
