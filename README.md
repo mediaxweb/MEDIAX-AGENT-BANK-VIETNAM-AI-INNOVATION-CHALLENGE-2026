@@ -70,6 +70,7 @@ The local `agents/` directory deliberately has no `__init__.py` because
 
 The FastAPI application serves the Agent Bank web shell at:
 
+- `/` redirects to `/qa`.
 - `/qa` for Orchestrator chat.
 - `/documents` for the temporary document-management mock screen.
 

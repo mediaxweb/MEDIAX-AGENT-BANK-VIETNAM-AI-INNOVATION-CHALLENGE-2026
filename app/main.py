@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from slowapi import _rate_limit_exceeded_handler
@@ -68,9 +68,9 @@ app.include_router(api_router, prefix="/api")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def root():
-    return {"message": "API ready!"}
+    return RedirectResponse(url="/qa")
 
 
 @app.get("/qa", include_in_schema=False)

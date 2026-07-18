@@ -14,8 +14,18 @@ def test_ui_routes_serve_agent_bank_shell():
         assert "MediaX Agent Bank" in response.text
 
 
+def test_root_redirects_to_qa():
+    client = TestClient(app)
+
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/qa"
+
+
 def test_ui_routes_are_hidden_from_openapi():
     paths = app.openapi()["paths"]
 
+    assert "/" not in paths
     assert "/qa" not in paths
     assert "/documents" not in paths
