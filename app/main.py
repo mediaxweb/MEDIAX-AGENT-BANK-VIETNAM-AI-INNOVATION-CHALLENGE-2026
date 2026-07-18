@@ -15,6 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.api.router import api_router
 from app.core.rate_limiter import limiter
 from app.core.database import init_db
+from app.services.auth_service import AuthService
 
 load_dotenv()
 
@@ -37,9 +38,8 @@ if env == "production":
 async def lifespan(app: FastAPI):
     """Application lifespan hook."""
     await init_db()
+    await AuthService().ensure_demo_accounts()
 
-    # Keep the lifespan hook because startup still initializes Mongo indexes
-    # and it provides a clear extension point for future bootstrapping work.
     yield
 
 

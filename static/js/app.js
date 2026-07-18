@@ -44,8 +44,7 @@ const ACCESS_TOKEN_STORAGE_KEYS = [
   'mediax_access_token',
   'mediax-auth-token',
 ];
-const AUTH_LOGIN_ENDPOINT = '/api/v1/auth/login';
-const AUTH_REGISTER_ENDPOINT = '/api/v1/auth/register';
+const AUTH_DEMO_LOGIN_ENDPOINT = '/api/v1/auth/demo-login';
 const AUTH_ME_ENDPOINT = '/api/v1/auth/me';
 const ORCHESTRATOR_CHAT_ENDPOINT = '/api/v1/orchestrator/chat';
 const DOMAIN_LABELS = {
@@ -730,24 +729,6 @@ function initSidebarToggle() {
 // ============================================================
 // Authentication
 // ============================================================
-function setAuthMode(mode) {
-  const isRegister = mode === 'register';
-  document.body.classList.toggle('auth-register-mode', isRegister);
-
-  document.querySelectorAll('.auth-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.authMode === mode);
-  });
-
-  const submit = document.getElementById('auth-submit');
-  const password = document.getElementById('auth-password');
-  const fullName = document.getElementById('auth-full-name');
-  const error = document.getElementById('auth-error');
-  if (submit) submit.textContent = isRegister ? 'Đăng ký' : 'Đăng nhập';
-  if (password) password.autocomplete = isRegister ? 'new-password' : 'current-password';
-  if (fullName) fullName.required = isRegister;
-  if (error) error.textContent = '';
-}
-
 function updateAuthenticatedUser(user) {
   if (!user) return;
   const displayName = user.full_name || user.email || 'Người dùng';
@@ -770,15 +751,13 @@ function updateAuthenticatedUser(user) {
 
 function unlockApp(user = null) {
   document.body.classList.remove('auth-locked');
-  document.body.classList.remove('auth-register-mode');
   if (user) updateAuthenticatedUser(user);
 }
 
 function lockApp() {
   document.body.classList.add('auth-locked');
-  setAuthMode('login');
-  const password = document.getElementById('auth-password');
-  if (password) password.value = '';
+  const error = document.getElementById('auth-error');
+  if (error) error.textContent = '';
 }
 
 async function fetchCurrentUser() {
@@ -799,15 +778,13 @@ async function fetchCurrentUser() {
   return data;
 }
 
-async function loginWithCredentials(email, password) {
-  const response = await fetch(AUTH_LOGIN_ENDPOINT, {
+async function loginWithDemoAccount(accountNumber) {
+  const response = await fetch(`${AUTH_DEMO_LOGIN_ENDPOINT}/${accountNumber}`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
     },
     credentials: 'include',
-    body: JSON.stringify({ email, password }),
   });
   const data = await readApiJson(response);
   if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
@@ -816,28 +793,7 @@ async function loginWithCredentials(email, password) {
   return data;
 }
 
-async function registerAccount({ email, password, fullName }) {
-  const payload = { email, password };
-  if (fullName) payload.full_name = fullName;
-  const response = await fetch(AUTH_REGISTER_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify(payload),
-  });
-  const data = await readApiJson(response);
-  if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
-  return data;
-}
-
 function initAuthModule() {
-  document.querySelectorAll('.auth-tab').forEach(tab => {
-    tab.addEventListener('click', () => setAuthMode(tab.dataset.authMode));
-  });
-
   const token = getStoredAccessToken();
   if (token) {
     unlockApp();
@@ -851,29 +807,15 @@ function initAuthModule() {
     lockApp();
   }
 
-  const form = document.getElementById('auth-form');
-  if (form) {
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      const isRegister = document.body.classList.contains('auth-register-mode');
-      const email = document.getElementById('auth-email').value.trim();
-      const password = document.getElementById('auth-password').value;
-      const fullName = document.getElementById('auth-full-name').value.trim();
-      const submit = document.getElementById('auth-submit');
+  const demoButtons = document.querySelectorAll('[data-demo-account]');
+  demoButtons.forEach(button => {
+    button.addEventListener('click', async () => {
       const error = document.getElementById('auth-error');
-
       if (error) error.textContent = '';
-      if (submit) {
-        submit.disabled = true;
-        submit.textContent = isRegister ? 'Đang đăng ký...' : 'Đang đăng nhập...';
-      }
-
+      demoButtons.forEach(item => { item.disabled = true; });
       try {
+        await loginWithDemoAccount(button.dataset.demoAccount);
         let user = null;
-        if (isRegister) {
-          user = await registerAccount({ email, password, fullName });
-        }
-        await loginWithCredentials(email, password);
         try {
           user = await fetchCurrentUser();
         } catch (_error) {
@@ -883,13 +825,10 @@ function initAuthModule() {
       } catch (submitError) {
         if (error) error.textContent = submitError.message || 'Không thể xác thực.';
       } finally {
-        if (submit) {
-          submit.disabled = false;
-          submit.textContent = isRegister ? 'Đăng ký' : 'Đăng nhập';
-        }
+        demoButtons.forEach(item => { item.disabled = false; });
       }
     });
-  }
+  });
 
   const logout = document.getElementById('btn-logout');
   if (logout) {

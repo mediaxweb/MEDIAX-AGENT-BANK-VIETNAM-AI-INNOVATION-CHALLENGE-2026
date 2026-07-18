@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -9,6 +10,20 @@ from pymongo.errors import DuplicateKeyError
 from app.api.schemas.auth import AuthTokenResponse, LoginRequest, RegisterRequest, UserResponse
 from app.core.database import Database
 from app.core.security import TokenError, create_access_token, decode_access_token, hash_password, verify_password
+
+
+DEMO_ACCOUNTS = (
+    ("Nguyễn Minh Anh", "demo01@mediax.vn"),
+    ("Trần Quốc Bảo", "demo02@mediax.vn"),
+    ("Lê Hoàng Duy", "demo03@mediax.vn"),
+    ("Phạm Thu Hà", "demo04@mediax.vn"),
+    ("Hoàng Gia Huy", "demo05@mediax.vn"),
+    ("Võ Ngọc Lan", "demo06@mediax.vn"),
+    ("Đặng Khánh Linh", "demo07@mediax.vn"),
+    ("Bùi Đức Long", "demo08@mediax.vn"),
+    ("Đỗ Mai Phương", "demo09@mediax.vn"),
+    ("Vũ Thanh Sơn", "demo10@mediax.vn"),
+)
 
 
 class EmailAlreadyExistsError(ValueError):
@@ -25,6 +40,10 @@ class UserNotFoundError(ValueError):
 
 class InactiveUserError(ValueError):
     """Raised when an inactive user attempts to authenticate."""
+
+
+class DemoAccountNotFoundError(ValueError):
+    """Raised when a configured demo account is unavailable."""
 
 
 class AuthService:
@@ -53,12 +72,50 @@ class AuthService:
         user = {**document, "_id": result.inserted_id}
         return self._serialize_user(user)
 
+    async def ensure_demo_accounts(self) -> None:
+        """Create the selectable demo accounts without overwriting existing users."""
+
+        now = datetime.now(timezone.utc)
+        password_hash = hash_password(secrets.token_urlsafe(32))
+        for full_name, email in DEMO_ACCOUNTS:
+            await self._users.update_one(
+                {"email": email},
+                {
+                    "$setOnInsert": {
+                        "email": email,
+                        "password_hash": password_hash,
+                        "full_name": full_name,
+                        "is_active": True,
+                        "is_demo": True,
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+                },
+                upsert=True,
+            )
+
     async def login(self, payload: LoginRequest) -> AuthTokenResponse:
         """Verify credentials and issue a Bearer access token."""
 
         user = await self.get_user_by_email(payload.email)
         if user is None or not verify_password(payload.password, str(user.get("password_hash", ""))):
             raise InvalidCredentialsError("Invalid email or password.")
+        if not bool(user.get("is_active", True)):
+            raise InactiveUserError("User account is inactive.")
+
+        access_token = create_access_token(
+            subject=str(user["_id"]),
+            email=str(user["email"]),
+        )
+        return AuthTokenResponse(access_token=access_token, token_type="bearer")
+
+    async def login_demo_account(self, account_number: int) -> AuthTokenResponse:
+        """Issue a token for one of the public demo accounts."""
+
+        _, email = DEMO_ACCOUNTS[account_number - 1]
+        user = await self._users.find_one({"email": email, "is_demo": True})
+        if user is None:
+            raise DemoAccountNotFoundError("Demo account is unavailable.")
         if not bool(user.get("is_active", True)):
             raise InactiveUserError("User account is inactive.")
 

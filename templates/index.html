@@ -6,7 +6,7 @@
   <title>MediaX Agent Bank — Hỏi đáp AI &amp; Kho tài liệu</title>
   <meta name="description" content="Truy vấn dữ liệu và phân tích nghiệp vụ tín dụng với sự trợ giúp từ MediaX AI Agent Bank.">
   <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
-  <link rel="stylesheet" href="/static/css/style.css?v=7">
+  <link rel="stylesheet" href="/static/css/style.css?v=8">
 </head>
 <body class="auth-locked">
 
@@ -21,31 +21,44 @@
       </div>
       <div>
         <h1>MediaX Agent Bank</h1>
-        <p>Đăng nhập để quản lý kho tri thức.</p>
+        <p>Chọn một tài khoản để bắt đầu demo ngay.</p>
       </div>
     </div>
 
-    <div class="auth-tabs" role="tablist" aria-label="Xác thực">
-      <button class="auth-tab active" id="auth-tab-login" data-auth-mode="login" type="button">Đăng nhập</button>
-      <button class="auth-tab" id="auth-tab-register" data-auth-mode="register" type="button">Đăng ký</button>
+    <div class="demo-account-grid" aria-label="Tài khoản demo">
+      <button class="demo-account" data-demo-account="1" type="button">
+        <span class="demo-account-avatar">MA</span><span><strong>Nguyễn Minh Anh</strong><small>demo01@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="2" type="button">
+        <span class="demo-account-avatar">QB</span><span><strong>Trần Quốc Bảo</strong><small>demo02@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="3" type="button">
+        <span class="demo-account-avatar">HD</span><span><strong>Lê Hoàng Duy</strong><small>demo03@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="4" type="button">
+        <span class="demo-account-avatar">TH</span><span><strong>Phạm Thu Hà</strong><small>demo04@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="5" type="button">
+        <span class="demo-account-avatar">GH</span><span><strong>Hoàng Gia Huy</strong><small>demo05@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="6" type="button">
+        <span class="demo-account-avatar">NL</span><span><strong>Võ Ngọc Lan</strong><small>demo06@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="7" type="button">
+        <span class="demo-account-avatar">KL</span><span><strong>Đặng Khánh Linh</strong><small>demo07@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="8" type="button">
+        <span class="demo-account-avatar">DL</span><span><strong>Bùi Đức Long</strong><small>demo08@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="9" type="button">
+        <span class="demo-account-avatar">MP</span><span><strong>Đỗ Mai Phương</strong><small>demo09@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
+      <button class="demo-account" data-demo-account="10" type="button">
+        <span class="demo-account-avatar">TS</span><span><strong>Vũ Thanh Sơn</strong><small>demo10@mediax.vn</small></span><span class="demo-account-arrow" aria-hidden="true">→</span>
+      </button>
     </div>
-
-    <form class="auth-form" id="auth-form">
-      <label class="auth-field auth-name-field" id="auth-name-field">
-        <span>Họ tên</span>
-        <input type="text" id="auth-full-name" autocomplete="name" placeholder="Nguyễn Văn A">
-      </label>
-      <label class="auth-field">
-        <span>Email</span>
-        <input type="email" id="auth-email" autocomplete="email" placeholder="admin@example.com" required>
-      </label>
-      <label class="auth-field">
-        <span>Mật khẩu</span>
-        <input type="password" id="auth-password" autocomplete="current-password" placeholder="Tối thiểu 8 ký tự" minlength="8" required>
-      </label>
-      <div class="auth-error" id="auth-error" role="alert"></div>
-      <button class="auth-submit" id="auth-submit" type="submit">Đăng nhập</button>
-    </form>
+    <div class="auth-error" id="auth-error" role="alert"></div>
+    <p class="demo-account-note">Mỗi tài khoản có không gian dữ liệu riêng cho phiên demo.</p>
   </div>
 </section>
 
@@ -401,6 +414,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked@18.0.6/lib/marked.umd.js" integrity="sha384-uGn1eBC40GtuBgao0epc/cz9O4Lo8/flg/10SW+69UjLI5nP31iT4UPc65Xz10Le" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.12/dist/purify.min.js" integrity="sha384-piCcpDdJ7qVeK4Tv8Z6Hpcr3ZBIgP16TxQTPVfsLFdZ5uDgwc3Y8Ho7oUnqf12qu" crossorigin="anonymous"></script>
-<script src="/static/js/app.js?v=7"></script>
+<script src="/static/js/app.js?v=8"></script>
 </body>
 </html>
