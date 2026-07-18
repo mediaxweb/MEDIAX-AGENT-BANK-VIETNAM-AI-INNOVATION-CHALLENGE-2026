@@ -1,12 +1,14 @@
 # MediaX Agent Bank
 
-MediaX Agent Bank is a multi-agent AI backend for loan-processing workflows.
-It combines an Orchestrator, three banking specialist agents, a shared FastMCP
-tool server, and a user-scoped RAG knowledge base.
+MediaX Agent Bank is a multi-agent AI MVP for loan-processing workflows. It
+combines a bundled web UI, a FastAPI backend, an Orchestrator, three banking
+specialist agents, a shared FastMCP tool server, and a user-scoped RAG
+knowledge base.
 
 The current MVP supports:
 
-- Anonymous multi-turn chat with grounded answers and document sources.
+- A bundled anonymous multi-turn chat UI with grounded answers and document
+  sources.
 - Credit, Compliance, and Operations specialist agents.
 - A fixed Credit → Compliance → Operations assessment workflow.
 - RAG chunk retrieval with full-page fallback when a chunk lacks context.
@@ -68,15 +70,22 @@ The local `agents/` directory deliberately has no `__init__.py` because
 
 ## Web UI
 
-The FastAPI application serves the Agent Bank web shell at:
+The FastAPI application serves the bundled Agent Bank demo UI at:
 
 - `/` redirects to `/qa`.
-- `/qa` for Orchestrator chat.
-- `/documents` for the temporary document-management mock screen.
+- `/qa` and `/documents` serve the same single-page shell.
 
-The `/qa` screen calls `POST /api/v1/orchestrator/chat` directly and keeps the
-returned `session_id` in browser storage for follow-up messages in the same
-conversation.
+Use the sidebar to switch between the Orchestrator chat and the
+document-management UI mock; the selected view is tracked in the URL hash.
+
+The `/qa` screen calls `POST /api/v1/orchestrator/chat` directly. It stores
+local chat sessions, messages, source metadata, and the backend `session_id` in
+browser `localStorage` so a browser refresh can restore the demo transcript and
+continue the same backend conversation.
+
+The `/documents` screen currently uses static document records and simulates
+upload progress in the browser. It does not call the knowledge-base APIs. Use
+Swagger or the API endpoints described below for real PDF ingestion.
 
 ## Quick start
 
@@ -138,7 +147,8 @@ Re-ingest the documents when the embedding dimensions change.
 & '.\.venv\Scripts\python.exe' -m uvicorn app.main:app --reload
 ```
 
-Swagger UI is available at <http://localhost:8000/docs>.
+Swagger UI is available at <http://localhost:8000/docs> unless
+`ENVIRONMENT=production`, which disables Swagger, ReDoc, and OpenAPI routes.
 
 ### 5. Prepare the three policy knowledge accounts
 
@@ -184,6 +194,19 @@ $env:LOAN_DATA_MCP_USER_ID="<loan-data-user-id>"
 ```
 
 This variable is not required for read-only policy Q&A.
+
+FastAPI and FastMCP are separate long-running processes and must both remain
+running for agent chat. The repository's `Dockerfile` and `Procfile` start only
+FastAPI. In a hosted environment, start `python -m app.rag_mcp_server` as a
+second process, point the FastAPI process at it with `RAG_MCP_URL`, and ensure
+the MCP process can read the same persisted RAG directories used during
+document ingestion. Set `RAG_MCP_HOST=0.0.0.0` when the MCP process must accept
+connections outside localhost.
+
+The committed `Dockerfile` installs `requirements.txt` only. A container using
+`LLAMA_EMBED_PROVIDER=huggingface` must also install
+`requirements-local-embeddings.txt`; otherwise configure the OpenAI embedding
+provider before startup.
 
 ### 7. Ask a question
 
@@ -263,8 +286,8 @@ API returns a clarification response instead of failing the request:
 }
 ```
 
-The backend generates a UUID when `session_id` is absent. A future UI should
-store this value in browser `localStorage` and send it with later messages.
+The backend generates a UUID when `session_id` is absent. The bundled UI stores
+this value in browser `localStorage` and sends it with later messages.
 
 Conversation context is persisted by OpenAI Agents SDK `SQLiteSession`. In a
 deployment it uses `STORAGE_ROOT` (or `RAILWAY_VOLUME_MOUNT_PATH`), for example:
@@ -276,7 +299,10 @@ deployment it uses `STORAGE_ROOT` (or `RAILWAY_VOLUME_MOUNT_PATH`), for example:
 Without a storage root it falls back to the local, gitignored
 `.local_storage/orchestrator_sessions.db`. SQLite remains intended for the
 single-instance MVP.
-There is currently no endpoint for listing sessions or loading a UI transcript.
+There is currently no backend endpoint for listing sessions or loading a chat
+transcript. The transcript shown by the bundled UI exists only in that
+browser's `localStorage`; the SQLite session stores the model conversation
+context.
 
 ### Agent tracing
 
@@ -367,12 +393,16 @@ session. Use the FastAPI chat endpoint for multi-turn conversation.
 
 | Variable | Required for | Default |
 |----------|--------------|---------|
+| `ENVIRONMENT` | FastAPI docs and development CORS behavior | `development` |
 | `MONGO_URI` | FastAPI, RAG, and loan data | none |
 | `MONGO_DB_NAME` | MongoDB database fallback | `rag_brain` |
-| `OPENAI_API_KEY` | Agent and OpenAI embedding calls | none |
+| `OPENAI_API_KEY` | Agents, hosted traces, legacy Q&A, and optional OpenAI embeddings | none |
 | `LLAMA_EMBED_PROVIDER` | Document ingestion and retrieval | `huggingface` |
 | `LLAMA_EMBED_MODEL` | Local embeddings | `VoVanPhuc/sup-SimCSE-VietNamese-phobert-base` |
 | `OPENAI_EMBED_MODEL` | OpenAI embeddings | `text-embedding-3-small` |
+| `STORAGE_ROOT` / `RAILWAY_VOLUME_MOUNT_PATH` | Chroma, BM25, docstore, loan uploads, and SQLite sessions | local project directories |
+| `ALLOW_KB_TARGET_USER_UPLOAD` | Allow an authenticated user to prepare another user's RAG collection | `false` |
+| `RAG_MCP_USER_ID` | Legacy fallback for Credit policy knowledge only | none |
 | `RAG_MCP_CREDIT_USER_ID` | Credit policy knowledge | none |
 | `RAG_MCP_COMPLIANCE_USER_ID` | Compliance policy knowledge | none |
 | `RAG_MCP_OPERATIONS_USER_ID` | Operations policy knowledge | none |
@@ -382,7 +412,8 @@ session. Use the FastAPI chat endpoint for multi-turn conversation.
 | `OPENAI_AGENT_MODEL` | Orchestrator and specialists | `gpt-5.4-mini` |
 | `OPENAI_AGENTS_TRACE_INCLUDE_SENSITIVE_DATA` | Include model/tool payloads in OpenAI traces | `false` |
 
-See `.env.example` for legacy Q&A, JWT, storage, and deployment settings.
+See `.env.example` for JWT, legacy Q&A, individual storage paths, and the
+remaining supporting-API settings.
 
 ## Supporting APIs
 
@@ -405,11 +436,15 @@ routes support data preparation and agent tools; the main demo entry point is
 
 ## MVP limitations
 
-- No official frontend yet.
+- The bundled Q&A frontend is a demo UI; the document-management screen is
+  mocked and is not connected to the knowledge-base APIs.
 - No OCR; scanned PDFs without an extractable text layer are unsupported.
 - Anonymous chat has no user accounts or authorization.
+- Each chat turn delegates to exactly one specialist; cross-domain aggregation
+  in a single answer is not implemented.
 - Chat sessions use local SQLite and are not shared across backend instances.
-- There is no chat-history listing, session cleanup, or deletion API.
+- Chat transcripts are browser-local, and there is no backend chat-history
+  listing, session cleanup, or deletion API.
 - Final approval and disbursement remain human responsibilities.
 
 ## License
