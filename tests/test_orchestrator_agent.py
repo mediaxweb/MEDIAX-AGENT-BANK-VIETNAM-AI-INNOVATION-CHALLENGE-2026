@@ -330,3 +330,92 @@ def test_execute_question_preserves_orchestrator_answer_when_no_specialist(monke
         for event, fields in seen_events
         if event == "agent.raw_answer" and fields["agent"] == "Orchestrator"
     ] == ["Tôi có thể hỗ trợ nghiệp vụ tín dụng."]
+
+
+def test_execute_question_returns_specialist_answer_when_orchestrator_rewrites(monkeypatch):
+    seen_events: list[tuple[str, dict]] = []
+    captured_extractors = {}
+    source = KnowledgeEvidence(
+        source_id="page:source-1",
+        file_name="policy.pdf",
+        page="4",
+        excerpt="CCCD hết hạn là hard stop.",
+    )
+    specialist_draft = QuestionAnswerDraft(
+        domain="compliance",
+        answer=(
+            "Hồ sơ pháp lý hiện không đủ điều kiện PASSED vì CCCD đã hết hạn. "
+            "Cần bổ sung CCCD còn hiệu lực."
+        ),
+        evidence_ids=[source.source_id],
+        insufficient_information=True,
+    )
+    rewritten_draft = QuestionAnswerDraft(
+        domain="compliance",
+        answer="Hồ sơ không đủ điều kiện PASSED. Cần bổ sung CCCD còn hiệu lực.",
+        evidence_ids=[source.source_id],
+        insufficient_information=True,
+    )
+
+    class FakeTool:
+        def __init__(self, name):
+            self.name = name
+
+    class FakeServer:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def list_tools(self):
+            return [FakeTool("search_knowledge"), FakeTool("get_document_page")]
+
+    class FakeQuestionAgent:
+        def as_tool(self, *, tool_name, custom_output_extractor, **_kwargs):
+            captured_extractors[tool_name] = custom_output_extractor
+            return SimpleNamespace(name=tool_name)
+
+    class FakeRunResult:
+        final_output = rewritten_draft
+
+    async def fake_run(*_args, **_kwargs):
+        await captured_extractors["ask_compliance_agent"](
+            SimpleNamespace(final_output=specialist_draft, new_items=[])
+        )
+        return FakeRunResult()
+
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "build_question_mcp_server",
+        lambda _mcp_url: FakeServer(),
+    )
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "build_question_agent",
+        lambda *_args, **_kwargs: FakeQuestionAgent(),
+    )
+    monkeypatch.setattr(orchestrator_agent.Runner, "run", fake_run)
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "extract_trusted_evidence",
+        lambda *_args, **_kwargs: [source],
+    )
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **fields: seen_events.append((event, fields)),
+    )
+
+    execution = asyncio.run(
+        execute_question("CCCD hết hạn thì sao?", "http://mcp.test/mcp", "test-model")
+    )
+
+    assert execution.draft == specialist_draft
+    assert execution.trusted_evidence == [source]
+    changed_events = [
+        fields for event, fields in seen_events if event == "agent.routing.output_changed"
+    ]
+    assert changed_events
+    assert changed_events[0]["specialist_raw_output"]["answer"] == specialist_draft.answer
+    assert changed_events[0]["orchestrator_raw_output"]["answer"] == rewritten_draft.answer
