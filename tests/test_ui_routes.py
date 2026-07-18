@@ -55,3 +55,17 @@ def test_ui_renders_only_assistant_markdown_with_sanitization():
     assert "DOMPurify.sanitize" in script
     assert "formatAssistantAnswer(msg.text)" in script
     assert 'msg-bubble-user">${formatAnswerText(msg.text)}' in script
+
+
+def test_qa_composer_exposes_dossier_upload_action():
+    client = TestClient(app)
+
+    html = client.get("/qa").text
+    script = client.get("/static/js/app.js").text
+
+    assert 'id="btn-dossier-upload"' in html
+    assert 'id="dossier-file-input"' in html
+    assert 'accept=".zip,.pdf,application/zip,application/pdf"' in html
+    assert "DOSSIER_ROUTE_BUNDLE_ENDPOINT = '/api/v1/loan/dossiers/route-bundle'" in script
+    assert "Chỉ hỗ trợ file ZIP chứa PDF hoặc các file PDF" in script
+    assert "formatDossierPlannerAnswer" in script

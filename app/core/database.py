@@ -23,6 +23,7 @@ LOAN_AGENT_COLLECTION_NAMES = (
     "loan_limit_calculations",
     "loan_tasks",
     "loan_reports",
+    "loan_dossier_bundles",
 )
 
 KB_DOCUMENT_INDEX_STATUS_INDEXED = "indexed"
@@ -173,6 +174,13 @@ async def ensure_loan_agent_indexes():
     await loan_profiles.create_index(
         [("user_id", ASCENDING), ("customer_id", ASCENDING)],
         name="loan_profiles_user_customer",
+    )
+
+    dossier_bundles = Database.get_loan_collection("loan_dossier_bundles")
+    await dossier_bundles.create_index(
+        [("user_id", ASCENDING), ("dossier_id", ASCENDING)],
+        unique=True,
+        name="loan_dossier_bundles_user_dossier",
     )
 
     for collection_name in (

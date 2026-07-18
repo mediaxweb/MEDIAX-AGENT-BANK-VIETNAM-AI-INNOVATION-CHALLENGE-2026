@@ -542,6 +542,22 @@ body.sidebar-collapsed .btn-more { padding: 0; }
   border-color: var(--purple); background: var(--card);
   box-shadow: 0 0 0 3px rgba(74,21,75,0.07);
 }
+.btn-attach {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--purple); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.btn-attach:hover {
+  background: var(--purple-08); border-color: var(--purple-25);
+}
+.btn-attach:active { transform: scale(0.92); }
+.btn-attach:disabled {
+  background: var(--elev); color: var(--muted);
+  cursor: not-allowed; border-color: var(--border);
+}
 .composer-textarea {
   flex: 1; border: none; background: transparent;
   font-family: inherit; font-size: 13.5px; color: var(--text);
@@ -561,6 +577,57 @@ body.sidebar-collapsed .btn-more { padding: 0; }
 .btn-send:hover { background: #380A38; }
 .btn-send:active { transform: scale(0.92); }
 .btn-send:disabled { background: var(--elev); color: var(--muted); cursor: not-allowed; }
+.dossier-composer-preview {
+  display: none;
+  margin-top: 8px;
+}
+.dossier-composer-preview.ready,
+.dossier-composer-preview.error {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+.dossier-composer-preview.ready {
+  background: #EFF6FF; border: 1px solid rgba(18,100,163,0.18);
+  color: var(--blue);
+}
+.dossier-composer-preview.error {
+  background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.18);
+  color: #dc2626;
+}
+.dossier-composer-main {
+  display: flex; align-items: flex-start; gap: 8px;
+  min-width: 0;
+}
+.dossier-composer-icon {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.dossier-composer-copy {
+  display: flex; flex-direction: column; gap: 2px;
+  min-width: 0;
+}
+.dossier-composer-copy strong {
+  font-size: 12.5px; font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.dossier-composer-copy span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.btn-clear-dossier {
+  width: 24px; height: 24px; border-radius: 6px;
+  background: transparent; border: 1px solid transparent;
+  color: currentColor; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; opacity: 0.8;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+}
+.btn-clear-dossier:hover {
+  background: rgba(255,255,255,0.7); border-color: currentColor; opacity: 1;
+}
 .composer-disclaimer {
   font-size: 11px; color: #94A3B8; text-align: center;
   margin-top: 7px;
