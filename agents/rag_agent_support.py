@@ -1,20 +1,26 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 from collections.abc import Mapping
+from time import perf_counter
 from typing import Any, Literal
 
+from agents import RunConfig
 from agents.items import ToolCallItem, ToolCallOutputItem
 from agents.lifecycle import RunHooksBase
 from agents.mcp import MCPServerStreamableHttp
 from agents.tool import FunctionTool, ToolOriginType, get_function_tool_origin
 from agents.tool_context import ToolContext
+from agents.tracing import get_current_trace
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 
 RAGDomain = Literal["credit", "compliance", "operations"]
 ExecutionMode = Literal["assess", "execute"]
 AGENT_MCP_NAME = "agent-bank-tools"
+AGENT_TRACE_LOGGER = logging.getLogger("agent_trace")
 COMMON_MCP_TOOL_NAMES = (
     "search_knowledge",
     "get_document_page",
@@ -265,14 +271,128 @@ def _validate_loan_scope(
         raise ValueError(f"{tool_name} must use the input loan_profile_id")
 
 
-class DomainRAGRunHooks(RunHooksBase):
+def log_agent_event(event: str, **fields: Any) -> None:
+    trace = get_current_trace()
+    payload = {"event": event}
+    if trace is not None:
+        payload["trace_id"] = trace.trace_id
+    payload.update({key: value for key, value in fields.items() if value is not None})
+    AGENT_TRACE_LOGGER.info(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    )
+
+
+def build_agent_run_config(
+    workflow_name: str,
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> RunConfig:
+    include_sensitive = os.getenv(
+        "OPENAI_AGENTS_TRACE_INCLUDE_SENSITIVE_DATA",
+        "false",
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    return RunConfig(
+        workflow_name=workflow_name,
+        trace_include_sensitive_data=include_sensitive,
+        trace_metadata=metadata,
+    )
+
+
+class AgentLoggingRunHooks(RunHooksBase):
+    def __init__(self, domain: RAGDomain | None = None):
+        self.domain = domain
+        self._agent_started_at: dict[str, float] = {}
+        self._tool_started_at: dict[str, float] = {}
+
+    @staticmethod
+    def _duration_ms(started_at: float | None) -> int | None:
+        if started_at is None:
+            return None
+        return int((perf_counter() - started_at) * 1000)
+
+    @staticmethod
+    def _tool_key(context: Any, tool_name: str) -> str:
+        return getattr(context, "tool_call_id", None) or tool_name
+
+    def _tool_fields(self, context: Any, tool_name: str) -> dict[str, Any]:
+        fields: dict[str, Any] = {"domain": self.domain}
+        if tool_name.startswith("ask_") and tool_name.endswith("_agent"):
+            routed_domain = tool_name.removeprefix("ask_").removesuffix("_agent")
+            if routed_domain in {"credit", "compliance", "operations"}:
+                fields["domain"] = routed_domain
+        if isinstance(context, ToolContext) and tool_name == "search_knowledge":
+            try:
+                arguments = json.loads(context.tool_arguments)
+            except (TypeError, json.JSONDecodeError):
+                arguments = {}
+            if type(arguments.get("top_k")) is int:
+                fields["top_k"] = arguments["top_k"]
+        return fields
+
+    @staticmethod
+    def _evidence_count(result: Any) -> int | None:
+        payload = result
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                return None
+        evidence = payload.get("evidence") if isinstance(payload, Mapping) else None
+        return len(evidence) if isinstance(evidence, list) else None
+
+    async def on_agent_start(self, context, agent) -> None:
+        self._agent_started_at[agent.name] = perf_counter()
+        log_agent_event(
+            "agent.started",
+            agent=agent.name,
+            domain=self.domain,
+        )
+
+    async def on_agent_end(self, context, agent, output) -> None:
+        usage = context.usage
+        log_agent_event(
+            "agent.completed",
+            agent=agent.name,
+            domain=self.domain,
+            requests=usage.requests,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
+            duration_ms=self._duration_ms(self._agent_started_at.pop(agent.name, None)),
+        )
+
+    async def on_tool_start(self, context, agent, tool) -> None:
+        tool_name = getattr(context, "tool_name", None) or getattr(tool, "name", type(tool).__name__)
+        self._tool_started_at[self._tool_key(context, tool_name)] = perf_counter()
+        log_agent_event(
+            "agent.tool.started",
+            agent=agent.name,
+            tool=tool_name,
+            **self._tool_fields(context, tool_name),
+        )
+
+    async def on_tool_end(self, context, agent, tool, result) -> None:
+        tool_name = getattr(context, "tool_name", None) or getattr(tool, "name", type(tool).__name__)
+        log_agent_event(
+            "agent.tool.completed",
+            agent=agent.name,
+            tool=tool_name,
+            evidence_count=self._evidence_count(result),
+            duration_ms=self._duration_ms(
+                self._tool_started_at.pop(self._tool_key(context, tool_name), None)
+            ),
+            **self._tool_fields(context, tool_name),
+        )
+
+
+class DomainRAGRunHooks(AgentLoggingRunHooks):
     def __init__(
         self,
         domain: RAGDomain,
         loan_profile_id: str | None = None,
         execution_mode: ExecutionMode = "assess",
     ):
-        self.domain = domain
+        super().__init__(domain)
         self.loan_profile_id = loan_profile_id
         self.execution_mode = execution_mode
 
@@ -295,6 +415,7 @@ class DomainRAGRunHooks(RunHooksBase):
             or origin.mcp_server_name != AGENT_MCP_NAME
         ):
             raise ValueError(f"Agent may only invoke the {AGENT_MCP_NAME} MCP server")
+        await super().on_tool_start(context, agent, tool)
 
 
 def _unwrap_output(output: Any) -> Any:

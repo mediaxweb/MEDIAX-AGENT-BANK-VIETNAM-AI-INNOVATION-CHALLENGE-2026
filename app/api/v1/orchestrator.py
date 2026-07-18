@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from time import perf_counter
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from agents import SQLiteSession
+from agents import SQLiteSession, trace
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
@@ -23,7 +24,7 @@ from orchestrator_agent import (  # noqa: E402
     OrchestratorQuestionAnswer,
     answer_question,
 )
-from rag_agent_support import KnowledgeEvidence, RAGDomain  # noqa: E402
+from rag_agent_support import KnowledgeEvidence, RAGDomain, log_agent_event  # noqa: E402
 
 
 router = APIRouter()
@@ -42,6 +43,7 @@ class ChatResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     session_id: UUID
+    trace_id: str
     answer: str
     domain: RAGDomain
     insufficient_information: bool
@@ -56,17 +58,48 @@ async def chat(request: ChatRequest) -> ChatResponse:
     session_id = request.session_id or uuid4()
     SESSION_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     session = SQLiteSession(str(session_id), db_path=SESSION_DB_PATH)
+    started_at = perf_counter()
     try:
-        result: OrchestratorQuestionAnswer = await answer_question(
-            request.message,
-            mcp_url=os.getenv("RAG_MCP_URL", DEFAULT_RAG_MCP_URL),
-            model=os.getenv("OPENAI_AGENT_MODEL", DEFAULT_MODEL),
-            session=session,
-        )
+        with trace(
+            "MediaX Agent Bank Chat",
+            group_id=str(session_id),
+            metadata={"surface": "orchestrator_chat"},
+        ) as agent_trace:
+            log_agent_event(
+                "agent.request.started",
+                session_id=str(session_id),
+                workflow="chat",
+            )
+            try:
+                result: OrchestratorQuestionAnswer = await answer_question(
+                    request.message,
+                    mcp_url=os.getenv("RAG_MCP_URL", DEFAULT_RAG_MCP_URL),
+                    model=os.getenv("OPENAI_AGENT_MODEL", DEFAULT_MODEL),
+                    session=session,
+                )
+            except Exception as error:
+                log_agent_event(
+                    "agent.request.failed",
+                    session_id=str(session_id),
+                    stage="orchestrator_chat",
+                    error_type=type(error).__name__,
+                    duration_ms=int((perf_counter() - started_at) * 1000),
+                )
+                raise
+            log_agent_event(
+                "agent.request.completed",
+                session_id=str(session_id),
+                domain=result.domain,
+                cited_sources=len(result.sources),
+                insufficient_information=result.insufficient_information,
+                duration_ms=int((perf_counter() - started_at) * 1000),
+            )
+            trace_id = agent_trace.trace_id
     finally:
         session.close()
     return ChatResponse(
         session_id=session_id,
+        trace_id=trace_id,
         answer=result.answer,
         domain=result.domain,
         insufficient_information=result.insufficient_information,

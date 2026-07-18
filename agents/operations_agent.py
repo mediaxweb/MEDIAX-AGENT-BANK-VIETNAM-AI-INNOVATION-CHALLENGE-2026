@@ -21,6 +21,7 @@ from rag_agent_support import (
     KnowledgeEvidence,
     assert_expected_agent_tools,
     build_agent_mcp_server,
+    build_agent_run_config,
     evidence_by_id,
     extract_called_tool_names,
     extract_trusted_evidence,
@@ -543,6 +544,10 @@ async def execute_operations_decision(
                 "operations",
                 application.loan_profile_id,
                 application.execution_mode,
+            ),
+            run_config=build_agent_run_config(
+                "MediaX Operations Agent",
+                metadata={"domain": "operations", "execution_mode": application.execution_mode},
             ),
         )
     if not isinstance(result.final_output, OperationsDecisionDraft):

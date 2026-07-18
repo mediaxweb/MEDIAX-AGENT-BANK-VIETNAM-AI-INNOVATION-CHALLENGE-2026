@@ -26,11 +26,14 @@ from operations_agent import (
 )
 from rag_agent_support import (
     AGENT_MCP_NAME,
+    AgentLoggingRunHooks,
     DomainRAGRunHooks,
     KnowledgeEvidence,
     RAGDomain,
+    build_agent_run_config,
     evidence_by_id,
     extract_trusted_evidence,
+    log_agent_event,
 )
 
 
@@ -297,14 +300,23 @@ async def _collect_specialist_output(
         raise TypeError("Knowledge Agent returned an invalid answer")
     if result.final_output.domain != domain:
         raise ValueError(f"{domain} agent returned a different domain")
+    trusted_evidence = extract_trusted_evidence(
+        result.new_items,
+        domain=domain,
+    )
     executions.append(
         QuestionExecution(
             draft=result.final_output,
-            trusted_evidence=extract_trusted_evidence(
-                result.new_items,
-                domain=domain,
-            ),
+            trusted_evidence=trusted_evidence,
         )
+    )
+    log_agent_event(
+        "agent.output.validated",
+        agent=f"{domain.title()} Knowledge Agent",
+        domain=domain,
+        evidence_count=len(trusted_evidence),
+        cited_sources=len(result.final_output.evidence_ids),
+        insufficient_information=result.final_output.insufficient_information,
     )
     return result.final_output.model_dump_json()
 
@@ -337,6 +349,11 @@ async def execute_question(
             build_chat_orchestrator(specialist_tools, model),
             question,
             session=session,
+            hooks=AgentLoggingRunHooks(),
+            run_config=build_agent_run_config(
+                "MediaX Agent Bank Chat",
+                metadata={"surface": "orchestrator_chat"},
+            ),
         )
     if not isinstance(result.final_output, QuestionAnswerDraft):
         raise TypeError("Orchestrator returned an invalid answer")
