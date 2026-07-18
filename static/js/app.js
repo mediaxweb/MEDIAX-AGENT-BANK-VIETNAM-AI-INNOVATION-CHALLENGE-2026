@@ -54,7 +54,8 @@ const DOMAIN_LABELS = {
   operations: 'Agent Operations',
 };
 
-let state = loadChatState();
+let activeChatStorageKey = '';
+let state = createInitialChatState();
 
 function makeLocalId() {
   if (window.crypto && typeof window.crypto.randomUUID === 'function') {
@@ -75,9 +76,26 @@ function createSessionObject(name = 'Phiên hỏi đáp mới') {
   };
 }
 
-function loadChatState() {
+function createInitialChatState() {
+  const firstSession = createSessionObject();
+  firstSession.active = true;
+  return {
+    sessions: [firstSession],
+    isProcessing: false,
+    activeSourceId: null,
+  };
+}
+
+function loadChatState(storageKey) {
+  if (!storageKey) return createInitialChatState();
+
+  let sourceKey = storageKey;
   try {
-    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    let raw = localStorage.getItem(storageKey);
+    if (!raw) {
+      sourceKey = CHAT_STORAGE_KEY;
+      raw = localStorage.getItem(sourceKey);
+    }
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed.sessions) && parsed.sessions.length > 0) {
@@ -91,26 +109,25 @@ function loadChatState() {
           sourcesById: session.sourcesById || {},
         }));
         if (!sessions.some(session => session.active)) sessions[0].active = true;
+        if (sourceKey !== storageKey) {
+          localStorage.setItem(storageKey, JSON.stringify({ sessions }));
+          localStorage.removeItem(sourceKey);
+        }
         return { sessions, isProcessing: false, activeSourceId: null };
       }
     }
   } catch (_error) {
-    localStorage.removeItem(CHAT_STORAGE_KEY);
+    localStorage.removeItem(sourceKey);
   }
 
-  const firstSession = createSessionObject();
-  firstSession.active = true;
-  return {
-    sessions: [firstSession],
-    isProcessing: false,
-    activeSourceId: null,
-  };
+  return createInitialChatState();
 }
 
 function persistChatState() {
+  if (!activeChatStorageKey) return;
   try {
     localStorage.setItem(
-      CHAT_STORAGE_KEY,
+      activeChatStorageKey,
       JSON.stringify({ sessions: state.sessions })
     );
   } catch (_error) {
@@ -749,13 +766,32 @@ function updateAuthenticatedUser(user) {
   if (avatarEl) avatarEl.textContent = initials.slice(0, 2);
 }
 
+function loadAuthenticatedChatState(user) {
+  const userId = String(user && user.id || '').trim();
+  if (!userId) return;
+
+  const storageKey = `${CHAT_STORAGE_KEY}:${userId}`;
+  if (storageKey === activeChatStorageKey) return;
+  activeChatStorageKey = storageKey;
+  state = loadChatState(storageKey);
+  renderSessions();
+  renderChat();
+  renderTrace();
+  updateComposerState();
+}
+
 function unlockApp(user = null) {
   document.body.classList.remove('auth-locked');
-  if (user) updateAuthenticatedUser(user);
+  if (user) {
+    updateAuthenticatedUser(user);
+    loadAuthenticatedChatState(user);
+  }
 }
 
 function lockApp() {
   document.body.classList.add('auth-locked');
+  activeChatStorageKey = '';
+  state = createInitialChatState();
   const error = document.getElementById('auth-error');
   if (error) error.textContent = '';
 }
@@ -797,7 +833,7 @@ function initAuthModule() {
   const token = getStoredAccessToken();
   if (token) {
     unlockApp();
-    fetchCurrentUser().then(updateAuthenticatedUser).catch(error => {
+    fetchCurrentUser().then(unlockApp).catch(error => {
       if (error.status === 401 || error.status === 403) {
         clearAccessToken();
         lockApp();
