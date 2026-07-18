@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from hashlib import sha256
 from collections.abc import Awaitable, Callable
@@ -9,17 +10,34 @@ from pathlib import Path
 from typing import Any, Literal
 
 from agents import Agent, Runner
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pypdf import PdfReader
 
 
 DEFAULT_MODEL = "gpt-5.4-mini"
 DEFAULT_MAX_TEXT_CHARS = 200_000
 EvidenceOwner = Literal["credit", "compliance", "operations"]
+logger = logging.getLogger(__name__)
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def reject_blank_strings(cls, value: Any):
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                raise ValueError("blank strings are not allowed")
+        return value
 
 
 class DossierFileReference(StrictModel):
@@ -128,7 +146,6 @@ class NormalizedCollateral(StrictModel):
 class NormalizedDocument(StrictModel):
     document_type: str = Field(min_length=1)
     status: Literal["provided", "missing", "not_applicable"]
-    owners: list[EvidenceOwner] = Field(default_factory=list)
     valid: bool | None = None
     readable: bool | None = None
     complete: bool | None = None
@@ -141,6 +158,14 @@ class NormalizedConsistency(StrictModel):
     tax_code_matches: bool | None = None
     representative_matches: bool | None = None
     industry_matches_purpose: bool | None = None
+
+
+class NormalizedComplianceDocuments(StrictModel):
+    latest_financial_statement_present: bool | None = None
+    signer_authority: Literal["valid", "verify", "invalid"] | None = None
+    legal_documents: Literal["complete", "minor_missing", "mandatory_missing"] | None = None
+    consistency: Literal["consistent", "minor_mismatch", "major_mismatch"] | None = None
+    anomaly: Literal["none", "review", "serious"] | None = None
 
 
 class NormalizedScreening(StrictModel):
@@ -173,6 +198,9 @@ class DossierExtractionDraft(StrictModel):
     collateral: NormalizedCollateral = Field(default_factory=NormalizedCollateral)
     documents: list[NormalizedDocument] = Field(default_factory=list)
     consistency: NormalizedConsistency = Field(default_factory=NormalizedConsistency)
+    compliance_documents: NormalizedComplianceDocuments = Field(
+        default_factory=NormalizedComplianceDocuments
+    )
     screening: NormalizedScreening = Field(default_factory=NormalizedScreening)
     missing_information: list[MissingInformation] = Field(default_factory=list)
     evidence: list[DossierEvidence] = Field(default_factory=list)
@@ -184,6 +212,21 @@ class DossierNormalizationResult(StrictModel):
     files: list[DossierFileReference]
     page_count: int = Field(ge=1)
     facts: DossierExtractionDraft
+
+
+class DossierInputIssue(StrictModel):
+    code: str
+    message: str
+    file_id: str | None = None
+    fields: list[str] = Field(default_factory=list)
+
+
+class DossierInputBoundaryResult(StrictModel):
+    status: Literal["ready", "input_not_ready"]
+    dossier_id: str | None = None
+    routing_batch_id: str | None = None
+    normalized: DossierNormalizationResult | None = None
+    issues: list[DossierInputIssue] = Field(default_factory=list)
 
 
 class DossierPage(StrictModel):
@@ -321,7 +364,9 @@ def build_dossier_normalizer_agent(model: str = DEFAULT_MODEL) -> Agent:
             "xuất hiện trong tài liệu. Chỉ trích xuất dữ kiện được ghi rõ; không suy đoán, không "
             "tự điền mặc định và dùng null khi không xác định được. Mọi mô tả tự do phải viết "
             "bằng tiếng Việt. Với mỗi dữ kiện quan trọng, thêm evidence có file_id, số trang và "
-            "đoạn trích nguyên văn. Liệt kê dữ liệu nghiệp vụ còn thiếu trong missing_information. "
+            "đoạn trích nguyên văn. field của evidence phải là JSON path chính xác của dữ kiện, "
+            "bao gồm index với list, ví dụ financials.0.revenue. Mọi dữ kiện khác null đều bắt "
+            "buộc có evidence. Liệt kê dữ liệu nghiệp vụ còn thiếu trong missing_information. "
             "Không đánh giá đạt/không đạt, không áp dụng chính sách tín dụng và không gọi công cụ."
         ),
         model=model,
@@ -349,22 +394,34 @@ def _compact_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip().casefold()
 
 
+def _populated_fact_paths(value: Any, prefix: str = "") -> set[str]:
+    if isinstance(value, BaseModel):
+        value = value.model_dump(mode="python", exclude_none=True)
+    if isinstance(value, dict):
+        paths: set[str] = set()
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            paths.update(_populated_fact_paths(item, path))
+        return paths
+    if isinstance(value, list):
+        paths = set()
+        for index, item in enumerate(value):
+            paths.update(_populated_fact_paths(item, f"{prefix}.{index}"))
+        return paths
+    return {prefix} if prefix else set()
+
+
 def _validate_evidence(
     draft: DossierExtractionDraft,
     pages: list[DossierPage],
 ) -> None:
     page_map = {(item.file_id, item.page): item.text for item in pages}
-    allowed_prefixes = (
-        "customer.",
-        "signer.",
-        "loan.",
-        "financials.",
-        "funding_plan.",
-        "repayment_plan.",
-        "collateral.",
-        "documents.",
-        "consistency.",
-        "screening.",
+    fact_paths = _populated_fact_paths(
+        draft.model_dump(
+            mode="python",
+            exclude_none=True,
+            exclude={"evidence", "missing_information"},
+        )
     )
     for evidence in draft.evidence:
         page_text = page_map.get((evidence.file_id, evidence.page))
@@ -374,9 +431,10 @@ def _validate_evidence(
                 "Normalizer trả về nguồn không thuộc các trang PDF đã đọc.",
                 file_id=evidence.file_id,
             )
-        if not evidence.field.startswith(allowed_prefixes):
+        if evidence.field not in fact_paths:
             raise DossierNormalizationError(
-                "invalid_evidence", f"Trường evidence không hợp lệ: {evidence.field}."
+                "invalid_evidence",
+                f"Evidence không tham chiếu một dữ kiện đã chuẩn hoá: {evidence.field}.",
             )
         if _compact_text(evidence.excerpt) not in _compact_text(page_text):
             raise DossierNormalizationError(
@@ -384,6 +442,13 @@ def _validate_evidence(
                 "Đoạn trích evidence không xuất hiện nguyên văn trong trang nguồn.",
                 file_id=evidence.file_id,
             )
+
+    missing_evidence = sorted(fact_paths - {item.field for item in draft.evidence})
+    if missing_evidence:
+        raise DossierNormalizationError(
+            "missing_evidence",
+            "Dữ kiện chuẩn hoá thiếu nguồn kiểm chứng.",
+        )
 
 
 async def normalize_dossier(
@@ -421,4 +486,83 @@ async def normalize_dossier(
         files=request.files,
         page_count=len(pages),
         facts=draft,
+    )
+
+
+async def prepare_dossier_input(
+    payload: Any,
+    *,
+    allowed_root: str | Path,
+    model: str = DEFAULT_MODEL,
+    max_text_chars: int = DEFAULT_MAX_TEXT_CHARS,
+    runner: NormalizerRunner = Runner.run,
+) -> DossierInputBoundaryResult:
+    raw = payload.model_dump(mode="python") if isinstance(payload, BaseModel) else payload
+    dossier_id = raw.get("dossier_id") if isinstance(raw, dict) else None
+    routing_batch_id = raw.get("routing_batch_id") if isinstance(raw, dict) else None
+    dossier_id = dossier_id.strip() or None if isinstance(dossier_id, str) else None
+    routing_batch_id = (
+        routing_batch_id.strip() or None
+        if isinstance(routing_batch_id, str)
+        else None
+    )
+    try:
+        request = DossierNormalizationRequest.model_validate(raw)
+    except ValidationError as exc:
+        fields = sorted(
+            {".".join(str(part) for part in item["loc"]) for item in exc.errors()}
+        )
+        return DossierInputBoundaryResult(
+            status="input_not_ready",
+            dossier_id=dossier_id,
+            routing_batch_id=routing_batch_id,
+            issues=[
+                DossierInputIssue(
+                    code="invalid_request",
+                    message="Payload hồ sơ không đúng schema.",
+                    fields=fields,
+                )
+            ],
+        )
+
+    try:
+        normalized = await normalize_dossier(
+            request,
+            allowed_root=allowed_root,
+            model=model,
+            max_text_chars=max_text_chars,
+            runner=runner,
+        )
+    except DossierNormalizationError as exc:
+        return DossierInputBoundaryResult(
+            status="input_not_ready",
+            dossier_id=request.dossier_id,
+            routing_batch_id=request.routing_batch_id,
+            issues=[
+                DossierInputIssue(
+                    code=exc.code,
+                    message=str(exc),
+                    file_id=exc.file_id,
+                )
+            ],
+        )
+    except Exception as exc:
+        logger.error("Dossier normalization runtime failure [%s]", type(exc).__name__)
+        return DossierInputBoundaryResult(
+            status="input_not_ready",
+            dossier_id=request.dossier_id,
+            routing_batch_id=request.routing_batch_id,
+            issues=[
+                DossierInputIssue(
+                    code="normalizer_unavailable",
+                    message="Không thể chuẩn hoá hồ sơ tại thời điểm này.",
+                )
+            ],
+        )
+
+    return DossierInputBoundaryResult(
+        status="ready",
+        dossier_id=request.dossier_id,
+        routing_batch_id=request.routing_batch_id,
+        normalized=normalized,
     )

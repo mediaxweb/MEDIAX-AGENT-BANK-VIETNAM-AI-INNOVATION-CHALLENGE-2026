@@ -16,6 +16,7 @@ from dossier_normalizer import (
     NormalizedCustomer,
     load_dossier_pages,
     normalize_dossier,
+    prepare_dossier_input,
 )
 
 
@@ -73,10 +74,15 @@ def test_normalize_dossier_returns_page_grounded_facts(tmp_path, monkeypatch):
             )
         )
 
-    result = asyncio.run(
-        normalize_dossier(_request(pdf_path), allowed_root=tmp_path, runner=fake_runner)
+    boundary = asyncio.run(
+        prepare_dossier_input(
+            _request(pdf_path), allowed_root=tmp_path, runner=fake_runner
+        )
     )
+    result = boundary.normalized
 
+    assert boundary.status == "ready"
+    assert result is not None
     assert result.dossier_id == "DOSSIER-001"
     assert result.page_count == 1
     assert result.facts.customer.tax_code == "0101234567"
@@ -154,3 +160,69 @@ def test_normalize_dossier_rejects_hallucinated_evidence(tmp_path, monkeypatch):
         )
 
     assert exc_info.value.code == "invalid_evidence"
+
+
+def test_normalize_dossier_rejects_populated_fact_without_evidence(
+    tmp_path, monkeypatch
+):
+    pdf_path = tmp_path / "ho_so.pdf"
+    _write_pdf_stub(pdf_path)
+    monkeypatch.setattr(
+        dossier_normalizer,
+        "PdfReader",
+        lambda _path: SimpleNamespace(pages=[FakePage("Mã số: 0101234567")]),
+    )
+
+    async def fake_runner(_agent, _input, *, max_turns):
+        return SimpleNamespace(
+            final_output=DossierExtractionDraft(
+                customer=NormalizedCustomer(tax_code="0101234567")
+            )
+        )
+
+    with pytest.raises(DossierNormalizationError) as exc_info:
+        asyncio.run(
+            normalize_dossier(
+                _request(pdf_path), allowed_root=tmp_path, runner=fake_runner
+            )
+        )
+
+    assert exc_info.value.code == "missing_evidence"
+
+
+def test_prepare_dossier_input_returns_structured_validation_error(tmp_path):
+    result = asyncio.run(
+        prepare_dossier_input(
+            {"dossier_id": " ", "files": []},
+            allowed_root=tmp_path,
+        )
+    )
+
+    assert result.status == "input_not_ready"
+    assert result.normalized is None
+    assert result.issues[0].code == "invalid_request"
+    assert result.issues[0].fields == ["dossier_id", "files"]
+
+
+def test_prepare_dossier_input_fails_closed_when_normalizer_is_unavailable(
+    tmp_path, monkeypatch
+):
+    pdf_path = tmp_path / "ho_so.pdf"
+    _write_pdf_stub(pdf_path)
+    monkeypatch.setattr(
+        dossier_normalizer,
+        "PdfReader",
+        lambda _path: SimpleNamespace(pages=[FakePage("Hồ sơ hợp lệ")]),
+    )
+
+    async def failing_runner(_agent, _input, *, max_turns):
+        raise RuntimeError("provider unavailable")
+
+    result = asyncio.run(
+        prepare_dossier_input(
+            _request(pdf_path), allowed_root=tmp_path, runner=failing_runner
+        )
+    )
+
+    assert result.status == "input_not_ready"
+    assert result.issues[0].code == "normalizer_unavailable"

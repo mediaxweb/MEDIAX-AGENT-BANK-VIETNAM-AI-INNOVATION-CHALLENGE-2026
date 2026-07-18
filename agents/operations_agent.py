@@ -63,6 +63,7 @@ class ComplianceUpstreamResult(StrictModel):
     ltv_ratio: Decimal = Field(gt=0, le=1)
     hard_stop_reasons: list[str] = Field(default_factory=list)
     conditions: list[str] = Field(default_factory=list)
+    recommended_limit: Decimal | None = Field(default=None, ge=0)
 
 
 class OperationsApplication(StrictModel):
@@ -249,6 +250,8 @@ def calculate_loan_limit(
     checklist_factor = _factor_for_checklist(checklist_score)
     final_factor = min(dscr_factor, checklist_factor)
     recommended = Decimal("0.00") if hard_stop else (base_limit * final_factor).quantize(MONEY_QUANTUM)
+    if application.compliance_result.recommended_limit is not None:
+        recommended = min(recommended, application.compliance_result.recommended_limit)
     return capital_limit, collateral_limit, dscr_factor, checklist_factor, final_factor, recommended
 
 
