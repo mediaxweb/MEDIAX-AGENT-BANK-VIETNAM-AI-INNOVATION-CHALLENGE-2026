@@ -150,6 +150,10 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+function citationDisplayFileName(fileName) {
+  return String(fileName || 'Nguồn không tên').replace(/^[0-9a-f]{32}_/i, '');
+}
+
 function formatAnswerText(value) {
   return escapeHtml(value).replace(/\n/g, '<br>');
 }
@@ -397,7 +401,7 @@ function renderChat() {
         .filter(Boolean);
       const sourceLinks = sources.map(source => {
         const page = source.page ? ` · trang ${escapeHtml(source.page)}` : '';
-        const label = `${escapeHtml(source.file_name || source.source_id)}${page}`;
+        const label = `${escapeHtml(citationDisplayFileName(source.file_name || source.source_id))}${page}`;
         return `<button class="qa-source-link" data-source-id="${escapeHtml(source.source_id)}">${ICON.file}<span class="qa-source-label">${label}</span></button>`;
       }).join('');
       const sourceCount = sources.length;
@@ -897,7 +901,7 @@ function openSourceOverlay(sourceId) {
   if (!data) return;
   state.activeSourceId = sourceId;
 
-  document.getElementById('source-header-filename').textContent = data.file_name || 'Nguồn không tên';
+  document.getElementById('source-header-filename').textContent = citationDisplayFileName(data.file_name);
   document.getElementById('source-meta-category').textContent  = domainLabel(data.domain);
   document.getElementById('source-meta-folder').textContent    = data.source_id || sourceId;
   document.getElementById('source-meta-updated').textContent   = data.page || '—';
