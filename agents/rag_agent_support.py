@@ -276,9 +276,42 @@ def log_agent_event(event: str, **fields: Any) -> None:
     payload = {"event": event}
     if trace is not None:
         payload["trace_id"] = trace.trace_id
+        metadata = getattr(trace, "metadata", None)
+        if isinstance(metadata, Mapping) and metadata.get("dossier_id"):
+            payload["dossier_id"] = metadata["dossier_id"]
     payload.update({key: value for key, value in fields.items() if value is not None})
     AGENT_TRACE_LOGGER.info(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    )
+
+
+def classify_agent_error(error: Exception) -> str:
+    module = type(error).__module__.casefold()
+    name = type(error).__name__.casefold()
+    message = str(error).casefold()
+    if "openai" in module or "model" in name:
+        return "model"
+    if "mcp" in module or "tool" in name or "tool" in message:
+        return "tool"
+    if module.startswith(("httpx", "httpcore")) or any(
+        token in message for token in ("rag", "evidence", "search_knowledge")
+    ):
+        return "rag"
+    if isinstance(error, (TypeError, ValueError, AssertionError)) or module.startswith(
+        "pydantic"
+    ):
+        return "deterministic_validation"
+    return "agent_runtime"
+
+
+def log_agent_runtime_failure(domain: RAGDomain, error: Exception) -> None:
+    log_agent_event(
+        "agent.runtime.failed",
+        agent=f"{domain.title()} Agent",
+        domain=domain,
+        stage=domain,
+        error_category=classify_agent_error(error),
+        error_type=type(error).__name__,
     )
 
 

@@ -52,10 +52,21 @@ class FakeDatabase:
         return self.collections[name]
 
 
-class FailingComplianceDispatchService(LoanAgentService):
-    async def _send_dossier_agent_payload(self, payload):
-        if payload["agent_name"] == "compliance":
-            raise RuntimeError("compliance outbox unavailable")
+def _completed_assessment_result():
+    return {
+        "status": "completed",
+        "trace_id": "trace-dossier-test",
+        "dossier_id": "DOSSIER-TEST",
+        "overall_result": "READY",
+        "stopped_after": None,
+        "stop_reason": None,
+        "credit": {"facts": {"result": "PASSED"}, "missing_data": []},
+        "compliance": {"facts": {"result": "PASSED"}, "missing_data": []},
+        "operations": {"facts": {"result": "READY"}, "missing_data": []},
+        "dossier_evidence": [],
+        "issues": [],
+        "report": {"answer": "Hồ sơ đủ điều kiện trình phê duyệt."},
+    }
 
 
 def test_create_customer_rejects_duplicate_identity_before_insert():
@@ -253,7 +264,16 @@ def test_route_dossier_bundle_rejects_non_pdf_inside_zip(tmp_path, monkeypatch):
 def test_dispatch_dossier_bundle_sends_file_references_and_is_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr(configs, "loan_upload_dir", str(tmp_path))
     bundles = FakeCollection()
-    service = LoanAgentService(FakeDatabase({"loan_dossier_bundles": bundles}))
+    assessment_calls: list[tuple[dict, dict]] = []
+
+    async def run_assessment(payload, **kwargs):
+        assessment_calls.append((payload, kwargs))
+        return _completed_assessment_result()
+
+    service = LoanAgentService(
+        FakeDatabase({"loan_dossier_bundles": bundles}),
+        dossier_assessment_runner=run_assessment,
+    )
     upload = _zip_upload(
         {
             "01_Ho_so_phap_ly/01_Giay_chung_nhan_dang_ky_doanh_nghiep_DEMO.pdf": b"%PDF-1.4\nlegal",
@@ -286,22 +306,32 @@ def test_dispatch_dossier_bundle_sends_file_references_and_is_idempotent(tmp_pat
 
     assert dispatched.routing_status == "dispatched"
     assert replayed.routing_batch_id == dispatched.routing_batch_id
+    assert len(assessment_calls) == 1
     assert len(bundles.found["dispatch_runs"]) == 1
     assert len(bundles.updated) == 1
-    sent_dispatches = [
-        dispatch for dispatch in dispatched.agent_dispatches if dispatch.status == "sent"
+    completed_dispatches = [
+        dispatch for dispatch in dispatched.agent_dispatches if dispatch.status == "completed"
     ]
-    assert {dispatch.agent_name for dispatch in sent_dispatches} == {
+    assert {dispatch.agent_name for dispatch in completed_dispatches} == {
         "credit",
         "compliance",
         "operations",
     }
-    assert all(dispatch.payload is not None for dispatch in sent_dispatches)
+    assert all(dispatch.payload is not None for dispatch in completed_dispatches)
     assert all(
         file.file_ref and not hasattr(file, "content")
-        for dispatch in sent_dispatches
+        for dispatch in completed_dispatches
         for file in dispatch.payload.files
     )
+    assessment_payload, assessment_kwargs = assessment_calls[0]
+    assert assessment_payload["dossier_id"] == routed.dossier_id
+    assert len({file["file_id"] for file in assessment_payload["files"]}) == 3
+    assert all(file["checksum_sha256"] for file in assessment_payload["files"])
+    assert assessment_kwargs["allowed_root"] == tmp_path.resolve()
+    assert dispatched.assessment is not None
+    assert dispatched.assessment.status == "completed"
+    assert dispatched.assessment.trace_id == "trace-dossier-test"
+    assert bundles.found["latest_assessment"]["overall_result"] == "READY"
     operations_dispatch = next(
         dispatch for dispatch in dispatched.agent_dispatches if dispatch.agent_name == "operations"
     )
@@ -314,7 +344,7 @@ def test_dispatch_dossier_bundle_sends_file_references_and_is_idempotent(tmp_pat
         for file in compliance_dispatch.payload.files
     )
     assert any(
-        trace.stage == "planner_dispatch" and trace.decision == "multi_agent_files"
+        trace.stage == "agent_assessment" and trace.decision == "multi_agent_files"
         for trace in dispatched.routing_trace
     )
 
@@ -322,7 +352,16 @@ def test_dispatch_dossier_bundle_sends_file_references_and_is_idempotent(tmp_pat
 def test_dispatch_dossier_bundle_blocks_when_files_need_review(tmp_path, monkeypatch):
     monkeypatch.setattr(configs, "loan_upload_dir", str(tmp_path))
     bundles = FakeCollection()
-    service = LoanAgentService(FakeDatabase({"loan_dossier_bundles": bundles}))
+    assessment_calls: list[dict] = []
+
+    async def must_not_run(payload, **_kwargs):
+        assessment_calls.append(payload)
+        raise AssertionError("Assessment must not run while routing needs review")
+
+    service = LoanAgentService(
+        FakeDatabase({"loan_dossier_bundles": bundles}),
+        dossier_assessment_runner=must_not_run,
+    )
     routed = asyncio.run(
         service.route_dossier_bundle(
             user_id="loan-user",
@@ -347,13 +386,130 @@ def test_dispatch_dossier_bundle_blocks_when_files_need_review(tmp_path, monkeyp
     assert {dispatch.status for dispatch in dispatched.agent_dispatches} == {
         "blocked_needs_review"
     }
+    assert assessment_calls == []
+    assert dispatched.assessment is None
     assert bundles.found["routing_status"] == "blocked_needs_review"
 
 
-def test_dispatch_dossier_bundle_reports_partial_failure(tmp_path, monkeypatch):
+def test_dispatch_dossier_bundle_marks_agent_input_and_gate_skips(tmp_path, monkeypatch):
     monkeypatch.setattr(configs, "loan_upload_dir", str(tmp_path))
     bundles = FakeCollection()
-    service = FailingComplianceDispatchService(FakeDatabase({"loan_dossier_bundles": bundles}))
+
+    async def input_not_ready(*_args, **_kwargs):
+        return {
+            "status": "input_not_ready",
+            "trace_id": "trace-input-not-ready",
+            "overall_result": "UNDETERMINED",
+            "stopped_after": "input",
+            "stop_reason": "credit_input_incomplete",
+            "credit": None,
+            "compliance": None,
+            "operations": None,
+        }
+
+    service = LoanAgentService(
+        FakeDatabase({"loan_dossier_bundles": bundles}),
+        dossier_assessment_runner=input_not_ready,
+    )
+    routed = asyncio.run(
+        service.route_dossier_bundle(
+            user_id="loan-user",
+            files=[
+                _upload_file("cccd.pdf", b"%PDF-1.4\nidentity", "application/pdf")
+            ],
+        )
+    )
+    bundles.found = bundles.inserted[0]
+
+    dispatched = asyncio.run(
+        service.dispatch_dossier_bundle(
+            user_id="loan-user",
+            dossier_id=routed.dossier_id,
+            idempotency_key="input-not-ready-1",
+        )
+    )
+
+    statuses = {
+        dispatch.agent_name: dispatch.status for dispatch in dispatched.agent_dispatches
+    }
+    assert statuses == {
+        "credit": "input_not_ready",
+        "compliance": "skipped_by_gate",
+        "operations": "skipped_by_gate",
+    }
+    assert dispatched.assessment is not None
+    assert dispatched.assessment.status == "input_not_ready"
+    assert dispatched.assessment.overall_result == "UNDETERMINED"
+
+
+def test_dispatch_dossier_bundle_marks_specialist_runtime_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(configs, "loan_upload_dir", str(tmp_path))
+    bundles = FakeCollection()
+
+    async def runtime_failure(*_args, **_kwargs):
+        result = _completed_assessment_result()
+        result.update(
+            {
+                "overall_result": "UNDETERMINED",
+                "stopped_after": "credit",
+                "stop_reason": "credit_not_ready_for_compliance",
+                "credit": {
+                    "facts": {"result": "UNDETERMINED"},
+                    "missing_data": ["rag_or_agent_runtime"],
+                },
+                "compliance": None,
+                "operations": None,
+            }
+        )
+        return result
+
+    service = LoanAgentService(
+        FakeDatabase({"loan_dossier_bundles": bundles}),
+        dossier_assessment_runner=runtime_failure,
+    )
+    routed = asyncio.run(
+        service.route_dossier_bundle(
+            user_id="loan-user",
+            files=[_upload_file("cccd.pdf", b"%PDF-1.4\nidentity", "application/pdf")],
+        )
+    )
+    bundles.found = bundles.inserted[0]
+
+    dispatched = asyncio.run(
+        service.dispatch_dossier_bundle(
+            user_id="loan-user",
+            dossier_id=routed.dossier_id,
+            idempotency_key="runtime-failure-1",
+        )
+    )
+
+    statuses = {
+        dispatch.agent_name: dispatch.status for dispatch in dispatched.agent_dispatches
+    }
+    assert statuses == {
+        "credit": "failed",
+        "compliance": "skipped_by_gate",
+        "operations": "skipped_by_gate",
+    }
+    assert dispatched.routing_status == "dispatch_failed"
+    assert dispatched.assessment is not None
+    assert dispatched.assessment.status == "failed"
+    assert dispatched.assessment.error_type == "AgentRuntimeFailure"
+
+
+def test_dispatch_dossier_bundle_does_not_report_completed_when_assessment_fails(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(configs, "loan_upload_dir", str(tmp_path))
+    bundles = FakeCollection()
+
+    async def fail_assessment(*_args, **_kwargs):
+        raise RuntimeError("specialist failure detail")
+
+    service = LoanAgentService(
+        FakeDatabase({"loan_dossier_bundles": bundles}),
+        dossier_assessment_runner=fail_assessment,
+    )
     routed = asyncio.run(
         service.route_dossier_bundle(
             user_id="loan-user",
@@ -373,11 +529,10 @@ def test_dispatch_dossier_bundle_reports_partial_failure(tmp_path, monkeypatch):
         )
     )
 
-    assert dispatched.routing_status == "partial_dispatch_failed"
-    dispatches_by_agent = {
-        dispatch.agent_name: dispatch for dispatch in dispatched.agent_dispatches
-    }
-    assert dispatches_by_agent["credit"].status == "sent"
-    assert dispatches_by_agent["compliance"].status == "failed"
-    assert dispatches_by_agent["operations"].status == "skipped_no_files"
-    assert bundles.found["routing_status"] == "partial_dispatch_failed"
+    assert dispatched.routing_status == "dispatch_failed"
+    assert {dispatch.status for dispatch in dispatched.agent_dispatches} == {"failed"}
+    assert dispatched.assessment is not None
+    assert dispatched.assessment.status == "failed"
+    assert dispatched.assessment.error_type == "RuntimeError"
+    assert "specialist failure detail" not in dispatched.model_dump_json()
+    assert bundles.found["routing_status"] == "dispatch_failed"

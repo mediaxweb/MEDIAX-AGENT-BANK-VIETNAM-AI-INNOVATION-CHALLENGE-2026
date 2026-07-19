@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 import orchestrator_agent
 from compliance_agent import (
@@ -12,20 +16,485 @@ from compliance_agent import (
     calculate_compliance_facts,
 )
 from credit_agent import CreditAssessment, calculate_credit_facts
-from operations_agent import OperationsAssessment, calculate_operations_facts
+from dossier_normalizer import (
+    DossierEvidence,
+    DossierExtractionDraft,
+    DossierFileReference,
+    DossierInputBoundaryResult,
+    DossierNormalizationResult,
+)
+from operations_agent import DOCUMENT_RULES, OperationsAssessment, calculate_operations_facts
 from orchestrator_agent import (
     QuestionAnswerDraft,
     QuestionExecution,
     answer_question,
     assemble_question_answer,
+    build_final_report,
+    DossierWorkflowResult,
     execute_question,
     load_application,
+    run_credit_slice,
+    run_dossier_assessment,
     run_orchestrator,
 )
 from rag_agent_support import KnowledgeEvidence
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def normalized_credit_dossier(*, customer_type="enterprise"):
+    return DossierNormalizationResult(
+        dossier_id="DOSSIER-CREDIT-001",
+        routing_batch_id="BATCH-001",
+        files=[],
+        page_count=1,
+        facts=DossierExtractionDraft.model_validate(
+            {
+                "customer": {
+                    "customer_type": customer_type,
+                    "full_name": "Công ty TNHH Minh An",
+                    "phone": "0901234567",
+                    "tax_code": "0101234567",
+                    "address": "Hà Nội",
+                    "industry": "Phân phối hàng hóa",
+                    "years_operating": 5,
+                    "legal_representative_name": "Nguyễn Văn An",
+                    "legal_representative_id": "001234567890",
+                },
+                "signer": {
+                    "name": "Nguyễn Văn An",
+                    "signed": True,
+                    "is_customer_or_legal_representative": True,
+                },
+                "loan": {
+                    "requested_amount": "8000000000",
+                    "term_months": 12,
+                    "purpose": "Bổ sung vốn lưu động",
+                    "repayment_method": "Trả gốc cuối kỳ",
+                    "total_capital_need": "10000000000",
+                    "own_capital": "2000000000",
+                    "supporting_document_value": "8000000000",
+                    "repayment_source": "Doanh thu bán hàng",
+                },
+                "documents": [
+                    {
+                        "document_type": name,
+                        "status": "provided",
+                        "valid": True,
+                        "readable": True,
+                        "complete": True,
+                        "format_valid": True,
+                        "suspicious_alteration": False,
+                    }
+                    for name in DOCUMENT_RULES
+                ],
+                "consistency": {
+                    "customer_name_matches": True,
+                    "tax_code_matches": True,
+                    "representative_matches": True,
+                    "industry_matches_purpose": True,
+                },
+                "financials": [
+                    {
+                        "period": "2025",
+                        "revenue": "13500000000",
+                        "net_profit": "720000000",
+                        "total_debt": "5000000000",
+                        "equity": "5000000000",
+                        "operating_cash_flow": "1500000000",
+                    },
+                    {
+                        "period": "2024",
+                        "revenue": "12000000000",
+                        "net_profit": "600000000",
+                        "total_debt": "4500000000",
+                        "equity": "4500000000",
+                    },
+                ],
+                "funding_plan": {
+                    "total_capital_need": "10000000000",
+                    "own_capital": "2000000000",
+                    "supporting_document_value": "8000000000",
+                    "purpose_fit": "fit",
+                },
+                "repayment_plan": {
+                    "available_cash_flow": "1500000000",
+                    "annual_debt_service": "1000000000",
+                    "source_status": "documented",
+                    "cash_flow_timing_aligned": True,
+                },
+                "collateral": {
+                    "collateral_type": "land_house",
+                    "value": "12000000000",
+                    "ownership_status": "valid",
+                    "valuation_date": "2026-06-20",
+                    "dispute_status": "clear",
+                    "liquidity": "high",
+                    "third_party_documents_complete": True,
+                },
+                "compliance_documents": {
+                    "latest_financial_statement_present": True,
+                    "signer_authority": "valid",
+                    "legal_documents": "complete",
+                    "consistency": "consistent",
+                    "anomaly": "none",
+                },
+                "screening": {
+                    "pep": "clear",
+                    "sanctions": "clear",
+                    "beneficial_owner": "clear",
+                },
+            }
+        ),
+    )
+
+
+def credit_assessment(application, **updates):
+    facts = calculate_credit_facts(application).model_copy(update=updates)
+    return CreditAssessment(
+        case_id=application.case_id,
+        customer_type=application.customer.customer_type,
+        loan_profile_id=None,
+        facts=facts,
+        findings=[],
+        required_actions=facts.required_actions,
+        executed_actions=[],
+        missing_data=[],
+        evidence=[],
+    )
+
+
+def compliance_assessment(application, **updates):
+    facts = calculate_compliance_facts(application).model_copy(update=updates)
+    return ComplianceAssessment(
+        case_id=application.case_id,
+        loan_profile_id=application.loan_profile_id,
+        facts=facts,
+        findings=[],
+        conditions=facts.conditions,
+        executed_actions=[],
+        missing_data=[],
+        evidence=[],
+    )
+
+
+def operations_assessment(application):
+    facts = calculate_operations_facts(application)
+    return OperationsAssessment(
+        case_id=application.case_id,
+        loan_profile_id=application.loan_profile_id,
+        current_status=application.current_status,
+        facts=facts,
+        next_actions=[],
+        conditions=facts.conditions,
+        executed_actions=[],
+        missing_data=[],
+        evidence=[],
+    )
+
+
+def test_credit_slice_maps_normalized_dossier_and_runs_only_credit():
+    normalized = normalized_credit_dossier()
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready",
+            dossier_id=normalized.dossier_id,
+            routing_batch_id=normalized.routing_batch_id,
+            normalized=normalized,
+        )
+
+    async def run_credit(application, **_):
+        assert application.case_id == normalized.dossier_id
+        assert application.execution_mode == "assess"
+        assert application.loan.requested_amount == Decimal("8000000000")
+        return credit_assessment(application)
+
+    result = asyncio.run(
+        run_credit_slice(
+            {},
+            allowed_root=ROOT,
+            input_preparer=prepare,
+            credit_runner=run_credit,
+        )
+    )
+
+    assert result.status == "completed"
+    assert result.can_continue_to_compliance is True
+    assert result.credit is not None
+    assert result.credit.facts.result == "PASSED"
+
+
+def test_credit_slice_does_not_run_credit_when_required_input_is_unknown():
+    normalized = normalized_credit_dossier(customer_type=None)
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready", dossier_id=normalized.dossier_id, normalized=normalized
+        )
+
+    async def must_not_run(*_, **__):
+        raise AssertionError("Credit Agent must not run with unsafe defaults")
+
+    result = asyncio.run(
+        run_credit_slice(
+            {},
+            allowed_root=ROOT,
+            input_preparer=prepare,
+            credit_runner=must_not_run,
+        )
+    )
+
+    assert result.status == "input_not_ready"
+    assert result.stop_reason == "credit_input_incomplete"
+    assert result.issues[0].fields == ["customer.customer_type"]
+
+
+def test_credit_slice_stops_after_undetermined_credit_result():
+    normalized = normalized_credit_dossier()
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready", dossier_id=normalized.dossier_id, normalized=normalized
+        )
+
+    async def run_credit(application, **_):
+        return credit_assessment(
+            application,
+            result="UNDETERMINED",
+            can_create_loan_profile=True,
+            can_forward_to_compliance=True,
+        )
+
+    result = asyncio.run(
+        run_credit_slice(
+            {},
+            allowed_root=ROOT,
+            input_preparer=prepare,
+            credit_runner=run_credit,
+        )
+    )
+
+    assert result.status == "completed"
+    assert result.can_continue_to_compliance is False
+    assert result.stop_reason == "credit_not_ready_for_compliance"
+    assert result.credit is not None
+    assert result.credit.facts.result == "UNDETERMINED"
+
+
+def test_dossier_trace_logs_failed_specialist_stage(monkeypatch):
+    normalized = normalized_credit_dossier()
+    events: list[tuple[str, dict]] = []
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready", dossier_id=normalized.dossier_id, normalized=normalized
+        )
+
+    async def fail_credit(*_, **__):
+        raise RuntimeError("sensitive runtime detail")
+
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **fields: events.append((event, fields)),
+    )
+
+    with pytest.raises(RuntimeError, match="sensitive runtime detail"):
+        asyncio.run(
+            run_dossier_assessment(
+                {"dossier_id": normalized.dossier_id, "files": []},
+                allowed_root=ROOT,
+                input_preparer=prepare,
+                credit_runner=fail_credit,
+            )
+        )
+
+    assert "agent.credit.failed" in [event for event, _ in events]
+    assert "dossier.assessment.failed" in [event for event, _ in events]
+    assert "agent.compliance.started" not in [event for event, _ in events]
+    assert all("sensitive runtime detail" not in fields.values() for _, fields in events)
+
+
+def test_dossier_assessment_stops_when_compliance_fails(monkeypatch):
+    normalized = normalized_credit_dossier()
+    calls: list[str] = []
+    events: list[str] = []
+    monkeypatch.setattr(
+        orchestrator_agent,
+        "log_agent_event",
+        lambda event, **_fields: events.append(event),
+    )
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready", dossier_id=normalized.dossier_id, normalized=normalized
+        )
+
+    async def run_credit(application, **_):
+        calls.append("credit")
+        return credit_assessment(application)
+
+    async def run_compliance(application, **_):
+        calls.append("compliance")
+        assert application.credit_result.result == "PASSED"
+        return compliance_assessment(
+            application,
+            result="FAILED",
+            hard_stop_reasons=["policy_block"],
+            recommended_limit=None,
+        )
+
+    async def must_not_run(*_, **__):
+        raise AssertionError("Operations must not run after Compliance FAILED")
+
+    result = asyncio.run(
+        run_dossier_assessment(
+            {},
+            allowed_root=ROOT,
+            assessment_date=date(2026, 7, 19),
+            input_preparer=prepare,
+            credit_runner=run_credit,
+            compliance_runner=run_compliance,
+            operations_runner=must_not_run,
+        )
+    )
+
+    assert calls == ["credit", "compliance"]
+    assert result.overall_result == "BLOCKED"
+    assert result.stopped_after == "compliance"
+    assert result.operations is None
+    assert result.report is not None
+    assert result.report.operations is None
+    assert "Hồ sơ đang bị chặn" in result.report.answer
+    assert "agent.operations.started" not in events
+
+
+def test_dossier_assessment_runs_three_agents_and_caps_operations_limit(caplog):
+    dossier_source = DossierEvidence(
+        field="loan.requested_amount",
+        file_id="FILE-001",
+        page=2,
+        excerpt="Số tiền đề nghị vay: 8.000.000.000 đồng",
+        confidence=0.99,
+    )
+    normalized = normalized_credit_dossier()
+    normalized = normalized.model_copy(
+        update={
+            "files": [
+                DossierFileReference(
+                    file_id="FILE-001",
+                    file_ref="/tmp/ho_so.pdf",
+                    original_filename="02_giay_de_nghi_cap_tin_dung.pdf",
+                    source_path="02_giay_de_nghi_cap_tin_dung.pdf",
+                )
+            ],
+            "facts": normalized.facts.model_copy(update={"evidence": [dossier_source]}),
+        }
+    )
+    policy_source = KnowledgeEvidence(
+        source_id="policy-001",
+        file_name="quy_dinh_tin_dung.pdf",
+        page="3",
+        excerpt="Hạn mức phải nằm trong giới hạn chính sách.",
+    )
+    calls: list[str] = []
+
+    async def prepare(*_, **__):
+        return DossierInputBoundaryResult(
+            status="ready", dossier_id=normalized.dossier_id, normalized=normalized
+        )
+
+    async def run_credit(application, **_):
+        calls.append("credit")
+        return credit_assessment(application)
+
+    async def run_compliance(application, **_):
+        calls.append("compliance")
+        assert application.credit_result.result == "PASSED"
+        return compliance_assessment(
+            application,
+            recommended_limit=Decimal("7000000000"),
+        ).model_copy(update={"evidence": [policy_source]})
+
+    async def run_operations(application, **_):
+        calls.append("operations")
+        assert application.credit_result.result == "PASSED"
+        assert application.compliance_result.result == "PASSED"
+        assert application.compliance_result.recommended_limit == Decimal("7000000000")
+        return operations_assessment(application)
+
+    with caplog.at_level(logging.INFO, logger="agent_trace"):
+        result = asyncio.run(
+            run_dossier_assessment(
+                {"dossier_id": normalized.dossier_id, "files": []},
+                allowed_root=ROOT,
+                assessment_date=date(2026, 7, 19),
+                assessment_at=datetime(2026, 7, 19, 9, tzinfo=timezone.utc),
+                input_preparer=prepare,
+                credit_runner=run_credit,
+                compliance_runner=run_compliance,
+                operations_runner=run_operations,
+            )
+        )
+
+    assert calls == ["credit", "compliance", "operations"]
+    assert result.overall_result == "READY"
+    assert result.operations is not None
+    assert result.operations.facts.recommended_limit == Decimal("7000000000.00")
+    assert result.report is not None
+    assert result.report.credit is not None
+    assert result.report.compliance is not None
+    assert result.report.operations is not None
+    assert "Hồ sơ đủ điều kiện trình phê duyệt" in result.report.answer
+    assert "đã phê duyệt" not in result.report.answer
+    assert result.report.dossier_sources[0].file_name == "02_giay_de_nghi_cap_tin_dung.pdf"
+    assert result.report.policy_sources == [policy_source]
+    events = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == "agent_trace"
+    ]
+    assert [event["event"] for event in events] == [
+        "dossier.assessment.started",
+        "dossier.normalization.started",
+        "dossier.normalization.completed",
+        "agent.credit.started",
+        "agent.credit.completed",
+        "orchestrator.credit_gate",
+        "agent.compliance.started",
+        "agent.compliance.completed",
+        "orchestrator.compliance_gate",
+        "agent.operations.started",
+        "agent.operations.completed",
+        "dossier.assessment.completed",
+    ]
+    assert result.trace_id
+    assert {event["trace_id"] for event in events} == {result.trace_id}
+    assert {event["dossier_id"] for event in events} == {normalized.dossier_id}
+    assert "0101234567" not in caplog.text
+    assert "001234567890" not in caplog.text
+
+
+def test_final_report_maps_incomplete_and_review_results_without_fake_specialists():
+    for overall_result, expected in (
+        ("UNDETERMINED", "Chưa đủ thông tin để kết luận hồ sơ"),
+        ("REVIEW_REQUIRED", "Hồ sơ cần rà soát hoặc bổ sung điều kiện"),
+    ):
+        report = build_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                overall_result=overall_result,
+            ),
+            None,
+        )
+
+        assert expected in report.answer
+        assert report.credit is None
+        assert report.compliance is None
+        assert report.operations is None
+        assert report.disclaimer in report.answer
 
 
 def test_orchestrator_runs_specialists_in_order_with_authoritative_upstream_results():

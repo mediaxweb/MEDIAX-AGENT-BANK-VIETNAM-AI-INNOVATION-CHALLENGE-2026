@@ -11,8 +11,16 @@ The current MVP supports:
   sources. User-facing agent answers are always in Vietnamese.
 - Credit, Compliance, and Operations specialist agents.
 - A fixed Credit → Compliance → Operations assessment workflow.
+- ZIP/PDF dossier upload, validation, storage, classification, routing, and
+  idempotent dispatch snapshots.
+- PDF dossier normalization from validated file references, with page-level
+  evidence, deterministic stage gates, a Vietnamese final report, and one
+  trace across the assessment workflow.
 - RAG chunk retrieval with full-page fallback when a chunk lacks context.
 - Read and controlled write tools for demo loan-case data.
+
+`POST /api/v1/loan/dossiers/{dossier_id}/dispatch` connects the stored dossier
+to `run_dossier_assessment()` and returns the persisted assessment snapshot.
 
 ## Architecture
 
@@ -51,7 +59,18 @@ There are two Orchestrator flows:
    each question to one specialist agent. The specialist may only answer from
    evidence returned by MCP.
 2. **Loan assessment:** the Orchestrator runs Credit → Compliance → Operations
-   in order and passes validated upstream results to the next specialist.
+   in order, passes validated upstream results to the next specialist, and
+   returns a Vietnamese report with dossier and policy sources kept separate.
+
+```text
+ZIP/PDF upload
+  -> validate and store files
+  -> classify and create routing packages
+  -> persist routing/dispatch snapshots in MongoDB
+  -> normalize dossier PDFs once from file_ref
+  -> Credit gate -> Compliance gate -> Operations
+  -> final report + dossier sources + policy sources + trace_id
+```
 
 ## Components
 
@@ -60,9 +79,12 @@ There are two Orchestrator flows:
 | `agents/credit_agent.py` | Customer intake, legal scoring, duplicate checks, and loan-profile readiness. |
 | `agents/compliance_agent.py` | Financial capacity, repayment, collateral, policy ratios, and compliance risk. |
 | `agents/operations_agent.py` | Checklist completion, workflow status, SLA, priority, limit, and next actions. |
-| `agents/orchestrator_agent.py` | Specialist routing for chat and ordered execution for full assessments. |
+| `agents/dossier_normalizer.py` | Validates file references, reads text-based PDFs, and produces normalized facts with page evidence. |
+| `agents/orchestrator_agent.py` | Specialist routing for chat, deterministic dossier gates, final reporting, and workflow tracing. |
 | `app/rag_mcp_server.py` | Shared FastMCP adapter for RAG and persisted loan-case tools. |
 | `app/api/v1/orchestrator.py` | Anonymous chat API and SQLite conversation-session lifecycle. |
+| `app/api/v1/loan_agent.py` | Authenticated dossier upload, routing lookup, and dispatch endpoints. |
+| `app/services/loan_agent_service.py` | Dossier validation, storage, classification, Agent assessment invocation, and MongoDB snapshots. |
 | `app/services/knowledge_base_service.py` | PDF ingestion, indexing, hybrid retrieval, and full-page lookup. |
 
 The local `agents/` directory deliberately has no `__init__.py` because
@@ -76,16 +98,22 @@ The FastAPI application serves the bundled Agent Bank demo UI at:
 - `/qa` and `/documents` serve the same single-page shell.
 
 Use the sidebar to switch between the Orchestrator chat and the
-document-management UI mock; the selected view is tracked in the URL hash.
+document-management UI; the selected view is tracked in the URL hash.
 
-The `/qa` screen calls `POST /api/v1/orchestrator/chat` directly. It stores
-local chat sessions, messages, source metadata, and the backend `session_id` in
-browser `localStorage` so a browser refresh can restore the demo transcript and
-continue the same backend conversation.
+The `/qa` screen calls `POST /api/v1/orchestrator/chat` for normal questions.
+It stores local chat sessions, messages, source metadata, and the backend
+`session_id` in browser `localStorage` so a browser refresh can restore the demo
+transcript and continue the same backend conversation.
 
-The `/documents` screen currently uses static document records and simulates
-upload progress in the browser. It does not call the knowledge-base APIs. Use
-Swagger or the API endpoints described below for real PDF ingestion.
+The same composer accepts one ZIP containing PDFs or multiple PDF files for a
+customer dossier. It calls `POST /api/v1/loan/dossiers/route-bundle`, followed
+by `POST /api/v1/loan/dossiers/{dossier_id}/dispatch`, and displays the Planner
+routing result. The dispatch response contains the real assessment snapshot;
+the current frontend still displays only the Planner routing summary rather
+than the final Credit/Compliance/Operations report.
+
+The `/documents` screen calls the knowledge-base APIs to list and upload policy
+PDFs for the selected demo Agent account. It is no longer a static upload mock.
 
 ## Quick start
 
@@ -121,6 +149,11 @@ MONGO_URI=mongodb://localhost:27017/rag_brain
 MONGO_DB_NAME=rag_brain
 OPENAI_API_KEY=<openai-api-key>
 ```
+
+Customer dossier files use `LOAN_UPLOAD_DIR`. When it is empty, the application
+derives the directory from `STORAGE_ROOT` or `RAILWAY_VOLUME_MOUNT_PATH`. Use a
+persistent volume in deployment because Agent normalization reads the stored
+PDFs later through their `file_ref` values.
 
 Choose one embedding provider before ingesting documents:
 
@@ -237,6 +270,40 @@ $second = Invoke-RestMethod -Method Post `
 $second
 ```
 
+## Dossier upload and assessment status
+
+The authenticated dossier endpoints are:
+
+```text
+POST /api/v1/loan/dossiers/route-bundle
+GET  /api/v1/loan/dossiers/{dossier_id}/routing
+POST /api/v1/loan/dossiers/{dossier_id}/dispatch
+```
+
+`route-bundle` accepts either one ZIP containing PDFs or multiple direct PDFs;
+ZIP and PDF inputs cannot be mixed. The current limits are 100 MB per request,
+25 MB per PDF, and 100 files. The service rejects unsafe ZIP paths, unsupported
+members, invalid PDF signatures, and oversized extracted content before saving
+the accepted files under `LOAN_UPLOAD_DIR`.
+
+`dispatch` is idempotent when the request supplies an `idempotency_key`. For a
+dossier without files requiring routing review, it calls
+`run_dossier_assessment()` exactly once at dossier level, then persists the
+assessment and the per-Agent completion/gate status in the dispatch snapshot.
+An idempotency replay returns the existing snapshot without rerunning Agents.
+
+The assessment flow:
+
+1. Validate file references, checksums, PDF signatures, and the upload root.
+2. Read each text-based PDF once and normalize facts with file/page evidence.
+3. Run Credit, Compliance, and Operations sequentially with fail-closed gates.
+4. Cap the Operations recommendation by the Compliance limit.
+5. Return a Vietnamese final report with separate dossier/policy sources and a
+   workflow `trace_id`.
+
+The endpoint runs synchronously in the MVP; no queue or background worker is
+introduced.
+
 ## Anonymous chat API
 
 ### `POST /api/v1/orchestrator/chat`
@@ -310,10 +377,16 @@ Each chat request creates one OpenAI Agents SDK trace. `session_id` is used as
 the trace group ID, while `trace_id` is returned to the caller and can be opened
 in the [OpenAI Traces dashboard](https://platform.openai.com/traces).
 
-Railway logs contain JSON events for request, agent, routing, tool, validation,
-duration, and token usage. They do not contain questions, RAG queries, chunks,
-or loan data. Sensitive trace payloads are disabled by default; enable them only
-for local testing with synthetic data.
+Each dossier assessment also creates one trace, uses `dossier_id` as its group
+and correlation ID, and returns the same `trace_id` in
+`DossierWorkflowResult`. JSON events cover normalization, specialist
+started/completed/failed states, Credit and Compliance gate decisions, tool
+outcomes, evidence/missing/hard-stop counts, duration, and the final result.
+
+Railway logs do not contain questions, RAG queries, chunks, raw PDF text, error
+messages, CCCD, tax codes, or detailed financial values. Runtime failures log
+only a safe category and exception type. Sensitive OpenAI trace payloads are
+disabled by default; enable them only for local testing with synthetic data.
 
 ## RAG and MCP contract
 
@@ -401,6 +474,7 @@ session. Use the FastAPI chat endpoint for multi-turn conversation.
 | `LLAMA_EMBED_MODEL` | Local embeddings | `VoVanPhuc/sup-SimCSE-VietNamese-phobert-base` |
 | `OPENAI_EMBED_MODEL` | OpenAI embeddings | `text-embedding-3-small` |
 | `STORAGE_ROOT` / `RAILWAY_VOLUME_MOUNT_PATH` | Chroma, BM25, docstore, loan uploads, and SQLite sessions | local project directories |
+| `LOAN_UPLOAD_DIR` | Override storage directory for routed customer dossier files | derived from the storage root |
 | `ALLOW_KB_TARGET_USER_UPLOAD` | Allow an authenticated user to prepare another user's RAG collection | `false` |
 | `RAG_MCP_USER_ID` | Legacy fallback for Credit policy knowledge only | none |
 | `RAG_MCP_CREDIT_USER_ID` | Credit policy knowledge | none |
@@ -436,8 +510,9 @@ routes support data preparation and agent tools; the main demo entry point is
 
 ## MVP limitations
 
-- The bundled Q&A frontend is a demo UI; the document-management screen is
-  mocked and is not connected to the knowledge-base APIs.
+- The dossier frontend invokes the staged assessment through `dispatch`, but it
+  still renders only the Planner routing summary instead of the returned final
+  assessment report.
 - No OCR; scanned PDFs without an extractable text layer are unsupported.
 - Anonymous chat has no user accounts or authorization.
 - Each chat turn delegates to exactly one specialist; cross-domain aggregation

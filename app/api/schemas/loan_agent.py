@@ -22,10 +22,14 @@ DossierRoutingStatus = Literal[
 ]
 DossierAgentDispatchStatus = Literal[
     "sent",
+    "completed",
+    "input_not_ready",
+    "skipped_by_gate",
     "skipped_no_files",
     "blocked_needs_review",
     "failed",
 ]
+DossierAssessmentStatus = Literal["completed", "input_not_ready", "failed"]
 
 
 class CustomerCreateRequest(BaseModel):
@@ -364,12 +368,27 @@ class DossierAgentDispatchResult(BaseModel):
     payload: DossierAgentDispatchPayload | None = None
 
 
+class DossierAssessmentSnapshot(BaseModel):
+    status: DossierAssessmentStatus
+    trace_id: str | None = None
+    overall_result: Literal[
+        "READY", "REVIEW_REQUIRED", "BLOCKED", "UNDETERMINED"
+    ] | None = None
+    stopped_after: str | None = None
+    stop_reason: str | None = None
+    result: dict[str, Any] | None = None
+    error_type: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class DossierDispatchSnapshot(BaseModel):
     routing_batch_id: str
     idempotency_key: str | None = None
     routing_status: DossierRoutingStatus
     message: str
     agent_dispatches: list[DossierAgentDispatchResult] = Field(default_factory=list)
+    assessment: DossierAssessmentSnapshot | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -381,6 +400,7 @@ class DossierDispatchResponse(BaseModel):
     routing_batch_id: str
     message: str
     agent_dispatches: list[DossierAgentDispatchResult] = Field(default_factory=list)
+    assessment: DossierAssessmentSnapshot | None = None
     agent_packages: list[DossierAgentPackage] = Field(default_factory=list)
     needs_review_count: int = Field(..., ge=0)
     needs_review_files: list[DossierDocumentRecord] = Field(default_factory=list)

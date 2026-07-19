@@ -5,13 +5,16 @@ import asyncio
 import json
 import os
 from collections.abc import Awaitable, Callable
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Literal
 
-from agents import Agent, Runner, Session
+from agents import Agent, Runner, Session, trace
 from agents.mcp import MCPServerStreamableHttp
-from pydantic import BaseModel, ConfigDict, model_validator
+from agents.tracing import get_current_trace
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from compliance_agent import (
     ComplianceApplication,
@@ -19,6 +22,13 @@ from compliance_agent import (
     run_compliance_assessment,
 )
 from credit_agent import CreditApplication, CreditAssessment, run_credit_assessment
+from dossier_normalizer import (
+    DossierEvidence,
+    DossierInputBoundaryResult,
+    DossierInputIssue,
+    DossierNormalizationResult,
+    prepare_dossier_input,
+)
 from operations_agent import (
     OperationsApplication,
     OperationsAssessment,
@@ -31,6 +41,7 @@ from rag_agent_support import (
     KnowledgeEvidence,
     RAGDomain,
     build_agent_run_config,
+    classify_agent_error,
     evidence_by_id,
     extract_trusted_evidence,
     log_agent_event,
@@ -92,6 +103,63 @@ class OrchestratorAssessment(StrictModel):
     operations: OperationsAssessment | None = None
 
 
+class CreditSliceResult(StrictModel):
+    status: Literal["completed", "input_not_ready"]
+    dossier_id: str | None = None
+    routing_batch_id: str | None = None
+    can_continue_to_compliance: bool = False
+    stop_reason: str | None = None
+    credit: CreditAssessment | None = None
+    dossier_evidence: list[DossierEvidence] = Field(default_factory=list)
+    issues: list[DossierInputIssue] = Field(default_factory=list)
+
+
+class DossierReportSource(StrictModel):
+    file_id: str
+    file_name: str
+    page: int = Field(ge=1)
+    field: str
+    excerpt: str
+
+
+class SpecialistConclusion(StrictModel):
+    result: str
+    summary: str
+    policy_source_ids: list[str] = Field(default_factory=list)
+
+
+class DossierFinalReport(StrictModel):
+    answer: str
+    customer_summary: str
+    loan_summary: str
+    credit: SpecialistConclusion | None = None
+    compliance: SpecialistConclusion | None = None
+    operations: SpecialistConclusion | None = None
+    missing_information: list[str] = Field(default_factory=list)
+    hard_stops: list[str] = Field(default_factory=list)
+    conditions: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    dossier_sources: list[DossierReportSource] = Field(default_factory=list)
+    policy_sources: list[KnowledgeEvidence] = Field(default_factory=list)
+    disclaimer: str
+
+
+class DossierWorkflowResult(StrictModel):
+    status: Literal["completed", "input_not_ready"]
+    trace_id: str | None = None
+    dossier_id: str | None = None
+    routing_batch_id: str | None = None
+    overall_result: OverallResult
+    stopped_after: Literal["input", "credit", "compliance"] | None = None
+    stop_reason: str | None = None
+    credit: CreditAssessment | None = None
+    compliance: ComplianceAssessment | None = None
+    operations: OperationsAssessment | None = None
+    dossier_evidence: list[DossierEvidence] = Field(default_factory=list)
+    issues: list[DossierInputIssue] = Field(default_factory=list)
+    report: DossierFinalReport | None = None
+
+
 class QuestionAnswerDraft(StrictModel):
     domain: ChatDomain
     answer: str
@@ -113,6 +181,7 @@ class OrchestratorQuestionAnswer(StrictModel):
 
 
 SpecialistRunner = Callable[..., Awaitable[Any]]
+InputPreparer = Callable[..., Awaitable[DossierInputBoundaryResult]]
 QuestionAnswerer = Callable[
     [str, str, str, Session | None], Awaitable[QuestionExecution]
 ]
@@ -120,6 +189,932 @@ QuestionAnswerer = Callable[
 
 def _raw_question_answer_output(output: QuestionAnswerDraft) -> dict[str, Any]:
     return output.model_dump(mode="json")
+
+
+def _validation_error_fields(error: ValidationError) -> list[str]:
+    return sorted(
+        {".".join(str(part) for part in item["loc"]) for item in error.errors()}
+    )
+
+
+async def _run_specialist_stage(
+    domain: RAGDomain,
+    runner: SpecialistRunner,
+    application: Any,
+    *,
+    mcp_url: str,
+    model: str,
+) -> Any:
+    started_at = perf_counter()
+    log_agent_event(
+        f"agent.{domain}.started",
+        dossier_id=application.case_id,
+        stage=domain,
+    )
+    try:
+        assessment = await runner(application, mcp_url=mcp_url, model=model)
+    except Exception as error:
+        log_agent_event(
+            f"agent.{domain}.failed",
+            dossier_id=application.case_id,
+            stage=domain,
+            error_category=classify_agent_error(error),
+            error_type=type(error).__name__,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+        )
+        raise
+
+    runtime_failed = "rag_or_agent_runtime" in assessment.missing_data
+    log_agent_event(
+        f"agent.{domain}.failed" if runtime_failed else f"agent.{domain}.completed",
+        dossier_id=application.case_id,
+        stage=domain,
+        result=assessment.facts.result,
+        error_category="rag_or_agent_runtime" if runtime_failed else None,
+        evidence_count=len(assessment.evidence),
+        missing_information_count=len(assessment.missing_data),
+        hard_stop_count=len(assessment.facts.hard_stop_reasons),
+        duration_ms=int((perf_counter() - started_at) * 1000),
+    )
+    return assessment
+
+
+def build_credit_application(
+    normalized: DossierNormalizationResult,
+) -> tuple[CreditApplication | None, list[str]]:
+    facts = normalized.facts
+    missing: list[str] = []
+    if facts.customer.customer_type is None:
+        missing.append("customer.customer_type")
+    if facts.signer.signed is None:
+        missing.append("signer.signed")
+    if facts.signer.is_customer_or_legal_representative is None:
+        missing.append("signer.is_customer_or_legal_representative")
+    elif not facts.signer.is_customer_or_legal_representative:
+        if facts.signer.has_valid_authorization is None:
+            missing.append("signer.has_valid_authorization")
+        if facts.signer.authorized_person_id_present is None:
+            missing.append("signer.authorized_person_id_present")
+    if facts.loan.requested_amount is None:
+        missing.append("loan.requested_amount")
+    if facts.loan.term_months is None:
+        missing.append("loan.term_months")
+
+    consistency = facts.consistency.model_dump(mode="python")
+    missing.extend(
+        f"consistency.{field}"
+        for field, value in consistency.items()
+        if value is None
+    )
+    for index, document in enumerate(facts.documents):
+        if document.status != "provided":
+            continue
+        for field in (
+            "valid",
+            "readable",
+            "complete",
+            "format_valid",
+            "suspicious_alteration",
+        ):
+            if getattr(document, field) is None:
+                missing.append(f"documents.{index}.{field}")
+    if missing:
+        return None, sorted(set(missing))
+
+    try:
+        application = CreditApplication.model_validate(
+            {
+                "case_id": normalized.dossier_id,
+                "execution_mode": "assess",
+                "customer": facts.customer.model_dump(mode="python", exclude_none=True),
+                "signer": facts.signer.model_dump(mode="python", exclude_none=True),
+                "loan": facts.loan.model_dump(mode="python", exclude_none=True),
+                "documents": [
+                    item.model_dump(mode="python", exclude_none=True)
+                    for item in facts.documents
+                ],
+                "consistency": consistency,
+            }
+        )
+    except ValidationError as exc:
+        return None, _validation_error_fields(exc)
+    return application, []
+
+
+async def _run_credit_stage(
+    boundary: DossierInputBoundaryResult,
+    *,
+    mcp_url: str,
+    model: str,
+    credit_runner: SpecialistRunner,
+) -> CreditSliceResult:
+    if boundary.status != "ready" or boundary.normalized is None:
+        return CreditSliceResult(
+            status="input_not_ready",
+            dossier_id=boundary.dossier_id,
+            routing_batch_id=boundary.routing_batch_id,
+            stop_reason="dossier_input_not_ready",
+            issues=boundary.issues,
+        )
+
+    application, missing = build_credit_application(boundary.normalized)
+    if application is None:
+        return CreditSliceResult(
+            status="input_not_ready",
+            dossier_id=boundary.dossier_id,
+            routing_batch_id=boundary.routing_batch_id,
+            stop_reason="credit_input_incomplete",
+            dossier_evidence=boundary.normalized.facts.evidence,
+            issues=[
+                DossierInputIssue(
+                    code="credit_input_incomplete",
+                    message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Credit Agent.",
+                    fields=missing,
+                )
+            ],
+        )
+
+    credit = await _run_specialist_stage(
+        "credit",
+        credit_runner,
+        application,
+        mcp_url=mcp_url,
+        model=model,
+    )
+    can_continue = _credit_can_continue(credit)
+    return CreditSliceResult(
+        status="completed",
+        dossier_id=boundary.dossier_id,
+        routing_batch_id=boundary.routing_batch_id,
+        can_continue_to_compliance=can_continue,
+        stop_reason=None if can_continue else "credit_not_ready_for_compliance",
+        credit=credit,
+        dossier_evidence=boundary.normalized.facts.evidence,
+    )
+
+
+async def run_credit_slice(
+    payload: Any,
+    *,
+    allowed_root: str | Path,
+    mcp_url: str = DEFAULT_RAG_MCP_URL,
+    model: str = DEFAULT_MODEL,
+    normalizer_runner: SpecialistRunner = Runner.run,
+    credit_runner: SpecialistRunner = run_credit_assessment,
+    input_preparer: InputPreparer = prepare_dossier_input,
+) -> CreditSliceResult:
+    boundary = await input_preparer(
+        payload,
+        allowed_root=allowed_root,
+        model=model,
+        runner=normalizer_runner,
+    )
+    return await _run_credit_stage(
+        boundary,
+        mcp_url=mcp_url,
+        model=model,
+        credit_runner=credit_runner,
+    )
+
+
+def build_compliance_application(
+    normalized: DossierNormalizationResult,
+    credit: CreditAssessment,
+    *,
+    assessment_date: date | None = None,
+) -> tuple[ComplianceApplication | None, list[str]]:
+    facts = normalized.facts
+    documents = facts.compliance_documents.model_dump(mode="python")
+    screening = facts.screening.model_dump(mode="python")
+    missing = [
+        *(f"compliance_documents.{field}" for field, value in documents.items() if value is None),
+        *(f"screening.{field}" for field, value in screening.items() if value is None),
+    ]
+    if missing:
+        return None, sorted(missing)
+
+    financials = sorted(
+        facts.financials,
+        key=lambda item: item.period or "",
+        reverse=True,
+    )[:2]
+    try:
+        application = ComplianceApplication.model_validate(
+            {
+                "case_id": normalized.dossier_id,
+                "loan_profile_id": credit.loan_profile_id or normalized.dossier_id,
+                "execution_mode": "assess",
+                "customer_type": facts.customer.customer_type,
+                "as_of_date": assessment_date or date.today(),
+                "requested_amount": facts.loan.requested_amount,
+                "term_months": facts.loan.term_months,
+                "purpose": facts.loan.purpose,
+                "credit_result": {
+                    "legal_score": credit.facts.legal_score,
+                    "result": credit.facts.result,
+                    "hard_stop": bool(credit.facts.hard_stop_reasons),
+                    "missing_documents": credit.facts.missing_documents,
+                },
+                "current_financials": (
+                    financials[0].model_dump(mode="python", exclude_none=True)
+                    if financials
+                    else None
+                ),
+                "previous_financials": (
+                    financials[1].model_dump(mode="python", exclude_none=True)
+                    if len(financials) > 1
+                    else None
+                ),
+                "funding_plan": facts.funding_plan.model_dump(
+                    mode="python", exclude_none=True
+                ),
+                "repayment_plan": facts.repayment_plan.model_dump(
+                    mode="python", exclude_none=True
+                ),
+                "collateral": facts.collateral.model_dump(
+                    mode="python", exclude_none=True
+                ),
+                "documents": documents,
+                "screening": screening,
+            }
+        )
+    except ValidationError as exc:
+        return None, _validation_error_fields(exc)
+    return application, []
+
+
+def build_operations_application(
+    normalized: DossierNormalizationResult,
+    credit: CreditAssessment,
+    compliance: ComplianceAssessment,
+    *,
+    assessment_at: datetime | None = None,
+) -> tuple[OperationsApplication | None, list[str]]:
+    facts = normalized.facts
+    dscr = compliance.facts.metrics.dscr
+    ltv = compliance.facts.metrics.ltv
+    missing: list[str] = []
+    for field, value in (
+        ("customer.customer_type", facts.customer.customer_type),
+        ("loan.requested_amount", facts.loan.requested_amount),
+        ("loan.total_capital_need", facts.loan.total_capital_need),
+        ("loan.own_capital", facts.loan.own_capital),
+        ("loan.term_months", facts.loan.term_months),
+        ("loan.purpose", facts.loan.purpose),
+        ("collateral.collateral_type", facts.collateral.collateral_type),
+        ("collateral.value", facts.collateral.value),
+        ("compliance.metrics.dscr", dscr),
+        ("compliance.metrics.ltv", ltv),
+        ("compliance.recommended_limit", compliance.facts.recommended_limit),
+    ):
+        if value is None:
+            missing.append(field)
+    if missing:
+        return None, missing
+
+    now = assessment_at or datetime.now(timezone.utc)
+    try:
+        application = OperationsApplication.model_validate(
+            {
+                "case_id": normalized.dossier_id,
+                "loan_profile_id": credit.loan_profile_id or normalized.dossier_id,
+                "execution_mode": "assess",
+                "customer_type": facts.customer.customer_type,
+                "current_status": "S01",
+                "as_of_at": now,
+                "stage_started_at": now,
+                "requested_amount": facts.loan.requested_amount,
+                "total_capital_need": facts.loan.total_capital_need,
+                "own_capital": facts.loan.own_capital,
+                "term_months": facts.loan.term_months,
+                "purpose": facts.loan.purpose,
+                "repayment_method": facts.loan.repayment_method,
+                "collateral_based": True,
+                "documents": [
+                    {
+                        "document_type": item.document_type,
+                        "status": item.status,
+                    }
+                    for item in facts.documents
+                ],
+                "credit_result": {
+                    "legal_score": credit.facts.legal_score,
+                    "result": credit.facts.result,
+                    "hard_stop_reasons": credit.facts.hard_stop_reasons,
+                },
+                "compliance_result": {
+                    "total_score": compliance.facts.total_score,
+                    "risk_rating": compliance.facts.risk_rating,
+                    "result": compliance.facts.result,
+                    "dscr": Decimal(dscr),
+                    "collateral_type": facts.collateral.collateral_type,
+                    "collateral_value": facts.collateral.value,
+                    "ltv_ratio": Decimal(ltv),
+                    "hard_stop_reasons": compliance.facts.hard_stop_reasons,
+                    "conditions": compliance.conditions,
+                    "recommended_limit": compliance.facts.recommended_limit,
+                },
+                "human_approved": False,
+                "disbursement_conditions_complete": False,
+            }
+        )
+    except ValidationError as exc:
+        return None, _validation_error_fields(exc)
+    return application, []
+
+
+def _credit_overall_result(credit: CreditAssessment) -> OverallResult:
+    if credit.facts.result == "UNDETERMINED":
+        return "UNDETERMINED"
+    if credit.facts.result == "FAILED":
+        return "BLOCKED"
+    return "REVIEW_REQUIRED"
+
+
+def _credit_can_continue(credit: CreditAssessment) -> bool:
+    return bool(
+        credit.facts.result in {"PASSED", "CONDITIONAL"}
+        and not credit.facts.hard_stop_reasons
+        and credit.facts.can_forward_to_compliance
+    )
+
+
+def _compliance_can_continue(compliance: ComplianceAssessment) -> bool:
+    return bool(
+        compliance.facts.result in {"PASSED", "CONDITIONAL"}
+        and not compliance.facts.hard_stop_reasons
+        and compliance.facts.metrics.dscr is not None
+        and compliance.facts.recommended_limit is not None
+    )
+
+
+def _compliance_stop_result(compliance: ComplianceAssessment) -> OverallResult:
+    if compliance.facts.result == "FAILED" or compliance.facts.hard_stop_reasons:
+        return "BLOCKED"
+    if (
+        compliance.facts.result == "UNDETERMINED"
+        or compliance.facts.metrics.dscr is None
+        or compliance.facts.recommended_limit is None
+    ):
+        return "UNDETERMINED"
+    return "REVIEW_REQUIRED"
+
+
+_RESULT_LABELS = {
+    "PASSED": "đạt",
+    "CONDITIONAL": "đạt có điều kiện",
+    "FAILED": "không đạt",
+    "UNDETERMINED": "chưa đủ căn cứ",
+    "READY": "đủ điều kiện trình phê duyệt",
+    "BLOCKED": "bị chặn",
+    "WAITING": "đang chờ bổ sung",
+}
+_CUSTOMER_TYPE_LABELS = {
+    "individual": "cá nhân",
+    "household_business": "hộ kinh doanh",
+    "enterprise": "doanh nghiệp",
+}
+_DISCLAIMER = (
+    "Đây là đề xuất hỗ trợ thẩm định, không phải quyết định phê duyệt cuối cùng "
+    "của ngân hàng."
+)
+
+
+def _unique(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(item for item in items if item))
+
+
+def _money(value: Decimal | None) -> str:
+    return "chưa xác định" if value is None else f"{value:,.0f}".replace(",", ".") + " VND"
+
+
+def _specialist_conclusions(
+    result: DossierWorkflowResult,
+) -> tuple[
+    SpecialistConclusion | None,
+    SpecialistConclusion | None,
+    SpecialistConclusion | None,
+]:
+    credit = result.credit
+    compliance = result.compliance
+    operations = result.operations
+    return (
+        SpecialistConclusion(
+            result=credit.facts.result,
+            summary=(
+                f"Credit Agent kết luận {_RESULT_LABELS[credit.facts.result]}, "
+                f"điểm pháp lý {credit.facts.legal_score}/100."
+            ),
+            policy_source_ids=_unique([item.source_id for item in credit.evidence]),
+        )
+        if credit
+        else None,
+        SpecialistConclusion(
+            result=compliance.facts.result,
+            summary=(
+                f"Compliance Agent kết luận {_RESULT_LABELS[compliance.facts.result]}, "
+                f"điểm tuân thủ {compliance.facts.total_score}/100, "
+                f"hạn mức đề xuất {_money(compliance.facts.recommended_limit)}."
+            ),
+            policy_source_ids=_unique([item.source_id for item in compliance.evidence]),
+        )
+        if compliance
+        else None,
+        SpecialistConclusion(
+            result=operations.facts.result,
+            summary=(
+                f"Operations Agent kết luận {_RESULT_LABELS[operations.facts.result]}, "
+                f"điểm checklist {operations.facts.checklist_score}/100, "
+                f"hạn mức đề xuất {_money(operations.facts.recommended_limit)}."
+            ),
+            policy_source_ids=_unique([item.source_id for item in operations.evidence]),
+        )
+        if operations
+        else None,
+    )
+
+
+def build_final_report(
+    result: DossierWorkflowResult,
+    normalized: DossierNormalizationResult | None,
+) -> DossierFinalReport:
+    facts = normalized.facts if normalized else None
+    customer_summary = (
+        "Khách hàng: "
+        f"{facts.customer.full_name or 'chưa xác định'}; "
+        "loại khách hàng "
+        f"{_CUSTOMER_TYPE_LABELS.get(facts.customer.customer_type, 'chưa xác định')}."
+        if facts
+        else "Khách hàng: chưa đủ dữ liệu để xác định."
+    )
+    loan_summary = (
+        "Nhu cầu vay: "
+        f"{_money(facts.loan.requested_amount)}; "
+        f"thời hạn {facts.loan.term_months or 'chưa xác định'} tháng; "
+        f"mục đích {facts.loan.purpose or 'chưa xác định'}."
+        if facts
+        else "Nhu cầu vay: chưa đủ dữ liệu để xác định."
+    )
+    credit, compliance, operations = _specialist_conclusions(result)
+
+    assessments = [item for item in (result.credit, result.compliance, result.operations) if item]
+    missing_information = _unique(
+        [
+            *(
+                [f"{item.field}: {item.reason}" for item in facts.missing_information]
+                if facts
+                else []
+            ),
+            *(item.message for item in result.issues),
+            *(item for assessment in assessments for item in assessment.missing_data),
+            *(result.credit.facts.missing_documents if result.credit else []),
+        ]
+    )
+    hard_stops = _unique(
+        [
+            *(result.credit.facts.hard_stop_reasons if result.credit else []),
+            *(result.compliance.facts.hard_stop_reasons if result.compliance else []),
+            *(result.operations.facts.hard_stop_reasons if result.operations else []),
+        ]
+    )
+    conditions = _unique(
+        [
+            *(result.compliance.conditions if result.compliance else []),
+            *(result.operations.conditions if result.operations else []),
+        ]
+    )
+    next_actions = _unique(
+        [
+            *(result.credit.required_actions if result.credit else []),
+            *(
+                [item.action for item in result.operations.next_actions]
+                if result.operations
+                else []
+            ),
+            *(result.operations.facts.next_action_codes if result.operations else []),
+        ]
+    )
+
+    file_names = {
+        item.file_id: item.original_filename for item in normalized.files
+    } if normalized else {}
+    dossier_sources = [
+        DossierReportSource(
+            file_id=item.file_id,
+            file_name=file_names.get(item.file_id, item.file_id),
+            page=item.page,
+            field=item.field,
+            excerpt=item.excerpt,
+        )
+        for item in result.dossier_evidence
+    ]
+    policy_by_id = {
+        item.source_id: item
+        for assessment in assessments
+        for item in assessment.evidence
+    }
+    policy_sources = list(policy_by_id.values())
+
+    overall_summary = {
+        "READY": "Hồ sơ đủ điều kiện trình phê duyệt.",
+        "REVIEW_REQUIRED": "Hồ sơ cần rà soát hoặc bổ sung điều kiện trước khi trình phê duyệt.",
+        "BLOCKED": "Hồ sơ đang bị chặn và chưa đủ điều kiện trình phê duyệt.",
+        "UNDETERMINED": "Chưa đủ thông tin để kết luận hồ sơ.",
+    }[result.overall_result]
+    lines = [overall_summary, customer_summary, loan_summary]
+    lines.extend(item.summary for item in (credit, compliance, operations) if item)
+    for label, values in (
+        ("Thông tin còn thiếu", missing_information),
+        ("Điểm chặn", hard_stops),
+        ("Điều kiện", conditions),
+        ("Hành động tiếp theo", next_actions),
+    ):
+        if values:
+            lines.append(f"{label}: {'; '.join(values)}.")
+    if dossier_sources:
+        lines.append(
+            "Nguồn hồ sơ: "
+            + "; ".join(
+                f"{item.file_name}, trang {item.page}" for item in dossier_sources
+            )
+            + "."
+        )
+    if policy_sources:
+        lines.append(
+            "Nguồn chính sách: "
+            + "; ".join(
+                f"{item.file_name}, trang {item.page or 'không xác định'}"
+                for item in policy_sources
+            )
+            + "."
+        )
+    lines.append(_DISCLAIMER)
+    return DossierFinalReport(
+        answer="\n".join(lines),
+        customer_summary=customer_summary,
+        loan_summary=loan_summary,
+        credit=credit,
+        compliance=compliance,
+        operations=operations,
+        missing_information=missing_information,
+        hard_stops=hard_stops,
+        conditions=conditions,
+        next_actions=next_actions,
+        dossier_sources=dossier_sources,
+        policy_sources=policy_sources,
+        disclaimer=_DISCLAIMER,
+    )
+
+
+def _with_final_report(
+    result: DossierWorkflowResult,
+    normalized: DossierNormalizationResult | None,
+) -> DossierWorkflowResult:
+    current_trace = get_current_trace()
+    if current_trace is not None:
+        result.trace_id = current_trace.trace_id
+    result.report = build_final_report(result, normalized)
+    return result
+
+
+async def _run_dossier_assessment(
+    payload: Any,
+    *,
+    allowed_root: str | Path,
+    mcp_url: str = DEFAULT_RAG_MCP_URL,
+    model: str = DEFAULT_MODEL,
+    assessment_date: date | None = None,
+    assessment_at: datetime | None = None,
+    normalizer_runner: SpecialistRunner = Runner.run,
+    credit_runner: SpecialistRunner = run_credit_assessment,
+    compliance_runner: SpecialistRunner = run_compliance_assessment,
+    operations_runner: SpecialistRunner = run_operations_assessment,
+    input_preparer: InputPreparer = prepare_dossier_input,
+) -> DossierWorkflowResult:
+    normalization_started_at = perf_counter()
+    log_agent_event("dossier.normalization.started", stage="input")
+    try:
+        boundary = await input_preparer(
+            payload,
+            allowed_root=allowed_root,
+            model=model,
+            runner=normalizer_runner,
+        )
+    except Exception as error:
+        log_agent_event(
+            "dossier.normalization.failed",
+            stage="input",
+            error_category=classify_agent_error(error),
+            error_type=type(error).__name__,
+            duration_ms=int((perf_counter() - normalization_started_at) * 1000),
+        )
+        raise
+    log_agent_event(
+        "dossier.normalization.completed",
+        dossier_id=boundary.dossier_id,
+        stage="input",
+        status=boundary.status,
+        page_count=(boundary.normalized.page_count if boundary.normalized else 0),
+        evidence_count=(
+            len(boundary.normalized.facts.evidence) if boundary.normalized else 0
+        ),
+        missing_information_count=(
+            len(boundary.normalized.facts.missing_information)
+            if boundary.normalized
+            else len(boundary.issues)
+        ),
+        duration_ms=int((perf_counter() - normalization_started_at) * 1000),
+    )
+    credit_slice = await _run_credit_stage(
+        boundary,
+        mcp_url=mcp_url,
+        model=model,
+        credit_runner=credit_runner,
+    )
+    if credit_slice.credit is None or boundary.normalized is None:
+        log_agent_event(
+            "orchestrator.credit_gate",
+            dossier_id=boundary.dossier_id,
+            stage="credit",
+            decision="stop",
+            stop_reason=credit_slice.stop_reason,
+            error_category="input",
+            missing_information_count=len(credit_slice.issues),
+        )
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result="UNDETERMINED",
+                stopped_after="input",
+                stop_reason=credit_slice.stop_reason,
+                dossier_evidence=credit_slice.dossier_evidence,
+                issues=credit_slice.issues,
+            ),
+            boundary.normalized,
+        )
+
+    credit = credit_slice.credit
+    log_agent_event(
+        "orchestrator.credit_gate",
+        dossier_id=boundary.dossier_id,
+        stage="credit",
+        decision=(
+            "continue_to_compliance"
+            if credit_slice.can_continue_to_compliance
+            else "stop"
+        ),
+        result=credit.facts.result,
+        stop_reason=(
+            None
+            if credit_slice.can_continue_to_compliance
+            else "credit_not_ready_for_compliance"
+        ),
+        missing_information_count=len(credit.missing_data),
+        hard_stop_count=len(credit.facts.hard_stop_reasons),
+    )
+    if not credit_slice.can_continue_to_compliance:
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="completed",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result=_credit_overall_result(credit),
+                stopped_after="credit",
+                stop_reason="credit_not_ready_for_compliance",
+                credit=credit,
+                dossier_evidence=credit_slice.dossier_evidence,
+            ),
+            boundary.normalized,
+        )
+
+    compliance_application, missing = build_compliance_application(
+        boundary.normalized,
+        credit,
+        assessment_date=assessment_date,
+    )
+    if compliance_application is None:
+        log_agent_event(
+            "orchestrator.compliance_gate",
+            dossier_id=boundary.dossier_id,
+            stage="compliance",
+            decision="stop",
+            stop_reason="compliance_input_incomplete",
+            error_category="input",
+            missing_information_count=len(missing),
+        )
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result="UNDETERMINED",
+                stopped_after="credit",
+                stop_reason="compliance_input_incomplete",
+                credit=credit,
+                dossier_evidence=credit_slice.dossier_evidence,
+                issues=[
+                    DossierInputIssue(
+                        code="compliance_input_incomplete",
+                        message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Compliance Agent.",
+                        fields=missing,
+                    )
+                ],
+            ),
+            boundary.normalized,
+        )
+
+    compliance = await _run_specialist_stage(
+        "compliance",
+        compliance_runner,
+        compliance_application,
+        mcp_url=mcp_url,
+        model=model,
+    )
+    compliance_can_continue = _compliance_can_continue(compliance)
+    log_agent_event(
+        "orchestrator.compliance_gate",
+        dossier_id=boundary.dossier_id,
+        stage="compliance",
+        decision="continue_to_operations" if compliance_can_continue else "stop",
+        result=compliance.facts.result,
+        stop_reason=(
+            None if compliance_can_continue else "compliance_not_ready_for_operations"
+        ),
+        missing_information_count=len(compliance.missing_data),
+        hard_stop_count=len(compliance.facts.hard_stop_reasons),
+    )
+    if not compliance_can_continue:
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="completed",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result=_compliance_stop_result(compliance),
+                stopped_after="compliance",
+                stop_reason="compliance_not_ready_for_operations",
+                credit=credit,
+                compliance=compliance,
+                dossier_evidence=credit_slice.dossier_evidence,
+            ),
+            boundary.normalized,
+        )
+
+    operations_application, missing = build_operations_application(
+        boundary.normalized,
+        credit,
+        compliance,
+        assessment_at=assessment_at,
+    )
+    if operations_application is None:
+        log_agent_event(
+            "orchestrator.operations_input_gate",
+            dossier_id=boundary.dossier_id,
+            stage="operations",
+            decision="stop",
+            stop_reason="operations_input_incomplete",
+            error_category="input",
+            missing_information_count=len(missing),
+        )
+        return _with_final_report(
+            DossierWorkflowResult(
+                status="input_not_ready",
+                dossier_id=boundary.dossier_id,
+                routing_batch_id=boundary.routing_batch_id,
+                overall_result="UNDETERMINED",
+                stopped_after="compliance",
+                stop_reason="operations_input_incomplete",
+                credit=credit,
+                compliance=compliance,
+                dossier_evidence=credit_slice.dossier_evidence,
+                issues=[
+                    DossierInputIssue(
+                        code="operations_input_incomplete",
+                        message="Hồ sơ chưa đủ dữ liệu an toàn để chạy Operations Agent.",
+                        fields=missing,
+                    )
+                ],
+            ),
+            boundary.normalized,
+        )
+
+    operations = await _run_specialist_stage(
+        "operations",
+        operations_runner,
+        operations_application,
+        mcp_url=mcp_url,
+        model=model,
+    )
+    overall_result: OverallResult = {
+        "READY": "READY",
+        "BLOCKED": "BLOCKED",
+        "UNDETERMINED": "UNDETERMINED",
+        "CONDITIONAL": "REVIEW_REQUIRED",
+        "WAITING": "REVIEW_REQUIRED",
+    }[operations.facts.result]
+    return _with_final_report(
+        DossierWorkflowResult(
+            status="completed",
+            dossier_id=boundary.dossier_id,
+            routing_batch_id=boundary.routing_batch_id,
+            overall_result=overall_result,
+            credit=credit,
+            compliance=compliance,
+            operations=operations,
+            dossier_evidence=credit_slice.dossier_evidence,
+        ),
+        boundary.normalized,
+    )
+
+
+async def run_dossier_assessment(
+    payload: Any,
+    *,
+    allowed_root: str | Path,
+    mcp_url: str = DEFAULT_RAG_MCP_URL,
+    model: str = DEFAULT_MODEL,
+    assessment_date: date | None = None,
+    assessment_at: datetime | None = None,
+    normalizer_runner: SpecialistRunner = Runner.run,
+    credit_runner: SpecialistRunner = run_credit_assessment,
+    compliance_runner: SpecialistRunner = run_compliance_assessment,
+    operations_runner: SpecialistRunner = run_operations_assessment,
+    input_preparer: InputPreparer = prepare_dossier_input,
+) -> DossierWorkflowResult:
+    raw = payload.model_dump(mode="python") if isinstance(payload, BaseModel) else payload
+    dossier_id = raw.get("dossier_id") if isinstance(raw, dict) else None
+    dossier_id = dossier_id.strip() or None if isinstance(dossier_id, str) else None
+    files = raw.get("files") if isinstance(raw, dict) else None
+    started_at = perf_counter()
+
+    with trace(
+        "MediaX Dossier Assessment",
+        group_id=dossier_id,
+        metadata={"dossier_id": dossier_id} if dossier_id else None,
+    ):
+        log_agent_event(
+            "dossier.assessment.started",
+            dossier_id=dossier_id,
+            stage="input",
+            file_count=len(files) if isinstance(files, list) else None,
+            execution_mode="assess",
+        )
+        try:
+            result = await _run_dossier_assessment(
+                payload,
+                allowed_root=allowed_root,
+                mcp_url=mcp_url,
+                model=model,
+                assessment_date=assessment_date,
+                assessment_at=assessment_at,
+                normalizer_runner=normalizer_runner,
+                credit_runner=credit_runner,
+                compliance_runner=compliance_runner,
+                operations_runner=operations_runner,
+                input_preparer=input_preparer,
+            )
+        except Exception as error:
+            log_agent_event(
+                "dossier.assessment.failed",
+                dossier_id=dossier_id,
+                stage="workflow",
+                error_category=classify_agent_error(error),
+                error_type=type(error).__name__,
+                duration_ms=int((perf_counter() - started_at) * 1000),
+            )
+            raise
+
+        runtime_failed = any(
+            "rag_or_agent_runtime" in assessment.missing_data
+            for assessment in (result.credit, result.compliance, result.operations)
+            if assessment
+        )
+        report = result.report
+        log_agent_event(
+            "dossier.assessment.completed",
+            dossier_id=result.dossier_id,
+            stage=result.stopped_after or "completed",
+            status=result.status,
+            result=result.overall_result,
+            stop_reason=result.stop_reason,
+            error_category=(
+                "input"
+                if result.status == "input_not_ready"
+                else "rag_or_agent_runtime"
+                if runtime_failed
+                else None
+            ),
+            evidence_count=(
+                len(result.dossier_evidence) + len(report.policy_sources)
+                if report
+                else len(result.dossier_evidence)
+            ),
+            missing_information_count=(len(report.missing_information) if report else 0),
+            hard_stop_count=(len(report.hard_stops) if report else 0),
+            duration_ms=int((perf_counter() - started_at) * 1000),
+        )
+        return result
 
 
 def _compliance_input(
@@ -148,8 +1143,9 @@ def _operations_input(
     loan_profile_id: str,
 ) -> OperationsApplication:
     dscr = compliance.facts.metrics.dscr
-    if dscr is None:
-        raise ValueError("Compliance result does not contain DSCR")
+    ltv = compliance.facts.metrics.ltv
+    if dscr is None or ltv is None:
+        raise ValueError("Compliance result does not contain DSCR/LTV")
     collateral = application.compliance.collateral
     return OperationsApplication.model_validate(
         {
@@ -167,9 +1163,10 @@ def _operations_input(
                 "dscr": Decimal(dscr),
                 "collateral_type": collateral.collateral_type,
                 "collateral_value": collateral.value,
-                "ltv_ratio": compliance.facts.max_loan_by_collateral / collateral.value,
+                "ltv_ratio": Decimal(ltv),
                 "hard_stop_reasons": compliance.facts.hard_stop_reasons,
                 "conditions": compliance.conditions,
+                "recommended_limit": compliance.facts.recommended_limit,
             },
         }
     )
@@ -186,7 +1183,7 @@ async def run_orchestrator(
 ) -> OrchestratorAssessment:
     credit = await credit_runner(application.credit, mcp_url=mcp_url, model=model)
     loan_profile_id = credit.loan_profile_id or application.compliance.loan_profile_id
-    if not credit.facts.can_forward_to_compliance:
+    if not _credit_can_continue(credit):
         result: OverallResult = (
             "UNDETERMINED"
             if credit.facts.result == "UNDETERMINED"
@@ -208,12 +1205,12 @@ async def run_orchestrator(
         mcp_url=mcp_url,
         model=model,
     )
-    if compliance.facts.result == "UNDETERMINED" or compliance.facts.metrics.dscr is None:
+    if not _compliance_can_continue(compliance):
         return OrchestratorAssessment(
             case_id=application.credit.case_id,
             loan_profile_id=loan_profile_id,
             overall_result=(
-                "BLOCKED" if compliance.facts.result == "FAILED" else "UNDETERMINED"
+                _compliance_stop_result(compliance)
             ),
             stopped_after="compliance",
             stop_reason="compliance_not_ready_for_operations",
