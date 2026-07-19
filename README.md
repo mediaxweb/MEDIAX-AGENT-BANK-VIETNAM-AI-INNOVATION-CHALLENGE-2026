@@ -7,8 +7,11 @@ knowledge base.
 
 The current MVP supports:
 
-- A bundled anonymous multi-turn chat UI with grounded answers and document
-  sources. User-facing agent answers are always in Vietnamese.
+- A bundled demo UI with 10 pre-seeded accounts, JWT-based account selection,
+  user-scoped browser chat state, grounded answers, and document sources.
+  User-facing agent answers are always in Vietnamese.
+- Real PDF listing, search, and ingestion for the Credit, Compliance, and
+  Operations policy knowledge bases.
 - Credit, Compliance, and Operations specialist agents.
 - A fixed Credit → Compliance → Operations assessment workflow.
 - RAG chunk retrieval with full-page fallback when a chunk lacks context.
@@ -17,12 +20,14 @@ The current MVP supports:
 ## Architecture
 
 ```text
-Chat UI
+Web UI (10 selectable demo accounts + JWT)
         |
         | POST /api/v1/orchestrator/chat
         v
 FastAPI
+  - seeds public demo accounts at startup
   - creates or reopens SQLiteSession
+  - writes chat audit records to MongoDB
   - returns answer + domain + sources
         |
         v
@@ -42,7 +47,8 @@ Orchestrator Agent
         +----------+----------+
         |                     |
 Chroma + BM25           MongoDB
-policy knowledge        users and loan data
+policy knowledge        users, indexed-file registry,
+                        chat audit, and loan data
 ```
 
 There are two Orchestrator flows:
@@ -62,7 +68,9 @@ There are two Orchestrator flows:
 | `agents/operations_agent.py` | Checklist completion, workflow status, SLA, priority, limit, and next actions. |
 | `agents/orchestrator_agent.py` | Specialist routing for chat and ordered execution for full assessments. |
 | `app/rag_mcp_server.py` | Shared FastMCP adapter for RAG and persisted loan-case tools. |
-| `app/api/v1/orchestrator.py` | Anonymous chat API and SQLite conversation-session lifecycle. |
+| `app/api/v1/orchestrator.py` | Chat API, SQLite conversation-session lifecycle, and user-aware history logging. |
+| `app/services/auth_service.py` | Registration, login, JWT resolution, and startup seeding of the 10 demo accounts. |
+| `app/services/chat_history_service.py` | MongoDB chat-session and message audit records. |
 | `app/services/knowledge_base_service.py` | PDF ingestion, indexing, hybrid retrieval, and full-page lookup. |
 
 The local `agents/` directory deliberately has no `__init__.py` because
@@ -76,16 +84,23 @@ The FastAPI application serves the bundled Agent Bank demo UI at:
 - `/qa` and `/documents` serve the same single-page shell.
 
 Use the sidebar to switch between the Orchestrator chat and the
-document-management UI mock; the selected view is tracked in the URL hash.
+policy knowledge-base screen; the selected view is tracked in the URL hash.
 
-The `/qa` screen calls `POST /api/v1/orchestrator/chat` directly. It stores
-local chat sessions, messages, source metadata, and the backend `session_id` in
-browser `localStorage` so a browser refresh can restore the demo transcript and
-continue the same backend conversation.
+On startup, FastAPI creates 10 public demo accounts if they do not already
+exist. The UI asks the user to select one account, obtains its JWT through
+`POST /api/v1/auth/demo-login/{account_number}`, and then unlocks the app. The
+demo selector intentionally does not ask for a password.
 
-The `/documents` screen currently uses static document records and simulates
-upload progress in the browser. It does not call the knowledge-base APIs. Use
-Swagger or the API endpoints described below for real PDF ingestion.
+The `/qa` screen sends the selected account's Bearer token to
+`POST /api/v1/orchestrator/chat`. It stores local chat sessions, messages,
+source metadata, and the backend `session_id` in browser `localStorage`. The
+storage key includes the authenticated user ID, so each demo account restores
+only its own browser transcript and backend conversation IDs.
+
+The `/documents` screen calls the authenticated knowledge-base APIs to list,
+search, and upload text-based PDFs. Its three Agent scopes map to the Credit,
+Compliance, and Operations policy-owner IDs configured in
+`DOCUMENT_AGENT_SCOPES` in `static/js/app.js`.
 
 ## Quick start
 
@@ -150,7 +165,11 @@ Re-ingest the documents when the embedding dimensions change.
 Swagger UI is available at <http://localhost:8000/docs> unless
 `ENVIRONMENT=production`, which disables Swagger, ReDoc, and OpenAPI routes.
 
-### 5. Prepare the three policy knowledge accounts
+### 5. Select a demo account and prepare policy knowledge
+
+Open <http://localhost:8000/qa> and select any of the 10 demo accounts. FastAPI
+creates missing demo accounts during startup, so no registration or password is
+needed for the bundled UI.
 
 RAG storage is scoped by internal user ID. Create three accounts through Swagger
 for the Credit, Compliance, and Operations policy collections:
@@ -162,14 +181,19 @@ for the Credit, Compliance, and Operations policy collections:
 4. Upload the matching text-based PDFs through
    `POST /api/v1/knowledge-base/process-document`.
 
-These accounts isolate the three policy collections. They are not users of the
-anonymous demo chat.
+These accounts isolate the three specialist policy collections. They are
+separate from the 10 public accounts used to enter the demo UI.
 
 By default, uploads and file listing use the user ID from the Bearer token. For
 internal data preparation, set `ALLOW_KB_TARGET_USER_UPLOAD=true` to allow
 `POST /api/v1/knowledge-base/process-document` to accept a form `user_id` and
 `GET /api/v1/knowledge-base/files` to accept a `user_id` query parameter. When
 the flag is disabled, requests that target another user ID return `403`.
+
+The bundled `/documents` screen targets the three IDs in
+`DOCUMENT_AGENT_SCOPES`. For a new database, replace those values with the three
+recorded policy-owner IDs and enable `ALLOW_KB_TARGET_USER_UPLOAD=true` so a
+selected demo account can manage those shared policy collections.
 
 ### 6. Start FastMCP
 
@@ -210,11 +234,17 @@ provider before startup.
 
 ### 7. Ask a question
 
-The first request omits `session_id`:
+Authenticate as the first demo account, then omit `session_id` from the first
+request:
 
 ```powershell
+$auth = Invoke-RestMethod -Method Post `
+  -Uri 'http://localhost:8000/api/v1/auth/demo-login/1'
+$headers = @{ Authorization = "Bearer $($auth.access_token)" }
+
 $first = Invoke-RestMethod -Method Post `
   -Uri 'http://localhost:8000/api/v1/orchestrator/chat' `
+  -Headers $headers `
   -ContentType 'application/json' `
   -Body (@{
     message = 'Tỷ lệ cho vay tối đa đối với tài sản bảo đảm là nhà đất là bao nhiêu?'
@@ -228,6 +258,7 @@ Reuse the returned ID for a follow-up:
 ```powershell
 $second = Invoke-RestMethod -Method Post `
   -Uri 'http://localhost:8000/api/v1/orchestrator/chat' `
+  -Headers $headers `
   -ContentType 'application/json' `
   -Body (@{
     session_id = $first.session_id
@@ -237,11 +268,14 @@ $second = Invoke-RestMethod -Method Post `
 $second
 ```
 
-## Anonymous chat API
+## Chat API
 
 ### `POST /api/v1/orchestrator/chat`
 
-No registration, login, or Bearer token is required.
+The endpoint accepts an optional Bearer token. The bundled UI always supplies
+the selected demo account's token; authenticated exchanges are associated with
+that user in the MongoDB chat audit. Direct API callers may omit the token, in
+which case the chat still runs but the audit record has no `user_id`.
 
 Request:
 
@@ -287,7 +321,8 @@ API returns a clarification response instead of failing the request:
 ```
 
 The backend generates a UUID when `session_id` is absent. The bundled UI stores
-this value in browser `localStorage` and sends it with later messages.
+this value in user-scoped browser `localStorage` and sends it with later
+messages.
 
 Conversation context is persisted by OpenAI Agents SDK `SQLiteSession`. In a
 deployment it uses `STORAGE_ROOT` (or `RAILWAY_VOLUME_MOUNT_PATH`), for example:
@@ -299,10 +334,12 @@ deployment it uses `STORAGE_ROOT` (or `RAILWAY_VOLUME_MOUNT_PATH`), for example:
 Without a storage root it falls back to the local, gitignored
 `.local_storage/orchestrator_sessions.db`. SQLite remains intended for the
 single-instance MVP.
-There is currently no backend endpoint for listing sessions or loading a chat
-transcript. The transcript shown by the bundled UI exists only in that
-browser's `localStorage`; the SQLite session stores the model conversation
-context.
+
+MongoDB also receives audit copies of the user and assistant messages, source
+metadata, domain, and trace ID. There is currently no backend endpoint for
+listing those records or loading a transcript. The transcript shown by the
+bundled UI still comes from that account's browser `localStorage`; SQLite stores
+the model conversation context.
 
 ### Agent tracing
 
@@ -396,6 +433,8 @@ session. Use the FastAPI chat endpoint for multi-turn conversation.
 | `ENVIRONMENT` | FastAPI docs and development CORS behavior | `development` |
 | `MONGO_URI` | FastAPI, RAG, and loan data | none |
 | `MONGO_DB_NAME` | MongoDB database fallback | `rag_brain` |
+| `JWT_SECRET_KEY` | Signing access tokens; replace outside local development | insecure development placeholder |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Access-token lifetime | `10080` |
 | `OPENAI_API_KEY` | Agents, hosted traces, legacy Q&A, and optional OpenAI embeddings | none |
 | `LLAMA_EMBED_PROVIDER` | Document ingestion and retrieval | `huggingface` |
 | `LLAMA_EMBED_MODEL` | Local embeddings | `VoVanPhuc/sup-SimCSE-VietNamese-phobert-base` |
@@ -426,7 +465,7 @@ The repository still exposes supporting RAG and demo loan-data APIs:
 
 Use Swagger at <http://localhost:8000/docs> for their current schemas. These
 routes support data preparation and agent tools; the main demo entry point is
-`POST /api/v1/orchestrator/chat`.
+the bundled UI at `/qa`, backed by `POST /api/v1/orchestrator/chat`.
 
 ## Tests
 
@@ -436,15 +475,17 @@ routes support data preparation and agent tools; the main demo entry point is
 
 ## MVP limitations
 
-- The bundled Q&A frontend is a demo UI; the document-management screen is
-  mocked and is not connected to the knowledge-base APIs.
+- The 10 public demo accounts are intentionally selectable without passwords;
+  this convenience flow is not production authentication.
+- The document screen maps its three Agent scopes to fixed internal user IDs;
+  a fresh deployment must align those IDs and enable authorized target-user
+  knowledge-base access.
 - No OCR; scanned PDFs without an extractable text layer are unsupported.
-- Anonymous chat has no user accounts or authorization.
 - Each chat turn delegates to exactly one specialist; cross-domain aggregation
   in a single answer is not implemented.
 - Chat sessions use local SQLite and are not shared across backend instances.
-- Chat transcripts are browser-local, and there is no backend chat-history
-  listing, session cleanup, or deletion API.
+- UI chat transcripts are browser-local per demo account. MongoDB audit records
+  exist, but there is no chat-history listing, session cleanup, or deletion API.
 - Final approval and disbursement remain human responsibilities.
 
 ## License
