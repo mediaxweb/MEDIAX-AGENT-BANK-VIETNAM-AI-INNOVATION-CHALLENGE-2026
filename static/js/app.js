@@ -786,6 +786,7 @@ function unlockApp(user = null) {
     updateAuthenticatedUser(user);
     loadAuthenticatedChatState(user);
   }
+  ensureDefaultDocumentsLoaded();
 }
 
 function lockApp() {
@@ -1012,6 +1013,7 @@ const DOCUMENT_AGENT_SCOPES = {
     userId: '6a5b187163aaa5e0510f2da3',
   },
 };
+const DEFAULT_DOCUMENT_AGENT_ID = 'credit';
 
 const STATUS_LABELS = {
   ready: 'Sẵn sàng',
@@ -1021,7 +1023,7 @@ const STATUS_LABELS = {
 };
 const UPLOAD_STAGES = ['Chờ tải lên', 'Đang tải lên', 'Đang lập chỉ mục', 'Sẵn sàng'];
 let docState = {
-  selectedAgentId: null,
+  selectedAgentId: DEFAULT_DOCUMENT_AGENT_ID,
   documents: [],
   query: '',
   pageSize: 10,
@@ -1500,8 +1502,23 @@ function setupDropzone() {
 }
 
 // ---- Bootstrap Documents ----
+function ensureDefaultDocumentsLoaded() {
+  const agentId = docState.selectedAgentId || DEFAULT_DOCUMENT_AGENT_ID;
+  if (!docState.selectedAgentId) {
+    setSelectedDocumentAgent(agentId);
+  } else {
+    setSelectedDocumentAgent(docState.selectedAgentId);
+  }
+  if (!getStoredAccessToken()) {
+    renderDocTable();
+    return;
+  }
+  if (docState.isLoading || (docState.hasLoaded && !docState.loadError)) return;
+  loadDocumentsForAgent(agentId);
+}
+
 function initDocumentsModule() {
-  renderDocTable();
+  ensureDefaultDocumentsLoaded();
 
   document.querySelectorAll('[data-doc-action]').forEach(btn => {
     btn.addEventListener('click', () => {
